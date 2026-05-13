@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.content.res.ColorStateList;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.StateListDrawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
@@ -24,6 +25,7 @@ import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.ProgressBar;
 import android.widget.RadioGroup;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -56,14 +58,18 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     private static final String KEY_ASSESSMENT_HISTORY = "clinical_assessment_history";
 
     private static final int STEP_COUNT = 5;
-    private static final int COLOR_SCREEN_BACKGROUND = Color.rgb(244, 248, 251);
+    private static final int COLOR_SCREEN_BACKGROUND = Color.rgb(243, 244, 246);
     private static final int COLOR_CARD_BACKGROUND = Color.WHITE;
-    private static final int COLOR_TEXT_PRIMARY = Color.rgb(15, 23, 42);
-    private static final int COLOR_TEXT_SECONDARY = Color.rgb(71, 85, 105);
-    private static final int COLOR_PRIMARY = Color.rgb(0, 121, 107);
-    private static final int COLOR_PRIMARY_DARK = Color.rgb(0, 96, 86);
-    private static final int COLOR_FIELD_STROKE = Color.rgb(203, 213, 225);
-    private static final int COLOR_FIELD_BACKGROUND = Color.rgb(248, 250, 252);
+    private static final int COLOR_TEXT_PRIMARY = Color.rgb(17, 24, 39);
+    private static final int COLOR_TEXT_SECONDARY = Color.rgb(75, 85, 99);
+    private static final int COLOR_PRIMARY = Color.rgb(37, 99, 235);
+    private static final int COLOR_PRIMARY_DARK = Color.rgb(30, 64, 175);
+    private static final int COLOR_FIELD_STROKE = Color.rgb(209, 213, 219);
+    private static final int COLOR_FIELD_BACKGROUND = Color.rgb(249, 250, 251);
+    private static final int COLOR_SUCCESS = Color.rgb(16, 185, 129);
+    private static final int COLOR_WARNING = Color.rgb(234, 179, 8);
+    private static final int COLOR_ORANGE = Color.rgb(249, 115, 22);
+    private static final int COLOR_DANGER = Color.rgb(220, 38, 38);
 
 
     private ClinicalAssessment assessment;
@@ -137,6 +143,10 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     private TextView patientSummaryListView;
     private TextView workflowProgressView;
     private TextView quickSummaryView;
+    private TextView news2CompletionView;
+    private ProgressBar news2CompletionProgressView;
+    private TextView news2FooterScoreView;
+    private TextView news2FooterRiskView;
     private TextView news2TotalView;
     private TextView news2RiskView;
     private TextView news2ActionView;
@@ -415,156 +425,48 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     private void buildAssessmentForm(LinearLayout container) {
         container.removeAllViews();
         workflowStepContainers.clear();
-        addTitle(container, getString(R.string.assessment_form_title));
-        addLabel(container, getString(R.string.workflow_intro));
-        patientSummaryListView = addAlertText(container, getString(R.string.patient_summary_empty), "#263238");
-        quickSummaryView = addAlertText(container, getString(R.string.quick_summary_empty), "#455A64");
-        addWorkflowControls(container);
+        container.setPadding(dp(16), dp(14), dp(16), dp(26));
 
-        LinearLayout stepPatient = addWorkflowStep(container, R.string.workflow_step_patient, R.string.workflow_step_patient_hint);
-        addSection(stepPatient, getString(R.string.section_patient_info));
-        patientIdView = addEditText(stepPatient, getString(R.string.patient_id));
-        admissionDateTimeView = addDateTimeEditText(stepPatient, getString(R.string.admission_datetime));
-        fullNameView = addEditText(stepPatient, getString(R.string.full_name));
-        ageView = addNumberEditText(stepPatient, getString(R.string.age));
-        genderGroup = addRadioGroup(stepPatient, getString(R.string.gender), new String[]{getString(R.string.male), getString(R.string.female)}, null);
-        suspectedInfectionView = addEditText(stepPatient, getString(R.string.suspected_infection));
-        wardView = addEditText(stepPatient, getString(R.string.ward));
-        addLabel(stepPatient, getString(R.string.comorbidities));
-        diabetesView = addCheckBox(stepPatient, getString(R.string.diabetes));
-        chronicKidneyDiseaseView = addCheckBox(stepPatient, getString(R.string.chronic_kidney_disease));
-        liverFailureView = addCheckBox(stepPatient, getString(R.string.liver_failure));
-        hypertensionView = addCheckBox(stepPatient, getString(R.string.hypertension));
-        copdView = addCheckBox(stepPatient, getString(R.string.copd));
-        otherComorbidityView = addEditText(stepPatient, getString(R.string.other_comorbidity));
+        addNews2TopBar(container);
+        quickSummaryView = addAlertText(container, getString(R.string.quick_summary_empty), "#6B7280");
 
-        LinearLayout stepNews2 = addWorkflowStep(container, R.string.workflow_step_news2, R.string.workflow_step_news2_hint);
-        addSection(stepNews2, getString(R.string.section_news2));
-        addLabel(stepNews2, getString(R.string.news2_quick_hint));
-        news2RespirationMeasuredView = addNumberEditText(stepNews2, getString(R.string.news2_respiration));
-        news2RespirationGroup = addScoreRadioGroup(stepNews2, getString(R.string.news2_respiration), new String[]{"≤ 8", "9-11", "12-20", "21-24", "≥ 25"}, new int[]{3, 1, 0, 2, 3});
-        news2Spo2Scale2View = addCheckBox(stepNews2, getString(R.string.news2_spo2_scale2));
-        news2Spo2MeasuredView = addNumberEditText(stepNews2, getString(R.string.news2_spo2));
-        news2Spo2Group = addScoreRadioGroup(stepNews2, getString(R.string.news2_spo2), new String[]{"≤ 91", "92-93", "94-95", "≥ 96"}, new int[]{3, 2, 1, 0});
-        news2OxygenMeasuredView = addEditText(stepNews2, getString(R.string.news2_oxygen_note));
-        news2OxygenGroup = addScoreRadioGroup(stepNews2, getString(R.string.news2_oxygen), new String[]{getString(R.string.yes), getString(R.string.no)}, new int[]{2, 0});
-        news2TemperatureMeasuredView = addDecimalEditText(stepNews2, getString(R.string.news2_temperature));
-        news2TemperatureGroup = addScoreRadioGroup(stepNews2, getString(R.string.news2_temperature), new String[]{"≤ 35.0", "35.1-36.0", "36.1-38.0", "38.1-39.0", "≥ 39.1"}, new int[]{3, 1, 0, 1, 2});
-        news2SystolicBpMeasuredView = addNumberEditText(stepNews2, getString(R.string.news2_systolic_bp));
-        news2SystolicBpGroup = addScoreRadioGroup(stepNews2, getString(R.string.news2_systolic_bp), new String[]{"≤ 90", "91-100", "101-110", "111-219", "≥ 220"}, new int[]{3, 2, 1, 0, 3});
-        news2HeartRateMeasuredView = addNumberEditText(stepNews2, getString(R.string.news2_heart_rate));
-        news2HeartRateGroup = addScoreRadioGroup(stepNews2, getString(R.string.news2_heart_rate), new String[]{"≤ 40", "41-50", "51-90", "91-110", "111-130", "≥ 131"}, new int[]{3, 1, 0, 1, 2, 3});
-        news2ConsciousnessMeasuredView = addEditText(stepNews2, getString(R.string.news2_consciousness_hint));
-        news2ConsciousnessGroup = addScoreRadioGroup(stepNews2, getString(R.string.news2_consciousness), new String[]{"Tỉnh (A)", "Lú lẫn mới", "Gọi hỏi (V)", "Đau (P)", "Không đáp ứng (U)"}, new int[]{0, 3, 3, 3, 3});
-        news2TotalView = addTotalText(stepNews2, getString(R.string.news2_total));
-        news2RiskView = addAlertText(stepNews2, getString(R.string.news2_risk_empty), "#455A64");
-        news2ActionView = addLabel(stepNews2, getString(R.string.news2_action_empty));
-        news2MonitoringView = addLabel(stepNews2, getString(R.string.news2_monitoring_empty));
-        news2HighestCriterionView = addLabel(stepNews2, getString(R.string.news2_highest_empty));
+        addSpo2ScaleCard(container);
+        news2RespirationGroup = addNews2CriterionCard(container, getString(R.string.news2_respiration), null,
+                new String[]{"≤ 8", "9 - 11", "12 - 20", "21 - 24", "≥ 25"}, new int[]{3, 1, 0, 2, 3});
+        if (assessment.news2Spo2Scale2) {
+            news2Spo2Group = addNews2CriterionCard(container, getString(R.string.news2_spo2_scale2_title), getString(R.string.news2_spo2_scale2_subtitle),
+                    new String[]{"≤ 83%", "84 - 85%", "86 - 87%", "88 - 92% (hoặc ≥ 93% khí phòng)", "93 - 94% (thở Oxy)", "95 - 96% (thở Oxy)", "≥ 97% (thở Oxy)"}, new int[]{3, 2, 1, 0, 1, 2, 3});
+        } else {
+            news2Spo2Group = addNews2CriterionCard(container, getString(R.string.news2_spo2_scale1_title), getString(R.string.news2_spo2_scale1_subtitle),
+                    new String[]{"≤ 91%", "92 - 93%", "94 - 95%", "≥ 96%"}, new int[]{3, 2, 1, 0});
+        }
+        news2OxygenGroup = addNews2CriterionCard(container, getString(R.string.news2_oxygen), null,
+                new String[]{"Thở khí phòng", "Thở Oxy"}, new int[]{0, 2});
+        news2SystolicBpGroup = addNews2CriterionCard(container, getString(R.string.news2_systolic_bp), null,
+                new String[]{"≤ 90", "91 - 100", "101 - 110", "111 - 219", "≥ 220"}, new int[]{3, 2, 1, 0, 3});
+        news2HeartRateGroup = addNews2CriterionCard(container, getString(R.string.news2_heart_rate), null,
+                new String[]{"≤ 40", "41 - 50", "51 - 90", "91 - 110", "111 - 130", "≥ 131"}, new int[]{3, 1, 0, 1, 2, 3});
+        news2ConsciousnessGroup = addNews2CriterionCard(container, getString(R.string.news2_consciousness), null,
+                new String[]{"A - Tỉnh táo (Alert)", "C/V/P/U - Lú lẫn, đáp ứng lời nói/đau hoặc không phản ứng"}, new int[]{0, 3});
+        news2TemperatureGroup = addNews2CriterionCard(container, getString(R.string.news2_temperature), null,
+                new String[]{"≤ 35.0", "35.1 - 36.0", "36.1 - 38.0", "38.1 - 39.0", "≥ 39.1"}, new int[]{3, 1, 0, 1, 2});
 
-        LinearLayout stepQsofa = addWorkflowStep(container, R.string.workflow_step_qsofa_lactate, R.string.workflow_step_qsofa_lactate_hint);
-        addSection(stepQsofa, getString(R.string.section_qsofa));
-        qsofaRespirationView = addCheckBox(stepQsofa, getString(R.string.qsofa_respiration));
-        qsofaSystolicBpView = addCheckBox(stepQsofa, getString(R.string.qsofa_systolic_bp));
-        qsofaConsciousnessView = addCheckBox(stepQsofa, getString(R.string.qsofa_consciousness));
-        qsofaTotalView = addTotalText(stepQsofa, getString(R.string.qsofa_total));
-        addSection(stepQsofa, getString(R.string.section_lactate));
-        lactateView = addDecimalEditText(stepQsofa, getString(R.string.lactate_value));
-        lactateSampleTimeView = addDateTimeEditText(stepQsofa, getString(R.string.lactate_sample_time));
-        lactateLevelGroup = addRadioGroup(stepQsofa, getString(R.string.lactate_level), new String[]{"< 2 mmol/L", "2 - 3.9 mmol/L", "≥ 4 mmol/L"}, null);
-
-        LinearLayout stepSofa = addWorkflowStep(container, R.string.workflow_step_sofa, R.string.workflow_step_sofa_hint);
-        addSection(stepSofa, getString(R.string.section_sofa));
-        sofaRespirationMeasuredView = addEditText(stepSofa, getString(R.string.actual_result));
-        sofaRespirationGroup = addScoreRadioGroup(stepSofa, getString(R.string.sofa_respiration), new String[]{"0", "1", "2", "3", "4"}, new int[]{0, 1, 2, 3, 4});
-        sofaCoagulationMeasuredView = addEditText(stepSofa, getString(R.string.actual_result));
-        sofaCoagulationGroup = addScoreRadioGroup(stepSofa, getString(R.string.sofa_coagulation), new String[]{"0", "1", "2", "3", "4"}, new int[]{0, 1, 2, 3, 4});
-        sofaLiverMeasuredView = addEditText(stepSofa, getString(R.string.actual_result));
-        sofaLiverGroup = addScoreRadioGroup(stepSofa, getString(R.string.sofa_liver), new String[]{"0", "1", "2", "3", "4"}, new int[]{0, 1, 2, 3, 4});
-        sofaCardiovascularMeasuredView = addEditText(stepSofa, getString(R.string.actual_result));
-        sofaCardiovascularGroup = addScoreRadioGroup(stepSofa, getString(R.string.sofa_cardiovascular), new String[]{"0", "1", "2", "3", "4"}, new int[]{0, 1, 2, 3, 4});
-        sofaNeurologicMeasuredView = addEditText(stepSofa, getString(R.string.actual_result));
-        sofaNeurologicGroup = addScoreRadioGroup(stepSofa, getString(R.string.sofa_neurologic), new String[]{"0", "1", "2", "3", "4"}, new int[]{0, 1, 2, 3, 4});
-        sofaRenalMeasuredView = addEditText(stepSofa, getString(R.string.actual_result));
-        sofaRenalGroup = addScoreRadioGroup(stepSofa, getString(R.string.sofa_renal), new String[]{"0", "1", "2", "3", "4"}, new int[]{0, 1, 2, 3, 4});
-        vasopressorView = addCheckBox(stepSofa, getString(R.string.vasopressor));
-        sofaTotalView = addTotalText(stepSofa, getString(R.string.sofa_total));
-
-        LinearLayout stepSave = addWorkflowStep(container, R.string.workflow_step_save, R.string.workflow_step_save_hint);
-        addSection(stepSave, getString(R.string.section_outcome));
-        sepsisDiagnosisView = addTotalText(stepSave, getString(R.string.sepsis_diagnosis));
-        treatmentOutcomeGroup = addRadioGroup(stepSave, getString(R.string.treatment_outcome), new String[]{getString(R.string.outcome_recovered), getString(R.string.outcome_transfer), getString(R.string.outcome_death)}, null);
-        treatmentDaysView = addNumberEditText(stepSave, getString(R.string.treatment_days));
-        saveAssessmentButton = addButton(stepSave, getString(R.string.save_assessment));
-        saveAssessmentButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                recalculateAndSave(false);
-                if (!hasMinimalAssessmentData()) {
-                    Toast.makeText(MainActivity.this, R.string.save_assessment_missing, Toast.LENGTH_SHORT).show();
-                    return;
-                }
-                appendAssessmentHistory();
-                lastSavedView.setText(getString(R.string.assessment_saved_format, DateFormat.getDateTimeInstance().format(new Date(assessment.savedAtMillis))));
-                updatePatientSummaryList();
-            }
-        });
-        lastSavedView = addTotalText(stepSave, getString(R.string.last_saved));
-        updateWorkflowStepVisibility();
-        updatePatientSummaryList();
+        addNews2ResultCard(container);
+        addNews2Footer(container);
     }
 
     private void bindAssessmentToViews() {
         isBinding = true;
-        patientIdView.setText(assessment.patientId);
-        admissionDateTimeView.setText(assessment.admissionDateTime);
-        fullNameView.setText(assessment.fullName);
-        ageView.setText(assessment.age);
-        checkRadioByText(genderGroup, assessment.gender);
-        suspectedInfectionView.setText(assessment.suspectedInfection);
-        wardView.setText(assessment.ward);
-        diabetesView.setChecked(assessment.diabetes);
-        chronicKidneyDiseaseView.setChecked(assessment.chronicKidneyDisease);
-        liverFailureView.setChecked(assessment.liverFailure);
-        hypertensionView.setChecked(assessment.hypertension);
-        copdView.setChecked(assessment.copd);
-        otherComorbidityView.setText(assessment.otherComorbidity);
-        news2RespirationMeasuredView.setText(assessment.news2RespirationMeasured);
-        news2Spo2MeasuredView.setText(assessment.news2Spo2Measured);
-        news2Spo2Scale2View.setChecked(assessment.news2Spo2Scale2);
-        news2OxygenMeasuredView.setText(assessment.news2OxygenMeasured);
-        news2TemperatureMeasuredView.setText(assessment.news2TemperatureMeasured);
-        news2SystolicBpMeasuredView.setText(assessment.news2SystolicBpMeasured);
-        news2HeartRateMeasuredView.setText(assessment.news2HeartRateMeasured);
-        news2ConsciousnessMeasuredView.setText(assessment.news2ConsciousnessMeasured);
+        if (news2Spo2Scale2View != null) {
+            news2Spo2Scale2View.setChecked(assessment.news2Spo2Scale2);
+        }
         checkRadioByOption(news2RespirationGroup, assessment.news2RespirationOption, assessment.news2Respiration);
         checkRadioByOption(news2Spo2Group, assessment.news2Spo2Option, assessment.news2Spo2);
         checkRadioByOption(news2OxygenGroup, assessment.news2OxygenOption, assessment.news2Oxygen);
-        checkRadioByOption(news2TemperatureGroup, assessment.news2TemperatureOption, assessment.news2Temperature);
         checkRadioByOption(news2SystolicBpGroup, assessment.news2SystolicBpOption, assessment.news2SystolicBp);
         checkRadioByOption(news2HeartRateGroup, assessment.news2HeartRateOption, assessment.news2HeartRate);
         checkRadioByOption(news2ConsciousnessGroup, assessment.news2ConsciousnessOption, assessment.news2Consciousness);
-        qsofaRespirationView.setChecked(assessment.qsofaRespiration);
-        qsofaSystolicBpView.setChecked(assessment.qsofaSystolicBp);
-        qsofaConsciousnessView.setChecked(assessment.qsofaConsciousness);
-        lactateView.setText(assessment.lactate);
-        lactateSampleTimeView.setText(assessment.lactateSampleTime);
-        checkRadioByText(lactateLevelGroup, assessment.lactateLevel);
-        sofaRespirationMeasuredView.setText(assessment.sofaRespirationMeasured);
-        sofaCoagulationMeasuredView.setText(assessment.sofaCoagulationMeasured);
-        sofaLiverMeasuredView.setText(assessment.sofaLiverMeasured);
-        sofaCardiovascularMeasuredView.setText(assessment.sofaCardiovascularMeasured);
-        sofaNeurologicMeasuredView.setText(assessment.sofaNeurologicMeasured);
-        sofaRenalMeasuredView.setText(assessment.sofaRenalMeasured);
-        checkRadioByScore(sofaRespirationGroup, assessment.sofaRespiration);
-        checkRadioByScore(sofaCoagulationGroup, assessment.sofaCoagulation);
-        checkRadioByScore(sofaLiverGroup, assessment.sofaLiver);
-        checkRadioByScore(sofaCardiovascularGroup, assessment.sofaCardiovascular);
-        checkRadioByScore(sofaNeurologicGroup, assessment.sofaNeurologic);
-        checkRadioByScore(sofaRenalGroup, assessment.sofaRenal);
-        vasopressorView.setChecked(assessment.vasopressor);
-        checkRadioByText(treatmentOutcomeGroup, assessment.treatmentOutcome);
-        treatmentDaysView.setText(assessment.treatmentDays);
+        checkRadioByOption(news2TemperatureGroup, assessment.news2TemperatureOption, assessment.news2Temperature);
         isBinding = false;
     }
 
@@ -577,72 +479,28 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         assessment.news2Total = assessment.news2Respiration + assessment.news2Spo2 + assessment.news2Oxygen
                 + assessment.news2Temperature + assessment.news2SystolicBp + assessment.news2HeartRate
                 + assessment.news2Consciousness;
-        assessment.qsofaTotal = booleanScore(assessment.qsofaRespiration) + booleanScore(assessment.qsofaSystolicBp)
-                + booleanScore(assessment.qsofaConsciousness);
-        assessment.sofaTotal = assessment.sofaRespiration + assessment.sofaCoagulation + assessment.sofaLiver
-                + assessment.sofaCardiovascular + assessment.sofaNeurologic + assessment.sofaRenal;
-        assessment.sepsisDiagnosis = buildSepsisDiagnosis();
         assessment.savedAtMillis = System.currentTimeMillis();
 
         updateQuickSummaryViews();
-        news2TotalView.setText(getString(R.string.news2_total_format, assessment.news2Total));
-        qsofaTotalView.setText(getString(R.string.qsofa_total_format, assessment.qsofaTotal));
-        sofaTotalView.setText(getString(R.string.sofa_total_format, assessment.sofaTotal));
-        sepsisDiagnosisView.setText(assessment.sepsisDiagnosis);
-        lastSavedView.setText(getString(R.string.last_saved_format, DateFormat.getDateTimeInstance().format(new Date(assessment.savedAtMillis))));
-
         saveCurrentAssessment();
-        if (appendHistory) {
-            appendAssessmentHistory();
-        }
     }
 
     private void updateAssessmentFromViews() {
-        assessment.patientId = patientIdView.getText().toString();
-        assessment.admissionDateTime = admissionDateTimeView.getText().toString();
-        assessment.fullName = fullNameView.getText().toString();
-        assessment.age = ageView.getText().toString();
-        assessment.gender = selectedText(genderGroup);
-        assessment.suspectedInfection = suspectedInfectionView.getText().toString();
-        assessment.ward = wardView.getText().toString();
-        assessment.diabetes = diabetesView.isChecked();
-        assessment.chronicKidneyDisease = chronicKidneyDiseaseView.isChecked();
-        assessment.liverFailure = liverFailureView.isChecked();
-        assessment.hypertension = hypertensionView.isChecked();
-        assessment.copd = copdView.isChecked();
-        assessment.otherComorbidity = otherComorbidityView.getText().toString();
-        assessment.news2RespirationMeasured = news2RespirationMeasuredView.getText().toString();
-        assessment.news2Spo2Measured = news2Spo2MeasuredView.getText().toString();
-        assessment.news2Spo2Scale2 = news2Spo2Scale2View.isChecked();
-        assessment.news2OxygenMeasured = news2OxygenMeasuredView.getText().toString();
-        assessment.news2TemperatureMeasured = news2TemperatureMeasuredView.getText().toString();
-        assessment.news2SystolicBpMeasured = news2SystolicBpMeasuredView.getText().toString();
-        assessment.news2HeartRateMeasured = news2HeartRateMeasuredView.getText().toString();
-        assessment.news2ConsciousnessMeasured = news2ConsciousnessMeasuredView.getText().toString();
+        assessment.news2Spo2Scale2 = news2Spo2Scale2View != null && news2Spo2Scale2View.isChecked();
+        assessment.news2Respiration = selectedScore(news2RespirationGroup);
+        assessment.news2RespirationOption = selectedOption(news2RespirationGroup);
+        assessment.news2Spo2 = selectedScore(news2Spo2Group);
+        assessment.news2Spo2Option = selectedOption(news2Spo2Group);
         assessment.news2Oxygen = selectedScore(news2OxygenGroup);
         assessment.news2OxygenOption = selectedOption(news2OxygenGroup);
-        applyNews2AutoScores();
-        assessment.qsofaRespiration = qsofaRespirationView.isChecked();
-        assessment.qsofaSystolicBp = qsofaSystolicBpView.isChecked();
-        assessment.qsofaConsciousness = qsofaConsciousnessView.isChecked();
-        assessment.lactate = lactateView.getText().toString();
-        assessment.lactateSampleTime = lactateSampleTimeView.getText().toString();
-        assessment.lactateLevel = selectedText(lactateLevelGroup);
-        assessment.sofaRespirationMeasured = sofaRespirationMeasuredView.getText().toString();
-        assessment.sofaCoagulationMeasured = sofaCoagulationMeasuredView.getText().toString();
-        assessment.sofaLiverMeasured = sofaLiverMeasuredView.getText().toString();
-        assessment.sofaCardiovascularMeasured = sofaCardiovascularMeasuredView.getText().toString();
-        assessment.sofaNeurologicMeasured = sofaNeurologicMeasuredView.getText().toString();
-        assessment.sofaRenalMeasured = sofaRenalMeasuredView.getText().toString();
-        assessment.sofaRespiration = selectedScore(sofaRespirationGroup);
-        assessment.sofaCoagulation = selectedScore(sofaCoagulationGroup);
-        assessment.sofaLiver = selectedScore(sofaLiverGroup);
-        assessment.sofaCardiovascular = selectedScore(sofaCardiovascularGroup);
-        assessment.sofaNeurologic = selectedScore(sofaNeurologicGroup);
-        assessment.sofaRenal = selectedScore(sofaRenalGroup);
-        assessment.vasopressor = vasopressorView.isChecked();
-        assessment.treatmentOutcome = selectedText(treatmentOutcomeGroup);
-        assessment.treatmentDays = treatmentDaysView.getText().toString();
+        assessment.news2SystolicBp = selectedScore(news2SystolicBpGroup);
+        assessment.news2SystolicBpOption = selectedOption(news2SystolicBpGroup);
+        assessment.news2HeartRate = selectedScore(news2HeartRateGroup);
+        assessment.news2HeartRateOption = selectedOption(news2HeartRateGroup);
+        assessment.news2Consciousness = selectedScore(news2ConsciousnessGroup);
+        assessment.news2ConsciousnessOption = selectedOption(news2ConsciousnessGroup);
+        assessment.news2Temperature = selectedScore(news2TemperatureGroup);
+        assessment.news2TemperatureOption = selectedOption(news2TemperatureGroup);
     }
 
     private void applyNews2AutoScores() {
@@ -864,6 +722,35 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     }
 
     private void updateQuickSummaryViews() {
+        int completedCount = completedNews2Count();
+        boolean complete = completedCount == 7;
+        if (news2CompletionView != null) {
+            news2CompletionView.setText(getString(R.string.news2_completed_format, completedCount, 7));
+        }
+        if (news2CompletionProgressView != null) {
+            news2CompletionProgressView.setProgress(completedCount);
+        }
+
+        if (!complete) {
+            quickSummaryView.setText(getString(R.string.quick_summary_empty));
+            quickSummaryView.setTextColor(Color.WHITE);
+            quickSummaryView.setBackground(roundedDrawable(Color.rgb(107, 114, 128), dp(18), 0, 0));
+            news2RiskView.setText(getString(R.string.news2_risk_empty));
+            news2RiskView.setTextColor(Color.WHITE);
+            news2RiskView.setBackground(roundedDrawable(Color.rgb(107, 114, 128), dp(18), 0, 0));
+            news2TotalView.setText(getString(R.string.news2_total_pending));
+            news2TotalView.setTextColor(Color.rgb(209, 213, 219));
+            news2ActionView.setText("• " + getString(R.string.news2_action_empty));
+            news2MonitoringView.setText("• " + getString(R.string.news2_monitoring_empty));
+            news2HighestCriterionView.setText("• " + getString(R.string.news2_highest_empty));
+            news2FooterScoreView.setText("-- điểm");
+            news2FooterScoreView.setTextColor(Color.rgb(209, 213, 219));
+            news2FooterRiskView.setText(R.string.news2_evaluating);
+            news2FooterRiskView.setTextColor(Color.rgb(107, 114, 128));
+            news2FooterRiskView.setBackground(roundedDrawable(Color.rgb(243, 244, 246), dp(16), 0, 0));
+            return;
+        }
+
         int color = Color.parseColor(news2AlertColor());
         String risk = news2RiskText();
         String action = news2ActionText();
@@ -875,10 +762,28 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         news2RiskView.setText(risk);
         news2RiskView.setTextColor(Color.WHITE);
         news2RiskView.setBackground(roundedDrawable(color, dp(18), 0, 0));
+        news2TotalView.setText(getString(R.string.news2_total_format, assessment.news2Total));
         news2TotalView.setTextColor(color);
-        news2ActionView.setText(action);
-        news2MonitoringView.setText(monitoring);
-        news2HighestCriterionView.setText(highestCriterion);
+        news2ActionView.setText("• " + action);
+        news2MonitoringView.setText("• " + monitoring);
+        news2HighestCriterionView.setText("• " + highestCriterion);
+        news2FooterScoreView.setText(getString(R.string.news2_footer_score_format, assessment.news2Total));
+        news2FooterScoreView.setTextColor(COLOR_TEXT_PRIMARY);
+        news2FooterRiskView.setText(risk);
+        news2FooterRiskView.setTextColor(Color.WHITE);
+        news2FooterRiskView.setBackground(roundedDrawable(color, dp(16), 0, 0));
+    }
+
+    private int completedNews2Count() {
+        int count = 0;
+        count += findCheckedRadioButton(news2RespirationGroup) == null ? 0 : 1;
+        count += findCheckedRadioButton(news2Spo2Group) == null ? 0 : 1;
+        count += findCheckedRadioButton(news2OxygenGroup) == null ? 0 : 1;
+        count += findCheckedRadioButton(news2SystolicBpGroup) == null ? 0 : 1;
+        count += findCheckedRadioButton(news2HeartRateGroup) == null ? 0 : 1;
+        count += findCheckedRadioButton(news2ConsciousnessGroup) == null ? 0 : 1;
+        count += findCheckedRadioButton(news2TemperatureGroup) == null ? 0 : 1;
+        return count;
     }
 
     private String news2RiskText() {
@@ -925,15 +830,15 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
 
     private String news2AlertColor() {
         if (assessment.news2Total >= 7) {
-            return "#B71C1C";
+            return "#DC2626";
         }
-        if (assessment.news2Total >= 5 || hasSingleThreeScore()) {
-            return "#E65100";
+        if (assessment.news2Total >= 5) {
+            return "#F97316";
         }
-        if (assessment.news2Total > 0) {
-            return "#F9A825";
+        if (hasSingleThreeScore()) {
+            return "#EAB308";
         }
-        return "#2E7D32";
+        return "#10B981";
     }
 
     private boolean hasSingleThreeScore() {
@@ -1228,6 +1133,336 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
                 || item.news2SystolicBp == 3 || item.news2HeartRate == 3 || item.news2Consciousness == 3;
     }
 
+
+
+    private void addNews2TopBar(LinearLayout container) {
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.VERTICAL);
+        header.setPadding(dp(16), dp(14), dp(16), dp(14));
+        header.setBackground(roundedDrawable(Color.argb(238, 255, 255, 255), dp(22), dp(1), Color.rgb(229, 231, 235)));
+
+        LinearLayout titleRow = new LinearLayout(this);
+        titleRow.setOrientation(LinearLayout.HORIZONTAL);
+        titleRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
+        TextView icon = new TextView(this);
+        icon.setText("♥");
+        icon.setTextSize(22);
+        icon.setTypeface(Typeface.DEFAULT_BOLD);
+        icon.setGravity(android.view.Gravity.CENTER);
+        icon.setTextColor(COLOR_PRIMARY);
+        icon.setBackground(roundedDrawable(Color.rgb(219, 234, 254), dp(12), 0, 0));
+        LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(dp(42), dp(42));
+        titleRow.addView(icon, iconParams);
+
+        LinearLayout titleStack = new LinearLayout(this);
+        titleStack.setOrientation(LinearLayout.VERTICAL);
+        titleStack.setPadding(dp(10), 0, 0, 0);
+        TextView title = new TextView(this);
+        title.setText(R.string.news2_screen_title);
+        title.setTextColor(COLOR_TEXT_PRIMARY);
+        title.setTextSize(18);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        titleStack.addView(title, matchWrapParams());
+        news2CompletionView = new TextView(this);
+        news2CompletionView.setTextColor(Color.rgb(107, 114, 128));
+        news2CompletionView.setTextSize(12);
+        titleStack.addView(news2CompletionView, matchWrapParams());
+        titleRow.addView(titleStack, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+
+        Button resetButton = new Button(this);
+        resetButton.setText("↻");
+        resetButton.setTextSize(18);
+        resetButton.setTextColor(Color.rgb(75, 85, 99));
+        resetButton.setBackground(roundedDrawable(Color.rgb(243, 244, 246), dp(18), 0, 0));
+        resetButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                assessment = new ClinicalAssessment();
+                bindAssessmentToViews();
+                recalculateAndSave(false);
+                ScrollView scrollView = (ScrollView) findViewById(R.id.assessment_scroll);
+                if (scrollView != null) {
+                    scrollView.smoothScrollTo(0, 0);
+                }
+            }
+        });
+        titleRow.addView(resetButton, new LinearLayout.LayoutParams(dp(46), dp(42)));
+        header.addView(titleRow, matchWrapParams());
+
+        news2CompletionProgressView = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        news2CompletionProgressView.setMax(7);
+        news2CompletionProgressView.setProgress(0);
+        news2CompletionProgressView.setProgressTintList(ColorStateList.valueOf(COLOR_PRIMARY));
+        news2CompletionProgressView.setProgressBackgroundTintList(ColorStateList.valueOf(Color.rgb(243, 244, 246)));
+        LinearLayout.LayoutParams progressParams = matchWrapParams();
+        progressParams.setMargins(0, dp(12), 0, 0);
+        header.addView(news2CompletionProgressView, progressParams);
+
+        LinearLayout.LayoutParams params = matchWrapParams();
+        params.setMargins(0, 0, 0, dp(14));
+        container.addView(header, params);
+    }
+
+    private void addSpo2ScaleCard(LinearLayout container) {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.HORIZONTAL);
+        card.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        card.setPadding(dp(16), dp(14), dp(16), dp(14));
+        card.setBackground(roundedDrawable(Color.rgb(239, 246, 255), dp(20), dp(1), Color.rgb(219, 234, 254)));
+
+        LinearLayout copy = new LinearLayout(this);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        TextView title = new TextView(this);
+        title.setText(R.string.news2_spo2_scale_question);
+        title.setTextColor(Color.rgb(30, 58, 138));
+        title.setTextSize(14);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        copy.addView(title, matchWrapParams());
+        TextView subtitle = new TextView(this);
+        subtitle.setText(R.string.news2_spo2_scale_hint);
+        subtitle.setTextColor(Color.rgb(29, 78, 216));
+        subtitle.setTextSize(12);
+        subtitle.setLineSpacing(dp(2), 1.0f);
+        subtitle.setPadding(0, dp(4), 0, 0);
+        copy.addView(subtitle, matchWrapParams());
+        card.addView(copy, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+
+        news2Spo2Scale2View = new CheckBox(this);
+        news2Spo2Scale2View.setText("");
+        news2Spo2Scale2View.setButtonTintList(optionTintList());
+        news2Spo2Scale2View.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                if (!isBinding) {
+                    updateAssessmentFromViews();
+                    assessment.news2Spo2Scale2 = isChecked;
+                    assessment.news2Spo2 = 0;
+                    assessment.news2Spo2Option = "";
+                    initializeAssessmentForm(formContainer);
+                    recalculateAndSave(false);
+                }
+            }
+        });
+        card.addView(news2Spo2Scale2View, new LinearLayout.LayoutParams(dp(48), dp(48)));
+
+        LinearLayout.LayoutParams params = matchWrapParams();
+        params.setMargins(0, 0, 0, dp(14));
+        container.addView(card, params);
+    }
+
+    private RadioGroup addNews2CriterionCard(LinearLayout container, String title, String subtitle, String[] options, int[] scores) {
+        CardView cardView = new CardView(this);
+        cardView.setCardBackgroundColor(COLOR_CARD_BACKGROUND);
+        cardView.setRadius(dp(22));
+        cardView.setCardElevation(dp(1));
+        cardView.setUseCompatPadding(true);
+
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(16), dp(14), dp(16), dp(16));
+
+        TextView titleView = new TextView(this);
+        titleView.setText(title);
+        titleView.setTextColor(COLOR_TEXT_PRIMARY);
+        titleView.setTextSize(16);
+        titleView.setTypeface(Typeface.DEFAULT_BOLD);
+        card.addView(titleView, matchWrapParams());
+        if (subtitle != null && !subtitle.isEmpty()) {
+            TextView subtitleView = new TextView(this);
+            subtitleView.setText(subtitle);
+            subtitleView.setTextColor(Color.rgb(107, 114, 128));
+            subtitleView.setTextSize(12);
+            subtitleView.setPadding(0, dp(3), 0, dp(4));
+            card.addView(subtitleView, matchWrapParams());
+        }
+
+        RadioGroup group = createScoreRadioGroup(options, scores);
+        card.addView(group, matchWrapParams());
+        cardView.addView(card, matchWrapParams());
+        LinearLayout.LayoutParams params = matchWrapParams();
+        params.setMargins(0, 0, 0, dp(10));
+        container.addView(cardView, params);
+        return group;
+    }
+
+    private RadioGroup createScoreRadioGroup(String[] options, int[] scores) {
+        RadioGroup group = new RadioGroup(this);
+        group.setOrientation(RadioGroup.VERTICAL);
+        group.setPadding(0, dp(6), 0, 0);
+        for (int i = 0; i < options.length; i++) {
+            RadioButton radioButton = new RadioButton(this);
+            radioButton.setId(View.generateViewId());
+            int score = scores[i];
+            radioButton.setText(options[i] + "\n" + score + " điểm");
+            radioButton.setContentDescription(options[i]);
+            radioButton.setTag(score);
+            radioButton.setTextColor(COLOR_TEXT_PRIMARY);
+            radioButton.setTextSize(14);
+            radioButton.setTypeface(score == 3 ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
+            radioButton.setPadding(dp(14), dp(11), dp(14), dp(11));
+            radioButton.setButtonTintList(optionTintList());
+            radioButton.setBackground(checkedBackground(
+                    scoreSoftColor(score),
+                    Color.WHITE,
+                    scoreAccentColor(score),
+                    Color.rgb(229, 231, 235),
+                    dp(16)));
+            LinearLayout.LayoutParams optionParams = matchWrapParams();
+            optionParams.setMargins(0, dp(4), 0, dp(4));
+            group.addView(radioButton, optionParams);
+        }
+        group.setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(RadioGroup group, int checkedId) {
+                recalculateAndSave(false);
+            }
+        });
+        return group;
+    }
+
+    private void addNews2ResultCard(LinearLayout container) {
+        CardView cardView = new CardView(this);
+        cardView.setCardBackgroundColor(Color.WHITE);
+        cardView.setRadius(dp(24));
+        cardView.setCardElevation(dp(2));
+        cardView.setUseCompatPadding(true);
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(16), dp(16), dp(16), dp(16));
+        news2RiskView = addAlertText(card, getString(R.string.news2_risk_empty), "#6B7280");
+        news2TotalView = addTotalText(card, getString(R.string.news2_total));
+        TextView guidanceTitle = addLabel(card, getString(R.string.news2_guidance_title));
+        guidanceTitle.setTextColor(COLOR_TEXT_PRIMARY);
+        guidanceTitle.setTypeface(Typeface.DEFAULT_BOLD);
+        guidanceTitle.setTextSize(14);
+        news2ActionView = addNews2GuidanceText(card, getString(R.string.news2_action_empty));
+        news2MonitoringView = addNews2GuidanceText(card, getString(R.string.news2_monitoring_empty));
+        news2HighestCriterionView = addNews2GuidanceText(card, getString(R.string.news2_highest_empty));
+        cardView.addView(card, matchWrapParams());
+        LinearLayout.LayoutParams params = matchWrapParams();
+        params.setMargins(0, dp(2), 0, dp(12));
+        container.addView(cardView, params);
+    }
+
+    private void addNews2Footer(LinearLayout container) {
+        LinearLayout footer = new LinearLayout(this);
+        footer.setOrientation(LinearLayout.HORIZONTAL);
+        footer.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        footer.setPadding(dp(16), dp(14), dp(16), dp(14));
+        footer.setBackground(roundedDrawable(Color.WHITE, dp(22), dp(1), Color.rgb(229, 231, 235)));
+
+        LinearLayout scoreStack = new LinearLayout(this);
+        scoreStack.setOrientation(LinearLayout.VERTICAL);
+        TextView label = new TextView(this);
+        label.setText(R.string.news2_footer_total_label);
+        label.setTextColor(Color.rgb(156, 163, 175));
+        label.setTextSize(11);
+        label.setTypeface(Typeface.DEFAULT_BOLD);
+        scoreStack.addView(label, matchWrapParams());
+        news2FooterScoreView = new TextView(this);
+        news2FooterScoreView.setText("-- điểm");
+        news2FooterScoreView.setTextColor(Color.rgb(209, 213, 219));
+        news2FooterScoreView.setTextSize(30);
+        news2FooterScoreView.setTypeface(Typeface.DEFAULT_BOLD);
+        scoreStack.addView(news2FooterScoreView, matchWrapParams());
+        footer.addView(scoreStack, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+
+        news2FooterRiskView = new TextView(this);
+        news2FooterRiskView.setText(R.string.news2_evaluating);
+        news2FooterRiskView.setTextColor(Color.rgb(107, 114, 128));
+        news2FooterRiskView.setTextSize(14);
+        news2FooterRiskView.setTypeface(Typeface.DEFAULT_BOLD);
+        news2FooterRiskView.setPadding(dp(14), dp(12), dp(14), dp(12));
+        news2FooterRiskView.setBackground(roundedDrawable(Color.rgb(243, 244, 246), dp(16), 0, 0));
+        footer.addView(news2FooterRiskView, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+
+        container.addView(footer, matchWrapParams());
+    }
+
+    private void addNews2HeaderCard(LinearLayout container) {
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.VERTICAL);
+        header.setPadding(dp(16), dp(14), dp(16), dp(14));
+        header.setBackground(roundedDrawable(Color.rgb(239, 246, 255), dp(20), dp(1), Color.rgb(191, 219, 254)));
+
+        TextView title = new TextView(this);
+        title.setText(getString(R.string.section_news2));
+        title.setTextColor(COLOR_PRIMARY_DARK);
+        title.setTextSize(20);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        header.addView(title, matchWrapParams());
+
+        TextView hint = new TextView(this);
+        hint.setText(getString(R.string.news2_quick_hint));
+        hint.setTextColor(Color.rgb(30, 64, 175));
+        hint.setTextSize(13);
+        hint.setLineSpacing(dp(2), 1.0f);
+        hint.setPadding(0, dp(6), 0, 0);
+        header.addView(hint, matchWrapParams());
+
+        LinearLayout.LayoutParams params = matchWrapParams();
+        params.setMargins(0, dp(6), 0, dp(14));
+        container.addView(header, params);
+    }
+
+    private TextView addNews2GuidanceText(LinearLayout container, String text) {
+        TextView textView = addLabel(container, "• " + text);
+        textView.setTextColor(Color.rgb(55, 65, 81));
+        textView.setTextSize(14);
+        textView.setBackground(roundedDrawable(Color.rgb(255, 255, 255), dp(14), dp(1), Color.rgb(229, 231, 235)));
+        textView.setPadding(dp(14), dp(10), dp(14), dp(10));
+        LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) textView.getLayoutParams();
+        params.setMargins(0, dp(4), 0, dp(6));
+        textView.setLayoutParams(params);
+        return textView;
+    }
+
+    private void styleScale2Toggle(CheckBox checkBox) {
+        checkBox.setTextColor(Color.rgb(30, 64, 175));
+        checkBox.setTypeface(Typeface.DEFAULT_BOLD);
+        checkBox.setTextSize(14);
+        checkBox.setBackground(checkedBackground(Color.rgb(219, 234, 254), Color.rgb(239, 246, 255), COLOR_PRIMARY, Color.rgb(191, 219, 254), dp(18)));
+        checkBox.setPadding(dp(12), dp(10), dp(12), dp(10));
+    }
+
+    private StateListDrawable checkedBackground(int checkedColor, int uncheckedColor, int checkedStroke, int uncheckedStroke, int radius) {
+        StateListDrawable drawable = new StateListDrawable();
+        drawable.addState(new int[]{android.R.attr.state_checked}, roundedDrawable(checkedColor, radius, dp(1), checkedStroke));
+        drawable.addState(new int[]{}, roundedDrawable(uncheckedColor, radius, dp(1), uncheckedStroke));
+        return drawable;
+    }
+
+    private int scoreAccentColor(int score) {
+        switch (score) {
+            case 0:
+                return COLOR_SUCCESS;
+            case 1:
+                return COLOR_WARNING;
+            case 2:
+                return COLOR_ORANGE;
+            case 3:
+                return COLOR_DANGER;
+            default:
+                return COLOR_FIELD_STROKE;
+        }
+    }
+
+    private int scoreSoftColor(int score) {
+        switch (score) {
+            case 0:
+                return Color.rgb(236, 253, 245);
+            case 1:
+                return Color.rgb(254, 252, 232);
+            case 2:
+                return Color.rgb(255, 247, 237);
+            case 3:
+                return Color.rgb(254, 242, 242);
+            default:
+                return Color.WHITE;
+        }
+    }
+
     private Button addButton(LinearLayout container, String text) {
         Button button = new Button(this);
         button.setText(text);
@@ -1335,22 +1570,31 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     private RadioGroup addRadioGroup(LinearLayout container, String label, String[] options, int[] scores) {
         TextView labelView = addLabel(container, label);
         labelView.setTypeface(Typeface.DEFAULT_BOLD);
+        labelView.setTextColor(COLOR_TEXT_PRIMARY);
+        labelView.setTextSize(16);
         RadioGroup group = new RadioGroup(this);
         group.setOrientation(RadioGroup.VERTICAL);
-        group.setPadding(0, dp(2), 0, dp(6));
+        group.setPadding(0, dp(2), 0, dp(10));
         for (int i = 0; i < options.length; i++) {
             RadioButton radioButton = new RadioButton(this);
             radioButton.setId(View.generateViewId());
-            radioButton.setText(scores == null ? options[i] : options[i] + "  •  " + scores[i] + " điểm");
+            int score = scores == null ? -1 : scores[i];
+            radioButton.setText(scores == null ? options[i] : options[i] + "\n" + scores[i] + " điểm");
             radioButton.setContentDescription(options[i]);
             radioButton.setTag(scores == null ? options[i] : scores[i]);
             radioButton.setTextColor(COLOR_TEXT_PRIMARY);
             radioButton.setTextSize(15);
-            radioButton.setPadding(dp(10), dp(8), dp(10), dp(8));
+            radioButton.setTypeface(score == 3 ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
+            radioButton.setPadding(dp(14), dp(12), dp(14), dp(12));
             radioButton.setButtonTintList(optionTintList());
-            radioButton.setBackground(roundedDrawable(Color.rgb(248, 250, 252), dp(14), dp(1), Color.rgb(226, 232, 240)));
+            radioButton.setBackground(checkedBackground(
+                    scoreSoftColor(score),
+                    Color.WHITE,
+                    scoreAccentColor(score),
+                    Color.rgb(229, 231, 235),
+                    dp(16)));
             LinearLayout.LayoutParams optionParams = matchWrapParams();
-            optionParams.setMargins(0, dp(4), 0, dp(4));
+            optionParams.setMargins(0, dp(5), 0, dp(5));
             group.addView(radioButton, optionParams);
         }
         group.setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener() {
@@ -1484,6 +1728,9 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     }
 
     private RadioButton findCheckedRadioButton(RadioGroup group) {
+        if (group == null) {
+            return null;
+        }
         int checkedId = group.getCheckedRadioButtonId();
         return checkedId == -1 ? null : group.findViewById(checkedId);
     }
@@ -1493,6 +1740,9 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     }
 
     private void checkRadioByOption(RadioGroup group, String option, int fallbackScore) {
+        if (group == null) {
+            return;
+        }
         if (option == null || option.isEmpty()) {
             group.clearCheck();
             return;
