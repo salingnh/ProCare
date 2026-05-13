@@ -20,7 +20,6 @@ import java.util.List;
 public class SettingAdapter extends RecyclerView.Adapter<SettingAdapter.SettingViewHolder> {
     private List<String> mValues;
     private final SettingFragment.OnSettingFragmentListener mListener;
-    private final ViewBinderHelper binderHelper = new ViewBinderHelper();
 
     public SettingAdapter(List<String> mValues, SettingFragment.OnSettingFragmentListener listener) {
         this.mValues = mValues == null ? new ArrayList<String>() : mValues;
