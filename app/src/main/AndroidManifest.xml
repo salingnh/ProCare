@@ -6,9 +6,9 @@
     <application
         android:name=".App"
         android:allowBackup="false"
-        android:icon="@drawable/lifeline_in_a_heart_outline"
+        android:icon="@drawable/procare_app_icon"
         android:label="@string/app_name"
-        android:roundIcon="@drawable/lifeline_in_a_heart_outline"
+        android:roundIcon="@drawable/procare_app_icon"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
         <activity
