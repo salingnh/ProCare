@@ -4,6 +4,17 @@ plugins {
 
 def releaseVersionName = (findProperty('releaseVersionName') ?: '1.0').toString()
 
+def releaseSigningStorePath = System.getenv('SIGNING_KEYSTORE_PATH') ?: findProperty('signingKeystorePath')
+def releaseSigningStorePassword = System.getenv('KEY_STORE_PASSWORD') ?: findProperty('signingStorePassword')
+def releaseSigningKeyAlias = System.getenv('KEY_ALIAS') ?: findProperty('signingKeyAlias')
+def releaseSigningKeyPassword = System.getenv('KEY_PASSWORD') ?: findProperty('signingKeyPassword')
+def hasReleaseSigningConfig = [
+        releaseSigningStorePath,
+        releaseSigningStorePassword,
+        releaseSigningKeyAlias,
+        releaseSigningKeyPassword
+].every { it != null && it.toString().trim() }
+
 android {
     namespace 'com.sangnv.procare'
     compileSdk 36
@@ -18,8 +29,23 @@ android {
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
     }
 
+    signingConfigs {
+        release {
+            if (hasReleaseSigningConfig) {
+                storeFile file(releaseSigningStorePath)
+                storePassword releaseSigningStorePassword
+                keyAlias releaseSigningKeyAlias
+                keyPassword releaseSigningKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
+            if (hasReleaseSigningConfig) {
+                signingConfig signingConfigs.release
+            }
+
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }

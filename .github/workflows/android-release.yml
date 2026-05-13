@@ -21,11 +21,11 @@ permissions:
 
 jobs:
   build-and-release:
-    name: Build APK and publish release
+    name: Build signed APK and publish release
     runs-on: ubuntu-latest
 
     env:
-      APK_OUTPUT_DIR: app/build/outputs/apk/debug
+      APK_OUTPUT_DIR: app/build/outputs/apk/release
       RELEASE_DIR: release
 
     steps:
@@ -79,8 +79,51 @@ jobs:
           echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
           echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
 
-      - name: Build debug APK
-        run: ./gradlew clean assembleDebug -PreleaseVersionName="${{ steps.release.outputs.version_name }}" --stacktrace
+      - name: Restore release keystore
+        env:
+          SIGNING_KEY_BASE64: ${{ secrets.SIGNING_KEY_BASE64 }}
+          KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          missing_secrets=()
+          for secret_name in SIGNING_KEY_BASE64 KEY_STORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [[ -z "${!secret_name}" ]]; then
+              missing_secrets+=("$secret_name")
+            fi
+          done
+
+          if (( ${#missing_secrets[@]} > 0 )); then
+            echo "Missing required signing secrets: ${missing_secrets[*]}"
+            exit 1
+          fi
+
+          echo "$SIGNING_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
+
+      - name: Build signed release APK
+        env:
+          SIGNING_KEYSTORE_PATH: ${{ runner.temp }}/release.jks
+          KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew clean assembleRelease -PreleaseVersionName="${{ steps.release.outputs.version_name }}" --stacktrace
+
+      - name: Verify APK signature
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APK_PATH=$(find "$APK_OUTPUT_DIR" -name '*.apk' -print -quit)
+          if [[ -z "$APK_PATH" ]]; then
+            echo "Release APK was not found."
+            exit 1
+          fi
+
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)
+          "$APKSIGNER" verify --verbose "$APK_PATH"
 
       - name: Prepare APK artifact
         id: package_apk
@@ -90,8 +133,8 @@ jobs:
           mkdir -p "$RELEASE_DIR"
 
           RELEASE_TAG="${{ steps.release.outputs.release_tag }}"
-          APK_SOURCE="$APK_OUTPUT_DIR/app-debug.apk"
-          APK_NAME="ProCare-${RELEASE_TAG}.apk"
+          APK_SOURCE=$(find "$APK_OUTPUT_DIR" -name '*.apk' -print -quit)
+          APK_NAME="ProCare-${RELEASE_TAG}-signed.apk"
           APK_PATH="$RELEASE_DIR/$APK_NAME"
 
           cp "$APK_SOURCE" "$APK_PATH"
