@@ -1,11 +1,6 @@
 package com.sangnv.procare;
 
-import android.app.Activity;
-import android.content.ActivityNotFoundException;
-import android.content.Intent;
-import android.net.Uri;
-
-import androidx.appcompat.app.AlertDialog;
+import android.util.Log;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -23,32 +18,36 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class GitHubReleaseChecker {
+    private static final String TAG = "GitHubReleaseChecker";
     private static final int CONNECT_TIMEOUT_MS = 10000;
     private static final int READ_TIMEOUT_MS = 10000;
 
-    private final Activity activity;
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
+    private final UpdateListener updateListener;
+    private boolean hasStartedCheck;
 
-    public GitHubReleaseChecker(Activity activity) {
-        this.activity = activity;
+    public GitHubReleaseChecker(UpdateListener updateListener) {
+        this.updateListener = updateListener;
     }
 
     public void checkForNewRelease() {
+        if (hasStartedCheck) {
+            return;
+        }
+        hasStartedCheck = true;
         executorService.execute(new Runnable() {
             @Override
             public void run() {
-                ReleaseInfo releaseInfo = fetchLatestRelease();
-                if (releaseInfo == null || !isNewerVersion(releaseInfo.version, BuildConfig.VERSION_NAME)) {
+                UpdateInfo updateInfo = fetchLatestRelease();
+                if (updateInfo == null) {
+                    Log.d(TAG, "No GitHub release information is available.");
                     return;
                 }
-                activity.runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        if (!activity.isFinishing()) {
-                            showUpdateDialog(releaseInfo);
-                        }
-                    }
-                });
+                if (!isNewerVersion(updateInfo.version, BuildConfig.VERSION_NAME)) {
+                    Log.d(TAG, "Latest release " + updateInfo.version + " is not newer than installed version " + BuildConfig.VERSION_NAME + ".");
+                    return;
+                }
+                updateListener.onUpdateAvailable(updateInfo);
             }
         });
     }
@@ -57,10 +56,21 @@ public class GitHubReleaseChecker {
         executorService.shutdownNow();
     }
 
-    private ReleaseInfo fetchLatestRelease() {
+    private UpdateInfo fetchLatestRelease() {
+        UpdateInfo newestRelease = null;
+        for (String apiUrl : BuildConfig.GITHUB_RELEASES_API_URLS) {
+            UpdateInfo updateInfo = fetchLatestRelease(apiUrl);
+            if (updateInfo != null && (newestRelease == null || isNewerVersion(updateInfo.version, newestRelease.version))) {
+                newestRelease = updateInfo;
+            }
+        }
+        return newestRelease;
+    }
+
+    private UpdateInfo fetchLatestRelease(String apiUrl) {
         HttpURLConnection connection = null;
         try {
-            URL url = new URL(BuildConfig.GITHUB_RELEASES_API_URL);
+            URL url = new URL(apiUrl);
             connection = (HttpURLConnection) url.openConnection();
             connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
             connection.setReadTimeout(READ_TIMEOUT_MS);
@@ -70,10 +80,12 @@ public class GitHubReleaseChecker {
 
             int responseCode = connection.getResponseCode();
             if (responseCode < HttpURLConnection.HTTP_OK || responseCode >= HttpURLConnection.HTTP_MULT_CHOICE) {
+                Log.d(TAG, "GitHub release request failed for " + apiUrl + " with HTTP " + responseCode + ".");
                 return null;
             }
             return parseRelease(readStream(connection.getInputStream()));
         } catch (IOException | JSONException exception) {
+            Log.d(TAG, "Unable to fetch GitHub release information from " + apiUrl + ".", exception);
             return null;
         } finally {
             if (connection != null) {
@@ -82,15 +94,15 @@ public class GitHubReleaseChecker {
         }
     }
 
-    private ReleaseInfo parseRelease(String response) throws JSONException {
+    private UpdateInfo parseRelease(String response) throws JSONException {
         JSONObject release = new JSONObject(response);
-        String version = normalizeVersion(release.optString("tag_name", release.optString("name")));
+        String version = extractVersion(release.optString("tag_name", release.optString("name")));
         if (version.isEmpty()) {
             return null;
         }
         String releaseUrl = release.optString("html_url");
         String downloadUrl = findDownloadUrl(release.optJSONArray("assets"), releaseUrl);
-        return new ReleaseInfo(version, downloadUrl.isEmpty() ? releaseUrl : downloadUrl);
+        return new UpdateInfo(version, downloadUrl.isEmpty() ? releaseUrl : downloadUrl, releaseUrl);
     }
 
     private String findDownloadUrl(JSONArray assets, String fallbackUrl) throws JSONException {
@@ -100,7 +112,8 @@ public class GitHubReleaseChecker {
         for (int i = 0; i < assets.length(); i++) {
             JSONObject asset = assets.getJSONObject(i);
             String name = asset.optString("name", "").toLowerCase(Locale.US);
-            if (name.endsWith(".apk") || name.endsWith(".aab")) {
+            String contentType = asset.optString("content_type", "").toLowerCase(Locale.US);
+            if (name.endsWith(".apk") || contentType.equals("application/vnd.android.package-archive")) {
                 return asset.optString("browser_download_url", fallbackUrl);
             }
         }
@@ -118,30 +131,9 @@ public class GitHubReleaseChecker {
         return builder.toString();
     }
 
-    private void showUpdateDialog(ReleaseInfo releaseInfo) {
-        new AlertDialog.Builder(activity)
-                .setTitle(activity.getString(R.string.update_available_title))
-                .setMessage(activity.getString(R.string.update_available_message, releaseInfo.version, BuildConfig.VERSION_NAME))
-                .setPositiveButton(R.string.update_download_action, (dialog, which) -> openReleaseUrl(releaseInfo.downloadUrl))
-                .setNegativeButton(R.string.update_later_action, null)
-                .show();
-    }
-
-    private void openReleaseUrl(String downloadUrl) {
-        if (downloadUrl == null || downloadUrl.trim().isEmpty()) {
-            return;
-        }
-        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(downloadUrl));
-        try {
-            activity.startActivity(intent);
-        } catch (ActivityNotFoundException exception) {
-            // No browser or file handler is available on the device.
-        }
-    }
-
     private boolean isNewerVersion(String remoteVersion, String currentVersion) {
-        String[] remoteParts = normalizeVersion(remoteVersion).split("[.-]");
-        String[] currentParts = normalizeVersion(currentVersion).split("[.-]");
+        String[] remoteParts = extractVersion(remoteVersion).split("[.-]");
+        String[] currentParts = extractVersion(currentVersion).split("[.-]");
         int length = Math.max(remoteParts.length, currentParts.length);
         for (int i = 0; i < length; i++) {
             int remoteValue = versionPart(remoteParts, i);
@@ -167,20 +159,28 @@ public class GitHubReleaseChecker {
         }
     }
 
-    private String normalizeVersion(String version) {
+    private String extractVersion(String version) {
         if (version == null) {
             return "";
         }
-        return version.trim().replaceFirst("^[vV]", "");
+        String normalized = version.trim().replaceFirst("^[vV]", "");
+        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("(\\d+(?:[.-]\\d+)+)").matcher(normalized);
+        return matcher.find() ? matcher.group(1) : normalized;
     }
 
-    private static class ReleaseInfo {
-        private final String version;
-        private final String downloadUrl;
+    public interface UpdateListener {
+        void onUpdateAvailable(UpdateInfo updateInfo);
+    }
 
-        private ReleaseInfo(String version, String downloadUrl) {
+    public static class UpdateInfo {
+        public final String version;
+        public final String downloadUrl;
+        public final String releaseUrl;
+
+        private UpdateInfo(String version, String downloadUrl, String releaseUrl) {
             this.version = version;
             this.downloadUrl = downloadUrl;
+            this.releaseUrl = releaseUrl;
         }
     }
 }

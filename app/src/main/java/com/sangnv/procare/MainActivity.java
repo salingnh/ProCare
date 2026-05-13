@@ -1,41 +1,68 @@
 package com.sangnv.procare;
 
+import android.content.ActivityNotFoundException;
+import android.content.Intent;
+import android.graphics.drawable.GradientDrawable;
+import android.net.Uri;
 import android.os.Bundle;
+import android.os.Environment;
 import android.graphics.Color;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.util.Log;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.RadioButton;
+import android.widget.ProgressBar;
 import android.widget.RadioGroup;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.FileProvider;
 
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
 import com.sangnv.procare.Model.ClinicalAssessment;
 import com.sangnv.procare.utils.SharedPrefs;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements GitHubReleaseChecker.UpdateListener {
+    private static final String TAG = "MainActivity";
     private static final String KEY_CURRENT_ASSESSMENT = "clinical_assessment_current";
     private static final String KEY_ASSESSMENT_HISTORY = "clinical_assessment_history";
 
     private ClinicalAssessment assessment;
     private boolean isBinding;
+    private boolean isFormReady;
+    private boolean isDownloadingUpdate;
     private GitHubReleaseChecker gitHubReleaseChecker;
+    private GitHubReleaseChecker.UpdateInfo availableUpdate;
+    private final ExecutorService updateDownloadExecutor = Executors.newSingleThreadExecutor();
+    private LinearLayout formContainer;
+    private LinearLayout updateBannerView;
+    private TextView updateBannerTitleView;
+    private TextView updateBannerMessageView;
+    private ProgressBar updateProgressView;
+    private TextView updateProgressTextView;
 
     private EditText patientIdView;
     private EditText admissionDateTimeView;
@@ -108,8 +135,8 @@ public class MainActivity extends AppCompatActivity {
         setTitle(R.string.app_name);
 
         assessment = loadCurrentAssessment();
-        buildAssessmentForm((LinearLayout) findViewById(R.id.form_container));
-        bindAssessmentToViews();
+        formContainer = (LinearLayout) findViewById(R.id.form_container);
+        initializeAssessmentForm(formContainer);
         recalculateAndSave(false);
         gitHubReleaseChecker = new GitHubReleaseChecker(this);
         gitHubReleaseChecker.checkForNewRelease();
@@ -120,7 +147,216 @@ public class MainActivity extends AppCompatActivity {
         if (gitHubReleaseChecker != null) {
             gitHubReleaseChecker.shutdown();
         }
+        updateDownloadExecutor.shutdownNow();
         super.onDestroy();
+    }
+
+
+    @Override
+    public void onUpdateAvailable(GitHubReleaseChecker.UpdateInfo updateInfo) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                availableUpdate = updateInfo;
+                showUpdateBanner(updateInfo);
+            }
+        });
+    }
+
+    private void showUpdateBanner(GitHubReleaseChecker.UpdateInfo updateInfo) {
+        if (formContainer == null || isFinishing() || isDestroyed()) {
+            return;
+        }
+        if (updateBannerView == null) {
+            updateBannerView = new LinearLayout(this);
+            updateBannerView.setOrientation(LinearLayout.VERTICAL);
+            updateBannerView.setPadding(dp(14), dp(12), dp(14), dp(12));
+            GradientDrawable background = new GradientDrawable();
+            background.setColor(Color.parseColor("#E3F2FD"));
+            background.setCornerRadius(dp(12));
+            background.setStroke(dp(1), Color.parseColor("#1976D2"));
+            updateBannerView.setBackground(background);
+            updateBannerView.setClickable(true);
+            updateBannerView.setFocusable(true);
+            updateBannerView.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    startUpdateDownload();
+                }
+            });
+
+            updateBannerTitleView = new TextView(this);
+            updateBannerTitleView.setTextColor(Color.parseColor("#0D47A1"));
+            updateBannerTitleView.setTextSize(16);
+            updateBannerTitleView.setText(R.string.update_banner_title);
+            updateBannerView.addView(updateBannerTitleView, matchWrapParams());
+
+            updateBannerMessageView = new TextView(this);
+            updateBannerMessageView.setTextColor(Color.parseColor("#263238"));
+            updateBannerMessageView.setPadding(0, dp(4), 0, 0);
+            updateBannerView.addView(updateBannerMessageView, matchWrapParams());
+
+            updateProgressView = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+            updateProgressView.setMax(100);
+            updateProgressView.setVisibility(View.GONE);
+            LinearLayout.LayoutParams progressParams = matchWrapParams();
+            progressParams.setMargins(0, dp(10), 0, 0);
+            updateBannerView.addView(updateProgressView, progressParams);
+
+            updateProgressTextView = new TextView(this);
+            updateProgressTextView.setTextColor(Color.parseColor("#0D47A1"));
+            updateProgressTextView.setPadding(0, dp(4), 0, 0);
+            updateProgressTextView.setVisibility(View.GONE);
+            updateBannerView.addView(updateProgressTextView, matchWrapParams());
+
+            LinearLayout.LayoutParams bannerParams = matchWrapParams();
+            bannerParams.setMargins(0, 0, 0, dp(12));
+            formContainer.addView(updateBannerView, 0, bannerParams);
+        }
+        updateBannerMessageView.setText(getString(R.string.update_banner_message, updateInfo.version));
+        if (!isDownloadingUpdate) {
+            updateProgressView.setVisibility(View.GONE);
+            updateProgressTextView.setVisibility(View.GONE);
+        }
+        updateBannerView.setVisibility(View.VISIBLE);
+    }
+
+    private void startUpdateDownload() {
+        if (availableUpdate == null || isDownloadingUpdate) {
+            return;
+        }
+        isDownloadingUpdate = true;
+        updateProgressView.setVisibility(View.VISIBLE);
+        updateProgressView.setIndeterminate(true);
+        updateProgressTextView.setVisibility(View.VISIBLE);
+        updateProgressTextView.setText(R.string.update_download_starting);
+        updateBannerMessageView.setText(getString(R.string.update_downloading_message, availableUpdate.version));
+
+        updateDownloadExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                File apkFile = null;
+                try {
+                    apkFile = downloadUpdateApk(availableUpdate);
+                    File finalApkFile = apkFile;
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            isDownloadingUpdate = false;
+                            updateProgressView.setIndeterminate(false);
+                            updateProgressView.setProgress(100);
+                            updateProgressTextView.setText(R.string.update_download_complete);
+                            openApkInstaller(finalApkFile);
+                        }
+                    });
+                } catch (IOException exception) {
+                    Log.w(TAG, "Unable to download update APK.", exception);
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            isDownloadingUpdate = false;
+                            updateProgressView.setIndeterminate(false);
+                            updateProgressTextView.setText(R.string.update_download_failed);
+                            updateBannerMessageView.setText(getString(R.string.update_banner_message, availableUpdate.version));
+                        }
+                    });
+                }
+            }
+        });
+    }
+
+    private File downloadUpdateApk(GitHubReleaseChecker.UpdateInfo updateInfo) throws IOException {
+        HttpURLConnection connection = null;
+        InputStream inputStream = null;
+        FileOutputStream outputStream = null;
+        try {
+            URL url = new URL(updateInfo.downloadUrl);
+            connection = (HttpURLConnection) url.openConnection();
+            connection.setConnectTimeout(15000);
+            connection.setReadTimeout(30000);
+            connection.setRequestProperty("User-Agent", "ProCare-Android");
+            connection.connect();
+
+            int responseCode = connection.getResponseCode();
+            if (responseCode < HttpURLConnection.HTTP_OK || responseCode >= HttpURLConnection.HTTP_MULT_CHOICE) {
+                throw new IOException("Download failed with HTTP " + responseCode);
+            }
+
+            int contentLength = connection.getContentLength();
+            File downloadsDir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+            if (downloadsDir == null) {
+                downloadsDir = getFilesDir();
+            }
+            File apkFile = new File(downloadsDir, "ProCare-v" + updateInfo.version + ".apk");
+            inputStream = connection.getInputStream();
+            outputStream = new FileOutputStream(apkFile);
+            byte[] buffer = new byte[8192];
+            long totalRead = 0;
+            int lastProgress = -1;
+            int read;
+            while ((read = inputStream.read(buffer)) != -1) {
+                outputStream.write(buffer, 0, read);
+                totalRead += read;
+                if (contentLength > 0) {
+                    int progress = (int) ((totalRead * 100) / contentLength);
+                    if (progress != lastProgress) {
+                        lastProgress = progress;
+                        updateDownloadProgress(progress);
+                    }
+                }
+            }
+            outputStream.flush();
+            return apkFile;
+        } finally {
+            if (outputStream != null) {
+                outputStream.close();
+            }
+            if (inputStream != null) {
+                inputStream.close();
+            }
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
+    }
+
+    private void updateDownloadProgress(int progress) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                updateProgressView.setIndeterminate(false);
+                updateProgressView.setProgress(progress);
+                updateProgressTextView.setText(getString(R.string.update_download_progress, progress));
+            }
+        });
+    }
+
+    private void openApkInstaller(File apkFile) {
+        Uri apkUri = FileProvider.getUriForFile(this, BuildConfig.APPLICATION_ID + ".fileprovider", apkFile);
+        Intent intent = new Intent(Intent.ACTION_VIEW);
+        intent.setDataAndType(apkUri, "application/vnd.android.package-archive");
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+        try {
+            startActivity(intent);
+        } catch (ActivityNotFoundException exception) {
+            openReleaseInBrowser();
+        }
+    }
+
+    private void openReleaseInBrowser() {
+        if (availableUpdate == null) {
+            return;
+        }
+        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(availableUpdate.releaseUrl));
+        try {
+            startActivity(intent);
+        } catch (ActivityNotFoundException exception) {
+            Toast.makeText(this, R.string.update_open_failed, Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private int dp(int value) {
+        return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
     }
 
     @Override
@@ -138,6 +374,18 @@ public class MainActivity extends AppCompatActivity {
             return true;
         }
         return super.onOptionsItemSelected(item);
+    }
+
+    private void initializeAssessmentForm(LinearLayout container) {
+        isFormReady = false;
+        isBinding = true;
+        try {
+            buildAssessmentForm(container);
+            bindAssessmentToViews();
+            isFormReady = true;
+        } finally {
+            isBinding = false;
+        }
     }
 
     private void buildAssessmentForm(LinearLayout container) {
@@ -287,7 +535,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void recalculateAndSave(boolean appendHistory) {
-        if (isBinding) {
+        if (isBinding || !isFormReady) {
             return;
         }
 
