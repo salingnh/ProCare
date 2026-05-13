@@ -12,6 +12,7 @@ android {
         targetSdk 36
         versionCode 1
         versionName '1.0'
+        buildConfigField 'String', 'GITHUB_RELEASES_API_URL', '"https://api.github.com/repos/sangnv/ProCare/releases/latest"'
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
     }
 
@@ -20,6 +21,10 @@ android {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
+    }
+
+    buildFeatures {
+        buildConfig true
     }
 
     compileOptions {
