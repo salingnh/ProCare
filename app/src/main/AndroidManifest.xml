@@ -7,9 +7,9 @@
     <application
         android:name=".App"
         android:allowBackup="false"
-        android:icon="@drawable/procare_app_icon"
+        android:icon="@mipmap/procare_app_icon"
         android:label="@string/app_name"
-        android:roundIcon="@drawable/procare_app_icon"
+        android:roundIcon="@mipmap/procare_app_icon_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
         <activity
