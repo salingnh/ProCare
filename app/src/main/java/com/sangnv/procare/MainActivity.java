@@ -1,11 +1,13 @@
 package com.sangnv.procare;
 
 import android.os.Bundle;
+import android.graphics.Color;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.CompoundButton;
 import android.widget.EditText;
@@ -13,6 +15,7 @@ import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -79,16 +82,23 @@ public class MainActivity extends AppCompatActivity {
     private CheckBox liverFailureView;
     private CheckBox hypertensionView;
     private CheckBox copdView;
+    private CheckBox news2Spo2Scale2View;
     private CheckBox qsofaRespirationView;
     private CheckBox qsofaSystolicBpView;
     private CheckBox qsofaConsciousnessView;
     private CheckBox vasopressorView;
 
+    private TextView quickSummaryView;
     private TextView news2TotalView;
+    private TextView news2RiskView;
+    private TextView news2ActionView;
+    private TextView news2MonitoringView;
+    private TextView news2HighestCriterionView;
     private TextView qsofaTotalView;
     private TextView sofaTotalView;
     private TextView sepsisDiagnosisView;
     private TextView lastSavedView;
+    private Button saveAssessmentButton;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -113,7 +123,7 @@ public class MainActivity extends AppCompatActivity {
         if (item.getItemId() == R.id.action_clear_assessment) {
             assessment = new ClinicalAssessment();
             bindAssessmentToViews();
-            recalculateAndSave(true);
+            recalculateAndSave(false);
             return true;
         }
         return super.onOptionsItemSelected(item);
@@ -122,6 +132,7 @@ public class MainActivity extends AppCompatActivity {
     private void buildAssessmentForm(LinearLayout container) {
         container.removeAllViews();
         addTitle(container, getString(R.string.assessment_form_title));
+        quickSummaryView = addAlertText(container, getString(R.string.quick_summary_empty), "#455A64");
 
         addSection(container, getString(R.string.section_patient_info));
         patientIdView = addEditText(container, getString(R.string.patient_id));
@@ -141,21 +152,27 @@ public class MainActivity extends AppCompatActivity {
         otherComorbidityView = addEditText(container, getString(R.string.other_comorbidity));
 
         addSection(container, getString(R.string.section_news2));
-        news2RespirationMeasuredView = addEditText(container, getString(R.string.measured_value));
+        addLabel(container, getString(R.string.news2_quick_hint));
+        news2RespirationMeasuredView = addNumberEditText(container, getString(R.string.news2_respiration));
         news2RespirationGroup = addScoreRadioGroup(container, getString(R.string.news2_respiration), new String[]{"≤ 8", "9-11", "12-20", "21-24", "≥ 25"}, new int[]{3, 1, 0, 2, 3});
-        news2Spo2MeasuredView = addEditText(container, getString(R.string.measured_value));
+        news2Spo2Scale2View = addCheckBox(container, getString(R.string.news2_spo2_scale2));
+        news2Spo2MeasuredView = addNumberEditText(container, getString(R.string.news2_spo2));
         news2Spo2Group = addScoreRadioGroup(container, getString(R.string.news2_spo2), new String[]{"≤ 91", "92-93", "94-95", "≥ 96"}, new int[]{3, 2, 1, 0});
-        news2OxygenMeasuredView = addEditText(container, getString(R.string.measured_value));
+        news2OxygenMeasuredView = addEditText(container, getString(R.string.news2_oxygen_note));
         news2OxygenGroup = addScoreRadioGroup(container, getString(R.string.news2_oxygen), new String[]{getString(R.string.yes), getString(R.string.no)}, new int[]{2, 0});
-        news2TemperatureMeasuredView = addEditText(container, getString(R.string.measured_value));
+        news2TemperatureMeasuredView = addDecimalEditText(container, getString(R.string.news2_temperature));
         news2TemperatureGroup = addScoreRadioGroup(container, getString(R.string.news2_temperature), new String[]{"≤ 35.0", "35.1-36.0", "36.1-38.0", "38.1-39.0", "≥ 39.1"}, new int[]{3, 1, 0, 1, 2});
-        news2SystolicBpMeasuredView = addEditText(container, getString(R.string.measured_value));
+        news2SystolicBpMeasuredView = addNumberEditText(container, getString(R.string.news2_systolic_bp));
         news2SystolicBpGroup = addScoreRadioGroup(container, getString(R.string.news2_systolic_bp), new String[]{"≤ 90", "91-100", "101-110", "111-219", "≥ 220"}, new int[]{3, 2, 1, 0, 3});
-        news2HeartRateMeasuredView = addEditText(container, getString(R.string.measured_value));
+        news2HeartRateMeasuredView = addNumberEditText(container, getString(R.string.news2_heart_rate));
         news2HeartRateGroup = addScoreRadioGroup(container, getString(R.string.news2_heart_rate), new String[]{"≤ 40", "41-50", "51-90", "91-110", "111-130", "≥ 131"}, new int[]{3, 1, 0, 1, 2, 3});
-        news2ConsciousnessMeasuredView = addEditText(container, getString(R.string.measured_value));
-        news2ConsciousnessGroup = addScoreRadioGroup(container, getString(R.string.news2_consciousness), new String[]{"Tỉnh (A)", "Gọi hỏi", "Đau", "Không đáp ứng"}, new int[]{0, 3, 3, 3});
+        news2ConsciousnessMeasuredView = addEditText(container, getString(R.string.news2_consciousness_hint));
+        news2ConsciousnessGroup = addScoreRadioGroup(container, getString(R.string.news2_consciousness), new String[]{"Tỉnh (A)", "Lú lẫn mới", "Gọi hỏi (V)", "Đau (P)", "Không đáp ứng (U)"}, new int[]{0, 3, 3, 3, 3});
         news2TotalView = addTotalText(container, getString(R.string.news2_total));
+        news2RiskView = addAlertText(container, getString(R.string.news2_risk_empty), "#455A64");
+        news2ActionView = addLabel(container, getString(R.string.news2_action_empty));
+        news2MonitoringView = addLabel(container, getString(R.string.news2_monitoring_empty));
+        news2HighestCriterionView = addLabel(container, getString(R.string.news2_highest_empty));
 
         addSection(container, getString(R.string.section_qsofa));
         qsofaRespirationView = addCheckBox(container, getString(R.string.qsofa_respiration));
@@ -188,6 +205,19 @@ public class MainActivity extends AppCompatActivity {
         sepsisDiagnosisView = addTotalText(container, getString(R.string.sepsis_diagnosis));
         treatmentOutcomeGroup = addRadioGroup(container, getString(R.string.treatment_outcome), new String[]{getString(R.string.outcome_recovered), getString(R.string.outcome_transfer), getString(R.string.outcome_death)}, null);
         treatmentDaysView = addEditText(container, getString(R.string.treatment_days));
+        saveAssessmentButton = addButton(container, getString(R.string.save_assessment));
+        saveAssessmentButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                recalculateAndSave(false);
+                if (!hasMinimalAssessmentData()) {
+                    Toast.makeText(MainActivity.this, R.string.save_assessment_missing, Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                appendAssessmentHistory();
+                lastSavedView.setText(getString(R.string.assessment_saved_format, DateFormat.getDateTimeInstance().format(new Date(assessment.savedAtMillis))));
+            }
+        });
         lastSavedView = addTotalText(container, getString(R.string.last_saved));
     }
 
@@ -208,6 +238,7 @@ public class MainActivity extends AppCompatActivity {
         otherComorbidityView.setText(assessment.otherComorbidity);
         news2RespirationMeasuredView.setText(assessment.news2RespirationMeasured);
         news2Spo2MeasuredView.setText(assessment.news2Spo2Measured);
+        news2Spo2Scale2View.setChecked(assessment.news2Spo2Scale2);
         news2OxygenMeasuredView.setText(assessment.news2OxygenMeasured);
         news2TemperatureMeasuredView.setText(assessment.news2TemperatureMeasured);
         news2SystolicBpMeasuredView.setText(assessment.news2SystolicBpMeasured);
@@ -260,6 +291,7 @@ public class MainActivity extends AppCompatActivity {
         assessment.sepsisDiagnosis = buildSepsisDiagnosis();
         assessment.savedAtMillis = System.currentTimeMillis();
 
+        updateQuickSummaryViews();
         news2TotalView.setText(getString(R.string.news2_total_format, assessment.news2Total));
         qsofaTotalView.setText(getString(R.string.qsofa_total_format, assessment.qsofaTotal));
         sofaTotalView.setText(getString(R.string.sofa_total_format, assessment.sofaTotal));
@@ -288,25 +320,15 @@ public class MainActivity extends AppCompatActivity {
         assessment.otherComorbidity = otherComorbidityView.getText().toString();
         assessment.news2RespirationMeasured = news2RespirationMeasuredView.getText().toString();
         assessment.news2Spo2Measured = news2Spo2MeasuredView.getText().toString();
+        assessment.news2Spo2Scale2 = news2Spo2Scale2View.isChecked();
         assessment.news2OxygenMeasured = news2OxygenMeasuredView.getText().toString();
         assessment.news2TemperatureMeasured = news2TemperatureMeasuredView.getText().toString();
         assessment.news2SystolicBpMeasured = news2SystolicBpMeasuredView.getText().toString();
         assessment.news2HeartRateMeasured = news2HeartRateMeasuredView.getText().toString();
         assessment.news2ConsciousnessMeasured = news2ConsciousnessMeasuredView.getText().toString();
-        assessment.news2Respiration = selectedScore(news2RespirationGroup);
-        assessment.news2RespirationOption = selectedOption(news2RespirationGroup);
-        assessment.news2Spo2 = selectedScore(news2Spo2Group);
-        assessment.news2Spo2Option = selectedOption(news2Spo2Group);
         assessment.news2Oxygen = selectedScore(news2OxygenGroup);
         assessment.news2OxygenOption = selectedOption(news2OxygenGroup);
-        assessment.news2Temperature = selectedScore(news2TemperatureGroup);
-        assessment.news2TemperatureOption = selectedOption(news2TemperatureGroup);
-        assessment.news2SystolicBp = selectedScore(news2SystolicBpGroup);
-        assessment.news2SystolicBpOption = selectedOption(news2SystolicBpGroup);
-        assessment.news2HeartRate = selectedScore(news2HeartRateGroup);
-        assessment.news2HeartRateOption = selectedOption(news2HeartRateGroup);
-        assessment.news2Consciousness = selectedScore(news2ConsciousnessGroup);
-        assessment.news2ConsciousnessOption = selectedOption(news2ConsciousnessGroup);
+        applyNews2AutoScores();
         assessment.qsofaRespiration = qsofaRespirationView.isChecked();
         assessment.qsofaSystolicBp = qsofaSystolicBpView.isChecked();
         assessment.qsofaConsciousness = qsofaConsciousnessView.isChecked();
@@ -328,6 +350,334 @@ public class MainActivity extends AppCompatActivity {
         assessment.vasopressor = vasopressorView.isChecked();
         assessment.treatmentOutcome = selectedText(treatmentOutcomeGroup);
         assessment.treatmentDays = treatmentDaysView.getText().toString();
+    }
+
+    private void applyNews2AutoScores() {
+        assessment.news2Respiration = scoreRespiration(parseInteger(assessment.news2RespirationMeasured), selectedScore(news2RespirationGroup));
+        assessment.news2RespirationOption = optionByScore(news2RespirationGroup, assessment.news2Respiration);
+        safelyCheckRadioByScore(news2RespirationGroup, assessment.news2Respiration);
+
+        assessment.news2Spo2 = assessment.news2Spo2Scale2
+                ? scoreSpo2Scale2(parseInteger(assessment.news2Spo2Measured), assessment.news2Oxygen > 0, selectedScore(news2Spo2Group))
+                : scoreSpo2Scale1(parseInteger(assessment.news2Spo2Measured), selectedScore(news2Spo2Group));
+        assessment.news2Spo2Option = assessment.news2Spo2Scale2
+                ? getString(R.string.news2_spo2_scale2_option)
+                : optionByScore(news2Spo2Group, assessment.news2Spo2);
+        safelyCheckRadioByScore(news2Spo2Group, assessment.news2Spo2);
+
+        assessment.news2Temperature = scoreTemperature(parseDouble(assessment.news2TemperatureMeasured), selectedScore(news2TemperatureGroup));
+        assessment.news2TemperatureOption = optionByScore(news2TemperatureGroup, assessment.news2Temperature);
+        safelyCheckRadioByScore(news2TemperatureGroup, assessment.news2Temperature);
+
+        assessment.news2SystolicBp = scoreSystolicBp(parseInteger(assessment.news2SystolicBpMeasured), selectedScore(news2SystolicBpGroup));
+        assessment.news2SystolicBpOption = optionByScore(news2SystolicBpGroup, assessment.news2SystolicBp);
+        safelyCheckRadioByScore(news2SystolicBpGroup, assessment.news2SystolicBp);
+
+        assessment.news2HeartRate = scoreHeartRate(parseInteger(assessment.news2HeartRateMeasured), selectedScore(news2HeartRateGroup));
+        assessment.news2HeartRateOption = optionByScore(news2HeartRateGroup, assessment.news2HeartRate);
+        safelyCheckRadioByScore(news2HeartRateGroup, assessment.news2HeartRate);
+
+        assessment.news2Consciousness = scoreConsciousness(assessment.news2ConsciousnessMeasured, selectedScore(news2ConsciousnessGroup));
+        assessment.news2ConsciousnessOption = consciousnessOption(assessment.news2ConsciousnessMeasured, news2ConsciousnessGroup);
+        safelyCheckRadioByScore(news2ConsciousnessGroup, assessment.news2Consciousness);
+
+        autoSyncQsofaFromVitals();
+    }
+
+    private void autoSyncQsofaFromVitals() {
+        boolean oldBinding = isBinding;
+        isBinding = true;
+        Integer respiration = parseInteger(assessment.news2RespirationMeasured);
+        Integer systolicBp = parseInteger(assessment.news2SystolicBpMeasured);
+        if (respiration != null) {
+            qsofaRespirationView.setChecked(respiration >= 22);
+            assessment.qsofaRespiration = respiration >= 22;
+        }
+        if (systolicBp != null) {
+            qsofaSystolicBpView.setChecked(systolicBp <= 100);
+            assessment.qsofaSystolicBp = systolicBp <= 100;
+        }
+        boolean alteredConsciousness = assessment.news2Consciousness == 3;
+        if (hasText(assessment.news2ConsciousnessMeasured) || findCheckedRadioButton(news2ConsciousnessGroup) != null) {
+            qsofaConsciousnessView.setChecked(alteredConsciousness);
+            assessment.qsofaConsciousness = alteredConsciousness;
+        }
+        isBinding = oldBinding;
+    }
+
+    private int scoreRespiration(Integer value, int fallback) {
+        if (value == null) {
+            return fallback;
+        }
+        if (value <= 8) {
+            return 3;
+        }
+        if (value <= 11) {
+            return 1;
+        }
+        if (value <= 20) {
+            return 0;
+        }
+        if (value <= 24) {
+            return 2;
+        }
+        return 3;
+    }
+
+    private int scoreSpo2Scale1(Integer value, int fallback) {
+        if (value == null) {
+            return fallback;
+        }
+        if (value <= 91) {
+            return 3;
+        }
+        if (value <= 93) {
+            return 2;
+        }
+        if (value <= 95) {
+            return 1;
+        }
+        return 0;
+    }
+
+    private int scoreSpo2Scale2(Integer value, boolean oxygen, int fallback) {
+        if (value == null) {
+            return fallback;
+        }
+        if (!oxygen) {
+            if (value <= 83) {
+                return 3;
+            }
+            if (value <= 85) {
+                return 2;
+            }
+            if (value <= 87) {
+                return 1;
+            }
+            return 0;
+        }
+        if (value <= 92) {
+            return 0;
+        }
+        if (value <= 94) {
+            return 1;
+        }
+        if (value <= 96) {
+            return 2;
+        }
+        return 3;
+    }
+
+    private int scoreTemperature(Double value, int fallback) {
+        if (value == null) {
+            return fallback;
+        }
+        if (value <= 35.0) {
+            return 3;
+        }
+        if (value <= 36.0) {
+            return 1;
+        }
+        if (value <= 38.0) {
+            return 0;
+        }
+        if (value <= 39.0) {
+            return 1;
+        }
+        return 2;
+    }
+
+    private int scoreSystolicBp(Integer value, int fallback) {
+        if (value == null) {
+            return fallback;
+        }
+        if (value <= 90) {
+            return 3;
+        }
+        if (value <= 100) {
+            return 2;
+        }
+        if (value <= 110) {
+            return 1;
+        }
+        if (value <= 219) {
+            return 0;
+        }
+        return 3;
+    }
+
+    private int scoreHeartRate(Integer value, int fallback) {
+        if (value == null) {
+            return fallback;
+        }
+        if (value <= 40) {
+            return 3;
+        }
+        if (value <= 50) {
+            return 1;
+        }
+        if (value <= 90) {
+            return 0;
+        }
+        if (value <= 110) {
+            return 1;
+        }
+        if (value <= 130) {
+            return 2;
+        }
+        return 3;
+    }
+
+    private int scoreConsciousness(String value, int fallback) {
+        if (!hasText(value)) {
+            return fallback;
+        }
+        String normalized = value.trim().toUpperCase();
+        return normalized.equals("A") || normalized.contains("TINH") || normalized.contains("TỈNH") ? 0 : 3;
+    }
+
+    private Integer parseInteger(String value) {
+        if (!hasText(value)) {
+            return null;
+        }
+        String digits = value.trim().replaceAll("[^0-9-]", "");
+        if (!hasText(digits)) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(digits);
+        } catch (NumberFormatException exception) {
+            return null;
+        }
+    }
+
+    private Double parseDouble(String value) {
+        if (!hasText(value)) {
+            return null;
+        }
+        String normalized = value.trim().replace(',', '.').replaceAll("[^0-9.-]", "");
+        if (!hasText(normalized)) {
+            return null;
+        }
+        try {
+            return Double.parseDouble(normalized);
+        } catch (NumberFormatException exception) {
+            return null;
+        }
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
+    }
+
+    private void updateQuickSummaryViews() {
+        int color = Color.parseColor(news2AlertColor());
+        String risk = news2RiskText();
+        String action = news2ActionText();
+        String monitoring = news2MonitoringText();
+        String highestCriterion = highestNews2CriterionText();
+        quickSummaryView.setText(getString(R.string.quick_summary_format, assessment.news2Total, risk, action));
+        quickSummaryView.setTextColor(Color.WHITE);
+        quickSummaryView.setBackgroundColor(color);
+        news2RiskView.setText(risk);
+        news2RiskView.setTextColor(Color.WHITE);
+        news2RiskView.setBackgroundColor(color);
+        news2ActionView.setText(action);
+        news2MonitoringView.setText(monitoring);
+        news2HighestCriterionView.setText(highestCriterion);
+    }
+
+    private String news2RiskText() {
+        if (assessment.news2Total >= 7) {
+            return getString(R.string.news2_risk_emergency);
+        }
+        if (assessment.news2Total >= 5) {
+            return getString(R.string.news2_risk_urgent);
+        }
+        if (hasSingleThreeScore()) {
+            return getString(R.string.news2_risk_single_three);
+        }
+        if (assessment.news2Total == 0) {
+            return getString(R.string.news2_risk_low_zero);
+        }
+        return getString(R.string.news2_risk_low);
+    }
+
+    private String news2ActionText() {
+        if (assessment.news2Total >= 7) {
+            return getString(R.string.news2_action_emergency);
+        }
+        if (assessment.news2Total >= 5) {
+            return getString(R.string.news2_action_urgent);
+        }
+        if (hasSingleThreeScore()) {
+            return getString(R.string.news2_action_single_three);
+        }
+        return getString(R.string.news2_action_low);
+    }
+
+    private String news2MonitoringText() {
+        if (assessment.news2Total >= 7) {
+            return getString(R.string.news2_monitoring_emergency);
+        }
+        if (assessment.news2Total >= 5 || hasSingleThreeScore()) {
+            return getString(R.string.news2_monitoring_hourly);
+        }
+        if (assessment.news2Total == 0) {
+            return getString(R.string.news2_monitoring_low_zero);
+        }
+        return getString(R.string.news2_monitoring_low);
+    }
+
+    private String news2AlertColor() {
+        if (assessment.news2Total >= 7) {
+            return "#B71C1C";
+        }
+        if (assessment.news2Total >= 5 || hasSingleThreeScore()) {
+            return "#E65100";
+        }
+        if (assessment.news2Total > 0) {
+            return "#F9A825";
+        }
+        return "#2E7D32";
+    }
+
+    private boolean hasSingleThreeScore() {
+        return assessment.news2Respiration == 3 || assessment.news2Spo2 == 3 || assessment.news2Temperature == 3
+                || assessment.news2SystolicBp == 3 || assessment.news2HeartRate == 3 || assessment.news2Consciousness == 3;
+    }
+
+    private String highestNews2CriterionText() {
+        StringBuilder builder = new StringBuilder(getString(R.string.news2_highest_prefix));
+        appendCriterion(builder, getString(R.string.news2_respiration), assessment.news2Respiration);
+        appendCriterion(builder, getString(R.string.news2_spo2), assessment.news2Spo2);
+        appendCriterion(builder, getString(R.string.news2_oxygen), assessment.news2Oxygen);
+        appendCriterion(builder, getString(R.string.news2_temperature), assessment.news2Temperature);
+        appendCriterion(builder, getString(R.string.news2_systolic_bp), assessment.news2SystolicBp);
+        appendCriterion(builder, getString(R.string.news2_heart_rate), assessment.news2HeartRate);
+        appendCriterion(builder, getString(R.string.news2_consciousness), assessment.news2Consciousness);
+        if (builder.length() == getString(R.string.news2_highest_prefix).length()) {
+            return getString(R.string.news2_highest_empty);
+        }
+        return builder.toString();
+    }
+
+    private void appendCriterion(StringBuilder builder, String label, int score) {
+        if (score < 3) {
+            return;
+        }
+        if (builder.length() > getString(R.string.news2_highest_prefix).length()) {
+            builder.append(", ");
+        }
+        builder.append(label);
+    }
+
+    private boolean hasMinimalAssessmentData() {
+        boolean hasPatient = hasText(assessment.patientId) || hasText(assessment.fullName);
+        boolean hasNews2Input = hasText(assessment.news2RespirationMeasured) || hasText(assessment.news2Spo2Measured)
+                || hasText(assessment.news2TemperatureMeasured) || hasText(assessment.news2SystolicBpMeasured)
+                || hasText(assessment.news2HeartRateMeasured) || hasText(assessment.news2ConsciousnessMeasured);
+        return hasPatient && hasNews2Input;
     }
 
     private String buildSepsisDiagnosis() {
@@ -388,6 +738,34 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private Button addButton(LinearLayout container, String text) {
+        Button button = new Button(this);
+        button.setText(text);
+        container.addView(button, matchWrapParams());
+        return button;
+    }
+
+    private TextView addAlertText(LinearLayout container, String text, String color) {
+        TextView textView = addLabel(container, text);
+        textView.setTextSize(18);
+        textView.setTextColor(Color.WHITE);
+        textView.setBackgroundColor(Color.parseColor(color));
+        textView.setPadding(16, 16, 16, 16);
+        return textView;
+    }
+
+    private EditText addNumberEditText(LinearLayout container, String hint) {
+        EditText editText = addEditText(container, hint);
+        editText.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        return editText;
+    }
+
+    private EditText addDecimalEditText(LinearLayout container, String hint) {
+        EditText editText = addEditText(container, hint);
+        editText.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        return editText;
+    }
+
     private EditText addEditText(LinearLayout container, String hint) {
         EditText editText = new EditText(this);
         editText.setHint(hint);
@@ -416,7 +794,7 @@ public class MainActivity extends AppCompatActivity {
         checkBox.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                recalculateAndSave(true);
+                recalculateAndSave(false);
             }
         });
         container.addView(checkBox, matchWrapParams());
@@ -442,7 +820,7 @@ public class MainActivity extends AppCompatActivity {
         group.setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(RadioGroup group, int checkedId) {
-                recalculateAndSave(true);
+                recalculateAndSave(false);
             }
         });
         container.addView(group, matchWrapParams());
@@ -476,6 +854,30 @@ public class MainActivity extends AppCompatActivity {
 
     private LinearLayout.LayoutParams matchWrapParams() {
         return new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+    }
+
+    private void safelyCheckRadioByScore(RadioGroup group, int score) {
+        boolean oldBinding = isBinding;
+        isBinding = true;
+        checkRadioByScore(group, score);
+        isBinding = oldBinding;
+    }
+
+    private String optionByScore(RadioGroup group, int score) {
+        for (int i = 0; i < group.getChildCount(); i++) {
+            View child = group.getChildAt(i);
+            if (child.getTag() instanceof Integer && ((Integer) child.getTag()) == score && child.getContentDescription() != null) {
+                return child.getContentDescription().toString();
+            }
+        }
+        return selectedOption(group);
+    }
+
+    private String consciousnessOption(String measuredValue, RadioGroup group) {
+        if (hasText(measuredValue)) {
+            return measuredValue.trim();
+        }
+        return selectedOption(group);
     }
 
     private int selectedScore(RadioGroup group) {
