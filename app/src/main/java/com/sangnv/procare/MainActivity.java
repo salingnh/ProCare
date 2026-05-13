@@ -34,10 +34,9 @@ import androidx.cardview.widget.CardView;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.FileProvider;
 
-import com.google.gson.JsonSyntaxException;
-import com.google.gson.reflect.TypeToken;
 import com.sangnv.procare.Model.ClinicalAssessment;
-import com.sangnv.procare.utils.SharedPrefs;
+import com.sangnv.procare.data.AssessmentRepository;
+import com.sangnv.procare.news2.News2Scoring;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -54,9 +53,6 @@ import java.util.concurrent.Executors;
 
 public class MainActivity extends AppCompatActivity implements GitHubReleaseChecker.UpdateListener {
     private static final String TAG = "MainActivity";
-    private static final String KEY_CURRENT_ASSESSMENT = "clinical_assessment_current";
-    private static final String KEY_ASSESSMENT_HISTORY = "clinical_assessment_history";
-
     private static final int STEP_COUNT = 5;
     private static final int COLOR_SCREEN_BACKGROUND = Color.rgb(243, 244, 246);
     private static final int COLOR_CARD_BACKGROUND = Color.WHITE;
@@ -66,12 +62,7 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     private static final int COLOR_PRIMARY_DARK = Color.rgb(30, 64, 175);
     private static final int COLOR_FIELD_STROKE = Color.rgb(209, 213, 219);
     private static final int COLOR_FIELD_BACKGROUND = Color.rgb(249, 250, 251);
-    private static final int COLOR_SUCCESS = Color.rgb(16, 185, 129);
-    private static final int COLOR_WARNING = Color.rgb(234, 179, 8);
-    private static final int COLOR_ORANGE = Color.rgb(249, 115, 22);
-    private static final int COLOR_DANGER = Color.rgb(220, 38, 38);
-
-
+    private final AssessmentRepository assessmentRepository = new AssessmentRepository();
     private ClinicalAssessment assessment;
     private boolean isBinding;
     private boolean isFormReady;
@@ -476,9 +467,7 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         }
 
         updateAssessmentFromViews();
-        assessment.news2Total = assessment.news2Respiration + assessment.news2Spo2 + assessment.news2Oxygen
-                + assessment.news2Temperature + assessment.news2SystolicBp + assessment.news2HeartRate
-                + assessment.news2Consciousness;
+        assessment.news2Total = News2Scoring.total(assessment);
         assessment.savedAtMillis = System.currentTimeMillis();
 
         updateQuickSummaryViews();
@@ -557,134 +546,31 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     }
 
     private int scoreRespiration(Integer value, int fallback) {
-        if (value == null) {
-            return fallback;
-        }
-        if (value <= 8) {
-            return 3;
-        }
-        if (value <= 11) {
-            return 1;
-        }
-        if (value <= 20) {
-            return 0;
-        }
-        if (value <= 24) {
-            return 2;
-        }
-        return 3;
+        return News2Scoring.scoreRespiration(value, fallback);
     }
 
     private int scoreSpo2Scale1(Integer value, int fallback) {
-        if (value == null) {
-            return fallback;
-        }
-        if (value <= 91) {
-            return 3;
-        }
-        if (value <= 93) {
-            return 2;
-        }
-        if (value <= 95) {
-            return 1;
-        }
-        return 0;
+        return News2Scoring.scoreSpo2Scale1(value, fallback);
     }
 
     private int scoreSpo2Scale2(Integer value, boolean oxygen, int fallback) {
-        if (value == null) {
-            return fallback;
-        }
-        if (!oxygen) {
-            if (value <= 83) {
-                return 3;
-            }
-            if (value <= 85) {
-                return 2;
-            }
-            if (value <= 87) {
-                return 1;
-            }
-            return 0;
-        }
-        if (value <= 92) {
-            return 0;
-        }
-        if (value <= 94) {
-            return 1;
-        }
-        if (value <= 96) {
-            return 2;
-        }
-        return 3;
+        return News2Scoring.scoreSpo2Scale2(value, oxygen, fallback);
     }
 
     private int scoreTemperature(Double value, int fallback) {
-        if (value == null) {
-            return fallback;
-        }
-        if (value <= 35.0) {
-            return 3;
-        }
-        if (value <= 36.0) {
-            return 1;
-        }
-        if (value <= 38.0) {
-            return 0;
-        }
-        if (value <= 39.0) {
-            return 1;
-        }
-        return 2;
+        return News2Scoring.scoreTemperature(value, fallback);
     }
 
     private int scoreSystolicBp(Integer value, int fallback) {
-        if (value == null) {
-            return fallback;
-        }
-        if (value <= 90) {
-            return 3;
-        }
-        if (value <= 100) {
-            return 2;
-        }
-        if (value <= 110) {
-            return 1;
-        }
-        if (value <= 219) {
-            return 0;
-        }
-        return 3;
+        return News2Scoring.scoreSystolicBp(value, fallback);
     }
 
     private int scoreHeartRate(Integer value, int fallback) {
-        if (value == null) {
-            return fallback;
-        }
-        if (value <= 40) {
-            return 3;
-        }
-        if (value <= 50) {
-            return 1;
-        }
-        if (value <= 90) {
-            return 0;
-        }
-        if (value <= 110) {
-            return 1;
-        }
-        if (value <= 130) {
-            return 2;
-        }
-        return 3;
+        return News2Scoring.scoreHeartRate(value, fallback);
     }
 
     private int scoreConsciousness(String value, int fallback) {
-        if (!hasText(value)) {
-            return fallback;
-        }
-        String normalized = value.trim().toUpperCase();
-        return normalized.equals("A") || normalized.contains("TINH") || normalized.contains("TỈNH") ? 0 : 3;
+        return News2Scoring.scoreConsciousness(value, fallback);
     }
 
     private Integer parseInteger(String value) {
@@ -842,8 +728,7 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     }
 
     private boolean hasSingleThreeScore() {
-        return assessment.news2Respiration == 3 || assessment.news2Spo2 == 3 || assessment.news2Temperature == 3
-                || assessment.news2SystolicBp == 3 || assessment.news2HeartRate == 3 || assessment.news2Consciousness == 3;
+        return News2Scoring.hasSingleThreeScore(assessment);
     }
 
     private String highestNews2CriterionText() {
@@ -911,38 +796,15 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     }
 
     private void saveCurrentAssessment() {
-        SharedPrefs.getInstance().put(KEY_CURRENT_ASSESSMENT, App.self().getGSon().toJson(assessment));
+        assessmentRepository.saveCurrentAssessment(assessment);
     }
 
     private void appendAssessmentHistory() {
-        String json = SharedPrefs.getInstance().get(KEY_ASSESSMENT_HISTORY, String.class);
-        List<ClinicalAssessment> history = null;
-        if (json != null && !json.trim().isEmpty()) {
-            try {
-                history = App.self().getGSon().fromJson(json, new TypeToken<List<ClinicalAssessment>>() {
-                }.getType());
-            } catch (JsonSyntaxException exception) {
-                history = null;
-            }
-        }
-        if (history == null) {
-            history = new ArrayList<>();
-        }
-        history.add(App.self().getGSon().fromJson(App.self().getGSon().toJson(assessment), ClinicalAssessment.class));
-        SharedPrefs.getInstance().put(KEY_ASSESSMENT_HISTORY, App.self().getGSon().toJson(history));
+        assessmentRepository.appendAssessmentHistory(assessment);
     }
 
     private ClinicalAssessment loadCurrentAssessment() {
-        String json = SharedPrefs.getInstance().get(KEY_CURRENT_ASSESSMENT, String.class);
-        if (json == null || json.trim().isEmpty()) {
-            return new ClinicalAssessment();
-        }
-        try {
-            ClinicalAssessment savedAssessment = App.self().getGSon().fromJson(json, ClinicalAssessment.class);
-            return savedAssessment == null ? new ClinicalAssessment() : savedAssessment;
-        } catch (JsonSyntaxException exception) {
-            return new ClinicalAssessment();
-        }
+        return assessmentRepository.loadCurrentAssessment();
     }
 
     private void addWorkflowControls(LinearLayout container) {
@@ -1086,17 +948,7 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     }
 
     private List<ClinicalAssessment> loadAssessmentHistory() {
-        String json = SharedPrefs.getInstance().get(KEY_ASSESSMENT_HISTORY, String.class);
-        if (json == null || json.trim().isEmpty()) {
-            return new ArrayList<>();
-        }
-        try {
-            List<ClinicalAssessment> history = App.self().getGSon().fromJson(json, new TypeToken<List<ClinicalAssessment>>() {
-            }.getType());
-            return history == null ? new ArrayList<ClinicalAssessment>() : history;
-        } catch (JsonSyntaxException exception) {
-            return new ArrayList<>();
-        }
+        return assessmentRepository.loadAssessmentHistory();
     }
 
     private String patientDisplayName(ClinicalAssessment item) {
@@ -1129,8 +981,7 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     }
 
     private boolean hasSingleThreeScore(ClinicalAssessment item) {
-        return item.news2Respiration == 3 || item.news2Spo2 == 3 || item.news2Temperature == 3
-                || item.news2SystolicBp == 3 || item.news2HeartRate == 3 || item.news2Consciousness == 3;
+        return News2Scoring.hasSingleThreeScore(item);
     }
 
 
@@ -1436,13 +1287,13 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     private int scoreAccentColor(int score) {
         switch (score) {
             case 0:
-                return COLOR_SUCCESS;
+                return News2Scoring.COLOR_SUCCESS;
             case 1:
-                return COLOR_WARNING;
+                return News2Scoring.COLOR_WARNING;
             case 2:
-                return COLOR_ORANGE;
+                return News2Scoring.COLOR_ORANGE;
             case 3:
-                return COLOR_DANGER;
+                return News2Scoring.COLOR_DANGER;
             default:
                 return COLOR_FIELD_STROKE;
         }
