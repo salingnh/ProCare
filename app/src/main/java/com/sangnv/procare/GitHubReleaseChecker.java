@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.net.Uri;
+import android.util.Log;
 
 import androidx.appcompat.app.AlertDialog;
 
@@ -23,6 +24,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class GitHubReleaseChecker {
+    private static final String TAG = "GitHubReleaseChecker";
     private static final int CONNECT_TIMEOUT_MS = 10000;
     private static final int READ_TIMEOUT_MS = 10000;
 
@@ -38,7 +40,12 @@ public class GitHubReleaseChecker {
             @Override
             public void run() {
                 ReleaseInfo releaseInfo = fetchLatestRelease();
-                if (releaseInfo == null || !isNewerVersion(releaseInfo.version, BuildConfig.VERSION_NAME)) {
+                if (releaseInfo == null) {
+                    Log.d(TAG, "No GitHub release information is available.");
+                    return;
+                }
+                if (!isNewerVersion(releaseInfo.version, BuildConfig.VERSION_NAME)) {
+                    Log.d(TAG, "Latest release " + releaseInfo.version + " is not newer than installed version " + BuildConfig.VERSION_NAME + ".");
                     return;
                 }
                 activity.runOnUiThread(new Runnable() {
@@ -58,9 +65,20 @@ public class GitHubReleaseChecker {
     }
 
     private ReleaseInfo fetchLatestRelease() {
+        ReleaseInfo newestRelease = null;
+        for (String apiUrl : BuildConfig.GITHUB_RELEASES_API_URLS) {
+            ReleaseInfo releaseInfo = fetchLatestRelease(apiUrl);
+            if (releaseInfo != null && (newestRelease == null || isNewerVersion(releaseInfo.version, newestRelease.version))) {
+                newestRelease = releaseInfo;
+            }
+        }
+        return newestRelease;
+    }
+
+    private ReleaseInfo fetchLatestRelease(String apiUrl) {
         HttpURLConnection connection = null;
         try {
-            URL url = new URL(BuildConfig.GITHUB_RELEASES_API_URL);
+            URL url = new URL(apiUrl);
             connection = (HttpURLConnection) url.openConnection();
             connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
             connection.setReadTimeout(READ_TIMEOUT_MS);
@@ -70,10 +88,12 @@ public class GitHubReleaseChecker {
 
             int responseCode = connection.getResponseCode();
             if (responseCode < HttpURLConnection.HTTP_OK || responseCode >= HttpURLConnection.HTTP_MULT_CHOICE) {
+                Log.d(TAG, "GitHub release request failed for " + apiUrl + " with HTTP " + responseCode + ".");
                 return null;
             }
             return parseRelease(readStream(connection.getInputStream()));
         } catch (IOException | JSONException exception) {
+            Log.d(TAG, "Unable to fetch GitHub release information from " + apiUrl + ".", exception);
             return null;
         } finally {
             if (connection != null) {
@@ -84,7 +104,7 @@ public class GitHubReleaseChecker {
 
     private ReleaseInfo parseRelease(String response) throws JSONException {
         JSONObject release = new JSONObject(response);
-        String version = normalizeVersion(release.optString("tag_name", release.optString("name")));
+        String version = extractVersion(release.optString("tag_name", release.optString("name")));
         if (version.isEmpty()) {
             return null;
         }
@@ -131,7 +151,7 @@ public class GitHubReleaseChecker {
                     .setNegativeButton(R.string.update_later_action, null)
                     .show();
         } catch (RuntimeException exception) {
-            // The release check must never prevent the main form from opening.
+            Log.w(TAG, "Unable to show update dialog.", exception);
         }
     }
 
@@ -148,8 +168,8 @@ public class GitHubReleaseChecker {
     }
 
     private boolean isNewerVersion(String remoteVersion, String currentVersion) {
-        String[] remoteParts = normalizeVersion(remoteVersion).split("[.-]");
-        String[] currentParts = normalizeVersion(currentVersion).split("[.-]");
+        String[] remoteParts = extractVersion(remoteVersion).split("[.-]");
+        String[] currentParts = extractVersion(currentVersion).split("[.-]");
         int length = Math.max(remoteParts.length, currentParts.length);
         for (int i = 0; i < length; i++) {
             int remoteValue = versionPart(remoteParts, i);
@@ -175,11 +195,13 @@ public class GitHubReleaseChecker {
         }
     }
 
-    private String normalizeVersion(String version) {
+    private String extractVersion(String version) {
         if (version == null) {
             return "";
         }
-        return version.trim().replaceFirst("^[vV]", "");
+        String normalized = version.trim().replaceFirst("^[vV]", "");
+        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("(\\d+(?:[.-]\\d+)+)").matcher(normalized);
+        return matcher.find() ? matcher.group(1) : normalized;
     }
 
     private static class ReleaseInfo {
