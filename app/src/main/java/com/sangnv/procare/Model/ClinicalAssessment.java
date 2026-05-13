@@ -66,5 +66,7 @@ public class ClinicalAssessment {
     public String sepsisDiagnosis = "";
     public String treatmentOutcome = "";
     public String treatmentDays = "";
+    public long createdAtMillis;
+    public long modifiedAtMillis;
     public long savedAtMillis;
 }

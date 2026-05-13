@@ -1,9 +1,13 @@
 package com.sangnv.procare.ui;
 
 import android.content.Context;
+import android.graphics.Color;
 import android.graphics.Typeface;
+import android.view.KeyEvent;
+import android.view.Gravity;
 import android.view.View;
-import android.widget.Button;
+import android.view.inputmethod.EditorInfo;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -14,16 +18,28 @@ import com.sangnv.procare.R;
 import com.sangnv.procare.news2.News2Scoring;
 
 import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 
 public final class PatientListScreen {
+    public static final int SORT_CREATED_RECENT = 0;
+    public static final int SORT_MODIFIED_RECENT = 1;
+
     public interface Listener {
         void onAddNewAssessment();
 
         void onOpenAssessment(ClinicalAssessment assessment);
 
+        void onSearchChanged(String query);
+
         void onViewModeChanged(boolean gridMode);
+
+        void onSortModeChanged(int sortMode);
     }
 
     private final Context context;
@@ -43,125 +59,154 @@ public final class PatientListScreen {
         this.colorTextSecondary = colorTextSecondary;
     }
 
-    public void render(LinearLayout container, List<ClinicalAssessment> history, boolean gridMode) {
-        addHeader(container);
-        addModeSwitch(container, gridMode);
-        addContent(container, history, gridMode);
+    public void render(LinearLayout container, List<ClinicalAssessment> history, boolean gridMode,
+                       String searchQuery, int sortMode) {
+        addKeepToolbar(container, gridMode, searchQuery, sortMode);
+        addContent(container, visibleAssessments(history, searchQuery, sortMode), gridMode);
     }
 
-    private void addHeader(LinearLayout container) {
-        LinearLayout header = new LinearLayout(context);
-        header.setOrientation(LinearLayout.VERTICAL);
-        header.setPadding(dp(18), dp(16), dp(18), dp(16));
-        header.setBackground(ProCareUi.roundedDrawable(android.graphics.Color.WHITE, dp(24), dp(1), android.graphics.Color.rgb(229, 231, 235)));
+    private void addKeepToolbar(LinearLayout container, boolean gridMode, String searchQuery, int sortMode) {
+        LinearLayout toolbar = new LinearLayout(context);
+        toolbar.setOrientation(LinearLayout.HORIZONTAL);
+        toolbar.setGravity(Gravity.CENTER_VERTICAL);
+        toolbar.setPadding(dp(10), dp(8), dp(10), dp(8));
+        toolbar.setBackground(ProCareUi.roundedDrawable(Color.WHITE, dp(32), 0, Color.TRANSPARENT));
 
-        TextView eyebrow = new TextView(context);
-        eyebrow.setText(R.string.patient_list_eyebrow);
-        eyebrow.setTextColor(colorPrimary);
-        eyebrow.setTextSize(12);
-        eyebrow.setTypeface(Typeface.DEFAULT_BOLD);
-        header.addView(eyebrow, matchWrapParams());
+        TextView menu = toolbarIcon("☰", 26);
+        toolbar.addView(menu, new LinearLayout.LayoutParams(dp(42), dp(48)));
 
-        TextView title = new TextView(context);
-        title.setText(R.string.patient_list_title);
-        title.setTextColor(colorTextPrimary);
-        title.setTextSize(24);
-        title.setTypeface(Typeface.DEFAULT_BOLD);
-        title.setPadding(0, dp(4), 0, 0);
-        header.addView(title, matchWrapParams());
-
-        TextView subtitle = new TextView(context);
-        subtitle.setText(R.string.patient_list_subtitle);
-        subtitle.setTextColor(colorTextSecondary);
-        subtitle.setTextSize(14);
-        subtitle.setLineSpacing(dp(2), 1.0f);
-        subtitle.setPadding(0, dp(6), 0, dp(14));
-        header.addView(subtitle, matchWrapParams());
-
-        Button addButton = new Button(context);
-        addButton.setText(R.string.patient_list_add_new);
-        ProCareUi.stylePrimaryButton(context, addButton, true, colorPrimary, colorPrimaryDark);
-        addButton.setOnClickListener(new View.OnClickListener() {
+        EditText search = new EditText(context);
+        search.setSingleLine(true);
+        search.setImeOptions(EditorInfo.IME_ACTION_SEARCH);
+        search.setText(searchQuery == null ? "" : searchQuery);
+        search.setHint(R.string.patient_list_search_hint);
+        search.setTextColor(colorTextPrimary);
+        search.setHintTextColor(Color.rgb(107, 114, 128));
+        search.setTextSize(17);
+        search.setPadding(dp(8), 0, dp(8), 0);
+        search.setBackgroundColor(Color.TRANSPARENT);
+        search.setOnEditorActionListener(new TextView.OnEditorActionListener() {
             @Override
-            public void onClick(View v) {
-                listener.onAddNewAssessment();
+            public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
+                if (actionId == EditorInfo.IME_ACTION_SEARCH
+                        || (event != null && event.getKeyCode() == KeyEvent.KEYCODE_ENTER)) {
+                    listener.onSearchChanged(v.getText().toString());
+                    return true;
+                }
+                return false;
             }
         });
-        header.addView(addButton, matchWrapParams());
+        toolbar.addView(search, new LinearLayout.LayoutParams(0, dp(48), 1));
 
-        LinearLayout.LayoutParams params = matchWrapParams();
-        params.setMargins(0, 0, 0, dp(12));
-        container.addView(header, params);
+        TextView viewMode = toolbarIcon(gridMode ? "▤" : "▦", 27);
+        viewMode.setContentDescription(context.getString(gridMode
+                ? R.string.patient_list_list_mode
+                : R.string.patient_list_grid_mode));
+        viewMode.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                listener.onViewModeChanged(!gridMode);
+            }
+        });
+        toolbar.addView(viewMode, new LinearLayout.LayoutParams(dp(46), dp(48)));
+
+        TextView sort = toolbarIcon(sortMode == SORT_CREATED_RECENT ? "↕" : "⇅", 28);
+        sort.setContentDescription(context.getString(R.string.patient_list_sort_button));
+        sort.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                listener.onSortModeChanged(sortMode == SORT_CREATED_RECENT ? SORT_MODIFIED_RECENT : SORT_CREATED_RECENT);
+            }
+        });
+        toolbar.addView(sort, new LinearLayout.LayoutParams(dp(46), dp(48)));
+
+        LinearLayout.LayoutParams toolbarParams = matchWrapParams();
+        toolbarParams.setMargins(0, 0, 0, dp(18));
+        container.addView(toolbar, toolbarParams);
+
+        TextView sortLabel = new TextView(context);
+        sortLabel.setText(sortMode == SORT_CREATED_RECENT
+                ? R.string.patient_list_sort_created_recent
+                : R.string.patient_list_sort_modified_recent);
+        sortLabel.setTextColor(colorTextSecondary);
+        sortLabel.setTextSize(13);
+        sortLabel.setPadding(dp(6), 0, 0, dp(12));
+        container.addView(sortLabel, matchWrapParams());
     }
 
-    private void addModeSwitch(LinearLayout container, boolean gridMode) {
-        LinearLayout switcher = new LinearLayout(context);
-        switcher.setOrientation(LinearLayout.HORIZONTAL);
-        switcher.setPadding(0, dp(4), 0, dp(12));
+    private TextView toolbarIcon(String text, int textSize) {
+        TextView icon = new TextView(context);
+        icon.setText(text);
+        icon.setTextColor(Color.rgb(55, 65, 81));
+        icon.setTextSize(textSize);
+        icon.setGravity(Gravity.CENTER);
+        icon.setTypeface(Typeface.DEFAULT_BOLD);
+        icon.setClickable(true);
+        icon.setFocusable(true);
+        return icon;
+    }
 
-        Button gridButton = new Button(context);
-        gridButton.setText(R.string.patient_list_grid_mode);
-        ProCareUi.stylePrimaryButton(context, gridButton, gridMode, colorPrimary, colorPrimaryDark);
-        gridButton.setOnClickListener(new View.OnClickListener() {
+    private List<ClinicalAssessment> visibleAssessments(List<ClinicalAssessment> history, String searchQuery, int sortMode) {
+        List<ClinicalAssessment> visible = new ArrayList<>();
+        String normalizedQuery = searchQuery == null ? "" : searchQuery.trim().toLowerCase(Locale.getDefault());
+        for (ClinicalAssessment item : history) {
+            if (normalizedQuery.isEmpty() || searchableText(item).contains(normalizedQuery)) {
+                visible.add(item);
+            }
+        }
+        Collections.sort(visible, new Comparator<ClinicalAssessment>() {
             @Override
-            public void onClick(View v) {
-                listener.onViewModeChanged(true);
+            public int compare(ClinicalAssessment left, ClinicalAssessment right) {
+                long rightTime = sortMode == SORT_CREATED_RECENT ? createdTime(right) : modifiedTime(right);
+                long leftTime = sortMode == SORT_CREATED_RECENT ? createdTime(left) : modifiedTime(left);
+                return Long.compare(rightTime, leftTime);
             }
         });
-        Button listButton = new Button(context);
-        listButton.setText(R.string.patient_list_list_mode);
-        ProCareUi.stylePrimaryButton(context, listButton, !gridMode, colorPrimary, colorPrimaryDark);
-        listButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                listener.onViewModeChanged(false);
-            }
-        });
-        LinearLayout.LayoutParams leftParams = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
-        leftParams.setMargins(0, 0, dp(6), 0);
-        LinearLayout.LayoutParams rightParams = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
-        rightParams.setMargins(dp(6), 0, 0, 0);
-        switcher.addView(gridButton, leftParams);
-        switcher.addView(listButton, rightParams);
-        container.addView(switcher, matchWrapParams());
+        return visible;
+    }
+
+    private String searchableText(ClinicalAssessment item) {
+        return (safe(item.fullName) + " " + safe(item.patientId) + " " + safe(item.ward) + " "
+                + safe(item.suspectedInfection)).toLowerCase(Locale.getDefault());
     }
 
     private void addContent(LinearLayout container, List<ClinicalAssessment> history, boolean gridMode) {
         if (history.isEmpty()) {
             TextView empty = new TextView(context);
             empty.setText(R.string.patient_list_empty);
-            empty.setTextColor(android.graphics.Color.rgb(75, 85, 99));
+            empty.setTextColor(Color.rgb(75, 85, 99));
             empty.setTextSize(15);
-            empty.setGravity(android.view.Gravity.CENTER);
+            empty.setGravity(Gravity.CENTER);
             empty.setPadding(dp(18), dp(28), dp(18), dp(28));
-            empty.setBackground(ProCareUi.roundedDrawable(android.graphics.Color.WHITE, dp(22), dp(1), android.graphics.Color.rgb(229, 231, 235)));
+            empty.setBackground(ProCareUi.roundedDrawable(Color.WHITE, dp(22), dp(1), Color.rgb(229, 231, 235)));
             container.addView(empty, matchWrapParams());
             return;
         }
         if (gridMode) {
             addGrid(container, history);
         } else {
-            for (int i = history.size() - 1; i >= 0; i--) {
-                container.addView(createCard(history.get(i), i + 1, false), matchWrapParamsWithMargins(0, 0, 0, dp(10)));
+            for (int i = 0; i < history.size(); i++) {
+                View card = createCard(history.get(i), i + 1, false);
+                card.setTag(dateBubbleText(history.get(i)));
+                container.addView(card, matchWrapParamsWithMargins(0, 0, 0, dp(10)));
             }
         }
     }
 
     private void addGrid(LinearLayout container, List<ClinicalAssessment> history) {
         LinearLayout row = null;
-        int cellIndex = 0;
-        for (int i = history.size() - 1; i >= 0; i--) {
-            if (cellIndex % 2 == 0) {
+        for (int i = 0; i < history.size(); i++) {
+            if (i % 2 == 0) {
                 row = new LinearLayout(context);
                 row.setOrientation(LinearLayout.HORIZONTAL);
+                row.setTag(dateBubbleText(history.get(i)));
                 container.addView(row, matchWrapParamsWithMargins(0, 0, 0, dp(10)));
             }
             LinearLayout.LayoutParams cellParams = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
-            cellParams.setMargins(cellIndex % 2 == 0 ? 0 : dp(6), 0, cellIndex % 2 == 0 ? dp(6) : 0, 0);
+            cellParams.setMargins(i % 2 == 0 ? 0 : dp(6), 0, i % 2 == 0 ? dp(6) : 0, 0);
             row.addView(createCard(history.get(i), i + 1, true), cellParams);
-            cellIndex++;
         }
-        if (cellIndex % 2 == 1 && row != null) {
+        if (history.size() % 2 == 1 && row != null) {
             TextView spacer = new TextView(context);
             LinearLayout.LayoutParams spacerParams = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
             spacerParams.setMargins(dp(6), 0, 0, 0);
@@ -171,7 +216,7 @@ public final class PatientListScreen {
 
     private View createCard(ClinicalAssessment item, int number, boolean compact) {
         CardView cardView = new CardView(context);
-        cardView.setCardBackgroundColor(android.graphics.Color.WHITE);
+        cardView.setCardBackgroundColor(Color.WHITE);
         cardView.setRadius(dp(22));
         cardView.setCardElevation(dp(1));
         cardView.setUseCompatPadding(true);
@@ -194,25 +239,42 @@ public final class PatientListScreen {
         title.setTypeface(Typeface.DEFAULT_BOLD);
         card.addView(title, matchWrapParams());
 
+        TextView details = new TextView(context);
+        details.setText(summaryText(item, compact));
+        details.setTextColor(colorTextSecondary);
+        details.setTextSize(compact ? 13 : 14);
+        details.setLineSpacing(dp(2), 1.0f);
+        details.setPadding(0, dp(16), 0, dp(14));
+        card.addView(details, matchWrapParams());
+
         TextView score = new TextView(context);
         score.setText(context.getString(R.string.patient_list_score_format, item.news2Total, riskText(item)));
         score.setTextColor(News2Scoring.riskColor(item));
-        score.setTextSize(compact ? 13 : 14);
+        score.setTextSize(13);
         score.setTypeface(Typeface.DEFAULT_BOLD);
-        score.setPadding(0, dp(8), 0, 0);
-        card.addView(score, matchWrapParams());
-
-        TextView meta = new TextView(context);
-        meta.setText(item.savedAtMillis > 0
-                ? context.getString(R.string.patient_summary_saved_format, DateFormat.getDateTimeInstance().format(new Date(item.savedAtMillis)))
-                : context.getString(R.string.patient_list_unsaved_time));
-        meta.setTextColor(android.graphics.Color.rgb(107, 114, 128));
-        meta.setTextSize(12);
-        meta.setPadding(0, dp(8), 0, 0);
-        card.addView(meta, matchWrapParams());
+        score.setPadding(dp(10), dp(6), dp(10), dp(6));
+        score.setBackground(ProCareUi.roundedDrawable(Color.rgb(243, 244, 246), dp(12), 0, Color.TRANSPARENT));
+        card.addView(score, wrapParams());
 
         cardView.addView(card, matchWrapParams());
         return cardView;
+    }
+
+    private String summaryText(ClinicalAssessment item, boolean compact) {
+        StringBuilder builder = new StringBuilder();
+        if (hasText(item.ward)) {
+            builder.append(item.ward.trim()).append('\n');
+        }
+        if (hasText(item.suspectedInfection)) {
+            builder.append(item.suspectedInfection.trim()).append('\n');
+        }
+        builder.append(context.getString(R.string.patient_summary_saved_format,
+                DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(new Date(modifiedTime(item)))));
+        if (!compact) {
+            builder.append('\n').append(context.getString(R.string.patient_list_created_format,
+                    DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(new Date(createdTime(item)))));
+        }
+        return builder.toString();
     }
 
     private String displayName(ClinicalAssessment item, int number) {
@@ -226,6 +288,24 @@ public final class PatientListScreen {
             return context.getString(R.string.patient_summary_id_only, item.patientId.trim());
         }
         return context.getString(R.string.patient_list_generated_name, number);
+    }
+
+    private String dateBubbleText(ClinicalAssessment item) {
+        return new SimpleDateFormat("dd/MM", Locale.getDefault()).format(new Date(modifiedTime(item)));
+    }
+
+    private long createdTime(ClinicalAssessment item) {
+        if (item.createdAtMillis > 0) {
+            return item.createdAtMillis;
+        }
+        return item.savedAtMillis > 0 ? item.savedAtMillis : modifiedTime(item);
+    }
+
+    private long modifiedTime(ClinicalAssessment item) {
+        if (item.modifiedAtMillis > 0) {
+            return item.modifiedAtMillis;
+        }
+        return item.savedAtMillis > 0 ? item.savedAtMillis : System.currentTimeMillis();
     }
 
     private String riskText(ClinicalAssessment item) {
@@ -248,12 +328,20 @@ public final class PatientListScreen {
         return value != null && !value.trim().isEmpty();
     }
 
+    private String safe(String value) {
+        return value == null ? "" : value;
+    }
+
     private int dp(int value) {
         return ProCareUi.dp(context, value);
     }
 
     private LinearLayout.LayoutParams matchWrapParams() {
         return new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+    }
+
+    private LinearLayout.LayoutParams wrapParams() {
+        return new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
     }
 
     private LinearLayout.LayoutParams matchWrapParamsWithMargins(int left, int top, int right, int bottom) {

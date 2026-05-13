@@ -72,12 +72,16 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     private boolean isDownloadingUpdate;
     private boolean showingAssessment;
     private boolean gridPatientView = true;
+    private String patientSearchQuery = "";
+    private int patientSortMode = PatientListScreen.SORT_MODIFIED_RECENT;
     private int currentWorkflowStep;
     private GitHubReleaseChecker gitHubReleaseChecker;
     private GitHubReleaseChecker.UpdateInfo availableUpdate;
     private final ExecutorService updateDownloadExecutor = Executors.newSingleThreadExecutor();
     private final AssessmentRepository assessmentRepository = new AssessmentRepository();
     private LinearLayout formContainer;
+    private Button floatingAddButton;
+    private TextView scrollDateBubble;
     private LinearLayout updateBannerView;
     private TextView updateBannerTitleView;
     private TextView updateBannerMessageView;
@@ -169,6 +173,10 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
 
         assessment = loadCurrentAssessment();
         formContainer = (LinearLayout) findViewById(R.id.form_container);
+        floatingAddButton = (Button) findViewById(R.id.fab_add_assessment);
+        scrollDateBubble = (TextView) findViewById(R.id.scroll_date_bubble);
+        configureFloatingAddButton();
+        configureScrollDateBubble();
         showPatientListScreen();
         gitHubReleaseChecker = new GitHubReleaseChecker(this);
         gitHubReleaseChecker.checkForNewRelease();
@@ -431,17 +439,99 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         return super.onOptionsItemSelected(item);
     }
 
+
+    private void configureFloatingAddButton() {
+        if (floatingAddButton == null) {
+            return;
+        }
+        floatingAddButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startNewAssessment();
+            }
+        });
+    }
+
+    private void configureScrollDateBubble() {
+        ScrollView scrollView = (ScrollView) findViewById(R.id.assessment_scroll);
+        if (scrollView == null || scrollDateBubble == null) {
+            return;
+        }
+        scrollView.setOnScrollChangeListener(new View.OnScrollChangeListener() {
+            @Override
+            public void onScrollChange(View v, int scrollX, int scrollY, int oldScrollX, int oldScrollY) {
+                updateScrollDateBubble(scrollY);
+            }
+        });
+    }
+
+    private void updateScrollDateBubble(int scrollY) {
+        if (scrollDateBubble == null || showingAssessment) {
+            if (scrollDateBubble != null) {
+                scrollDateBubble.setVisibility(View.GONE);
+            }
+            return;
+        }
+        String date = findVisibleDateLabel(scrollY);
+        if (date == null || date.trim().isEmpty()) {
+            scrollDateBubble.setVisibility(View.GONE);
+            return;
+        }
+        scrollDateBubble.setText(date);
+        scrollDateBubble.setVisibility(View.VISIBLE);
+        scrollDateBubble.removeCallbacks(hideScrollDateBubbleRunnable);
+        scrollDateBubble.postDelayed(hideScrollDateBubbleRunnable, 900);
+    }
+
+    private final Runnable hideScrollDateBubbleRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (scrollDateBubble != null) {
+                scrollDateBubble.setVisibility(View.GONE);
+            }
+        }
+    };
+
+    private String findVisibleDateLabel(int scrollY) {
+        String lastDate = null;
+        int target = scrollY + dp(96);
+        for (int i = 0; i < formContainer.getChildCount(); i++) {
+            View child = formContainer.getChildAt(i);
+            Object tag = child.getTag();
+            if (tag instanceof String) {
+                lastDate = (String) tag;
+                if (child.getTop() >= target) {
+                    return lastDate;
+                }
+            }
+        }
+        return lastDate;
+    }
+
+    private void startNewAssessment() {
+        assessment = new ClinicalAssessment();
+        long now = System.currentTimeMillis();
+        assessment.createdAtMillis = now;
+        assessment.modifiedAtMillis = now;
+        initializeAssessmentForm(formContainer);
+        recalculateAndSave(false);
+    }
+
     private void showPatientListScreen() {
         showingAssessment = false;
         isFormReady = false;
         formContainer.removeAllViews();
+        if (floatingAddButton != null) {
+            floatingAddButton.setVisibility(View.VISIBLE);
+        }
+        if (scrollDateBubble != null) {
+            scrollDateBubble.setVisibility(View.GONE);
+        }
         formContainer.setPadding(dp(16), dp(18) + systemBarDimension("status_bar_height"), dp(16), dp(28) + systemBarDimension("navigation_bar_height"));
         new PatientListScreen(this, new PatientListScreen.Listener() {
             @Override
             public void onAddNewAssessment() {
-                assessment = new ClinicalAssessment();
-                initializeAssessmentForm(formContainer);
-                recalculateAndSave(false);
+                startNewAssessment();
             }
 
             @Override
@@ -452,12 +542,24 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
             }
 
             @Override
+            public void onSearchChanged(String query) {
+                patientSearchQuery = query;
+                showPatientListScreen();
+            }
+
+            @Override
             public void onViewModeChanged(boolean gridMode) {
                 gridPatientView = gridMode;
                 showPatientListScreen();
             }
+
+            @Override
+            public void onSortModeChanged(int sortMode) {
+                patientSortMode = sortMode;
+                showPatientListScreen();
+            }
         }, COLOR_PRIMARY, COLOR_PRIMARY_DARK, COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY)
-                .render(formContainer, loadAssessmentHistory(), gridPatientView);
+                .render(formContainer, loadAssessmentHistory(), gridPatientView, patientSearchQuery, patientSortMode);
         if (availableUpdate != null) {
             updateBannerView = null;
             showUpdateBanner(availableUpdate);
@@ -466,6 +568,12 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
 
     private void initializeAssessmentForm(LinearLayout container) {
         showingAssessment = true;
+        if (floatingAddButton != null) {
+            floatingAddButton.setVisibility(View.GONE);
+        }
+        if (scrollDateBubble != null) {
+            scrollDateBubble.setVisibility(View.GONE);
+        }
         isFormReady = false;
         isBinding = true;
         try {
@@ -539,7 +647,7 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
 
         updateAssessmentFromViews();
         assessment.news2Total = News2Scoring.total(assessment);
-        assessment.savedAtMillis = System.currentTimeMillis();
+        markAssessmentModified();
 
         updateQuickSummaryViews();
         saveCurrentAssessment();
@@ -885,6 +993,15 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         } catch (NumberFormatException exception) {
             return false;
         }
+    }
+
+    private void markAssessmentModified() {
+        long now = System.currentTimeMillis();
+        if (assessment.createdAtMillis <= 0) {
+            assessment.createdAtMillis = assessment.savedAtMillis > 0 ? assessment.savedAtMillis : now;
+        }
+        assessment.modifiedAtMillis = now;
+        assessment.savedAtMillis = now;
     }
 
     private void saveCurrentAssessment() {
@@ -1396,7 +1513,7 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
                 assessment.news2Total = assessment.news2Respiration + assessment.news2Spo2 + assessment.news2Oxygen
                         + assessment.news2Temperature + assessment.news2SystolicBp + assessment.news2HeartRate
                         + assessment.news2Consciousness;
-                assessment.savedAtMillis = System.currentTimeMillis();
+                markAssessmentModified();
                 appendAssessmentHistory();
                 saveCurrentAssessment();
                 Toast.makeText(MainActivity.this, R.string.patient_list_saved, Toast.LENGTH_SHORT).show();
