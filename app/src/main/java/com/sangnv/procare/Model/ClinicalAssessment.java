@@ -19,6 +19,7 @@ public class ClinicalAssessment {
     public int news2Respiration;
     public String news2RespirationOption = "";
     public String news2Spo2Measured = "";
+    public boolean news2Spo2Scale2;
     public int news2Spo2;
     public String news2Spo2Option = "";
     public String news2OxygenMeasured = "";
