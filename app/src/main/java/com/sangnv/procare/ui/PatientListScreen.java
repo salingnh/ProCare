@@ -21,6 +21,8 @@ public final class PatientListScreen {
     public interface Listener {
         void onAddNewAssessment();
 
+        void onOpenAssessment(ClinicalAssessment assessment);
+
         void onViewModeChanged(boolean gridMode);
     }
 
@@ -173,6 +175,14 @@ public final class PatientListScreen {
         cardView.setRadius(dp(22));
         cardView.setCardElevation(dp(1));
         cardView.setUseCompatPadding(true);
+        cardView.setClickable(true);
+        cardView.setFocusable(true);
+        cardView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                listener.onOpenAssessment(item);
+            }
+        });
         LinearLayout card = new LinearLayout(context);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(dp(14), dp(14), dp(14), dp(14));
