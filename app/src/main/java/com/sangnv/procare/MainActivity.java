@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.content.res.ColorStateList;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.StateListDrawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
@@ -599,6 +600,34 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
             assessment.qsofaConsciousness = alteredConsciousness;
         }
         isBinding = oldBinding;
+    }
+
+    private int scoreRespiration(Integer value, int fallback) {
+        return News2Scoring.scoreRespiration(value, fallback);
+    }
+
+    private int scoreSpo2Scale1(Integer value, int fallback) {
+        return News2Scoring.scoreSpo2Scale1(value, fallback);
+    }
+
+    private int scoreSpo2Scale2(Integer value, boolean oxygen, int fallback) {
+        return News2Scoring.scoreSpo2Scale2(value, oxygen, fallback);
+    }
+
+    private int scoreTemperature(Double value, int fallback) {
+        return News2Scoring.scoreTemperature(value, fallback);
+    }
+
+    private int scoreSystolicBp(Integer value, int fallback) {
+        return News2Scoring.scoreSystolicBp(value, fallback);
+    }
+
+    private int scoreHeartRate(Integer value, int fallback) {
+        return News2Scoring.scoreHeartRate(value, fallback);
+    }
+
+    private int scoreConsciousness(String value, int fallback) {
+        return News2Scoring.scoreConsciousness(value, fallback);
     }
 
     private Integer parseInteger(String value) {
