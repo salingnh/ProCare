@@ -9,6 +9,8 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.chauthai.swipereveallayout.SwipeRevealLayout;
+import com.chauthai.swipereveallayout.ViewBinderHelper;
 import com.sangnv.procare.R;
 import com.sangnv.procare.utils.AppState;
 
@@ -35,6 +37,7 @@ public class SettingAdapter extends RecyclerView.Adapter<SettingAdapter.SettingV
     @Override
     public void onBindViewHolder(@NonNull SettingViewHolder holder, int position) {
         String data = mValues.get(position);
+        binderHelper.bind(holder.swipeLayout, data);
         holder.bind(data);
     }
 
@@ -60,12 +63,14 @@ public class SettingAdapter extends RecyclerView.Adapter<SettingAdapter.SettingV
 
     public class SettingViewHolder extends RecyclerView.ViewHolder {
         public final TextView mTitle;
+        private final SwipeRevealLayout swipeLayout;
         private final ImageButton buttonDelete;
         private final ImageButton buttonEdit;
 
         public SettingViewHolder(View view) {
             super(view);
             mTitle = view.findViewById(R.id.setting_text);
+            swipeLayout = itemView.findViewById(R.id.swipe_layout);
             buttonDelete = itemView.findViewById(R.id.btn_delete_item);
             buttonEdit = itemView.findViewById(R.id.btn_edit_item);
         }

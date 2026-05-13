@@ -58,7 +58,7 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Build debug APK
-        run: ./gradlew clean assembleDebug --no-configuration-cache --stacktrace
+        run: ./gradlew clean assembleDebug --stacktrace
 
       - name: Prepare APK artifact
         id: package_apk

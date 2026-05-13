@@ -24,25 +24,22 @@
         <TextView
             android:id="@+id/setting_text_detail"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/table_total_label" />
-    </LinearLayout>
+            android:layout_height="match_parent">
 
-    <androidx.appcompat.widget.AppCompatImageButton
-        android:id="@+id/btn_edit_item"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:contentDescription="@string/edit"
-        android:gravity="center"
-        app:srcCompat="@drawable/ic_mode_edit" />
+            <TextView
+                android:id="@+id/setting_text"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:text="@string/table_label"
+                android:textSize="20sp" />
 
-    <androidx.appcompat.widget.AppCompatImageButton
-        android:id="@+id/btn_delete_item"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:contentDescription="@string/delete"
-        android:gravity="center"
-        app:srcCompat="@drawable/ic_delete" />
-</LinearLayout>
+            <TextView
+                android:id="@+id/setting_text_detail"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_weight="4"
+                android:text="@string/table_total_label" />
+        </LinearLayout>
+    </FrameLayout>
+</com.chauthai.swipereveallayout.SwipeRevealLayout>
