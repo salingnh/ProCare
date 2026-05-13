@@ -445,6 +445,13 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
             }
 
             @Override
+            public void onOpenAssessment(ClinicalAssessment selectedAssessment) {
+                assessment = cloneAssessment(selectedAssessment);
+                initializeAssessmentForm(formContainer);
+                recalculateAndSave(false);
+            }
+
+            @Override
             public void onViewModeChanged(boolean gridMode) {
                 gridPatientView = gridMode;
                 showPatientListScreen();
@@ -476,6 +483,7 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         container.setPadding(dp(16), dp(14) + systemBarDimension("status_bar_height"), dp(16), dp(26) + systemBarDimension("navigation_bar_height"));
 
         addNews2TopBar(container);
+        addPatientInfoCard(container);
         quickSummaryView = addAlertText(container, getString(R.string.quick_summary_empty), "#6B7280");
 
         addSpo2ScaleCard(container);
@@ -505,6 +513,12 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
 
     private void bindAssessmentToViews() {
         isBinding = true;
+        setEditTextValue(patientIdView, assessment.patientId);
+        setEditTextValue(fullNameView, assessment.fullName);
+        setEditTextValue(ageView, assessment.age);
+        setEditTextValue(wardView, assessment.ward);
+        setEditTextValue(admissionDateTimeView, assessment.admissionDateTime);
+        setEditTextValue(suspectedInfectionView, assessment.suspectedInfection);
         if (news2Spo2Scale2View != null) {
             news2Spo2Scale2View.setChecked(assessment.news2Spo2Scale2);
         }
@@ -532,6 +546,12 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     }
 
     private void updateAssessmentFromViews() {
+        assessment.patientId = editTextValue(patientIdView);
+        assessment.fullName = editTextValue(fullNameView);
+        assessment.age = editTextValue(ageView);
+        assessment.ward = editTextValue(wardView);
+        assessment.admissionDateTime = editTextValue(admissionDateTimeView);
+        assessment.suspectedInfection = editTextValue(suspectedInfectionView);
         assessment.news2Spo2Scale2 = news2Spo2Scale2View != null && news2Spo2Scale2View.isChecked();
         assessment.news2Respiration = selectedScore(news2RespirationGroup);
         assessment.news2RespirationOption = selectedOption(news2RespirationGroup);
@@ -628,6 +648,20 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
 
     private int scoreConsciousness(String value, int fallback) {
         return News2Scoring.scoreConsciousness(value, fallback);
+    }
+
+    private String editTextValue(EditText editText) {
+        return editText == null || editText.getText() == null ? "" : editText.getText().toString().trim();
+    }
+
+    private void setEditTextValue(EditText editText, String value) {
+        if (editText == null) {
+            return;
+        }
+        String safeValue = value == null ? "" : value;
+        if (!safeValue.contentEquals(editText.getText())) {
+            editText.setText(safeValue);
+        }
     }
 
     private Integer parseInteger(String value) {
@@ -790,27 +824,28 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
 
     private String highestNews2CriterionText() {
         StringBuilder builder = new StringBuilder(getString(R.string.news2_highest_prefix));
-        appendCriterion(builder, getString(R.string.news2_respiration), assessment.news2Respiration);
-        appendCriterion(builder, getString(R.string.news2_spo2), assessment.news2Spo2);
-        appendCriterion(builder, getString(R.string.news2_oxygen), assessment.news2Oxygen);
-        appendCriterion(builder, getString(R.string.news2_temperature), assessment.news2Temperature);
-        appendCriterion(builder, getString(R.string.news2_systolic_bp), assessment.news2SystolicBp);
-        appendCriterion(builder, getString(R.string.news2_heart_rate), assessment.news2HeartRate);
-        appendCriterion(builder, getString(R.string.news2_consciousness), assessment.news2Consciousness);
+        appendCriterion(builder, getString(R.string.news2_respiration), assessment.news2RespirationOption, assessment.news2Respiration);
+        appendCriterion(builder, getString(R.string.news2_spo2), assessment.news2Spo2Option, assessment.news2Spo2);
+        appendCriterion(builder, getString(R.string.news2_oxygen), assessment.news2OxygenOption, assessment.news2Oxygen);
+        appendCriterion(builder, getString(R.string.news2_temperature), assessment.news2TemperatureOption, assessment.news2Temperature);
+        appendCriterion(builder, getString(R.string.news2_systolic_bp), assessment.news2SystolicBpOption, assessment.news2SystolicBp);
+        appendCriterion(builder, getString(R.string.news2_heart_rate), assessment.news2HeartRateOption, assessment.news2HeartRate);
+        appendCriterion(builder, getString(R.string.news2_consciousness), assessment.news2ConsciousnessOption, assessment.news2Consciousness);
         if (builder.length() == getString(R.string.news2_highest_prefix).length()) {
             return getString(R.string.news2_highest_empty);
         }
         return builder.toString();
     }
 
-    private void appendCriterion(StringBuilder builder, String label, int score) {
+    private void appendCriterion(StringBuilder builder, String label, String option, int score) {
         if (score < 3) {
             return;
         }
         if (builder.length() > getString(R.string.news2_highest_prefix).length()) {
-            builder.append(", ");
+            builder.append("; ");
         }
-        builder.append(label);
+        String displayOption = hasText(option) ? option.trim() : getString(R.string.measured_value);
+        builder.append(getString(R.string.news2_highest_item_format, label, displayOption, score));
     }
 
     private boolean hasMinimalAssessmentData() {
@@ -862,6 +897,13 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
 
     private ClinicalAssessment loadCurrentAssessment() {
         return assessmentRepository.loadCurrentAssessment();
+    }
+
+    private ClinicalAssessment cloneAssessment(ClinicalAssessment source) {
+        if (source == null) {
+            return new ClinicalAssessment();
+        }
+        return App.self().getGSon().fromJson(App.self().getGSon().toJson(source), ClinicalAssessment.class);
     }
 
     private void addWorkflowControls(LinearLayout container) {
@@ -1112,6 +1154,46 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         container.addView(header, params);
     }
 
+
+    private void addPatientInfoCard(LinearLayout container) {
+        CardView cardView = new CardView(this);
+        cardView.setCardBackgroundColor(Color.WHITE);
+        cardView.setRadius(dp(22));
+        cardView.setCardElevation(dp(1));
+        cardView.setUseCompatPadding(true);
+
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(16), dp(14), dp(16), dp(16));
+
+        TextView title = new TextView(this);
+        title.setText(R.string.patient_info_quick_title);
+        title.setTextColor(COLOR_TEXT_PRIMARY);
+        title.setTextSize(17);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        card.addView(title, matchWrapParams());
+
+        TextView hint = new TextView(this);
+        hint.setText(R.string.patient_info_quick_hint);
+        hint.setTextColor(COLOR_TEXT_SECONDARY);
+        hint.setTextSize(13);
+        hint.setLineSpacing(dp(2), 1.0f);
+        hint.setPadding(0, dp(4), 0, dp(8));
+        card.addView(hint, matchWrapParams());
+
+        patientIdView = addEditText(card, getString(R.string.patient_id));
+        fullNameView = addEditText(card, getString(R.string.full_name));
+        ageView = addNumberEditText(card, getString(R.string.age));
+        wardView = addEditText(card, getString(R.string.ward));
+        admissionDateTimeView = addDateTimeEditText(card, getString(R.string.admission_datetime));
+        suspectedInfectionView = addEditText(card, getString(R.string.suspected_infection));
+
+        cardView.addView(card, matchWrapParams());
+        LinearLayout.LayoutParams params = matchWrapParams();
+        params.setMargins(0, 0, 0, dp(12));
+        container.addView(cardView, params);
+    }
+
     private void addSpo2ScaleCard(LinearLayout container) {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.HORIZONTAL);
@@ -1255,8 +1337,7 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
 
     private void addNews2Footer(LinearLayout container) {
         LinearLayout footer = new LinearLayout(this);
-        footer.setOrientation(LinearLayout.HORIZONTAL);
-        footer.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        footer.setOrientation(LinearLayout.VERTICAL);
         footer.setPadding(dp(16), dp(14), dp(16), dp(14));
         footer.setBackground(roundedDrawable(Color.WHITE, dp(22), dp(1), Color.rgb(229, 231, 235)));
 
@@ -1274,7 +1355,7 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         news2FooterScoreView.setTextSize(30);
         news2FooterScoreView.setTypeface(Typeface.DEFAULT_BOLD);
         scoreStack.addView(news2FooterScoreView, matchWrapParams());
-        footer.addView(scoreStack, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        footer.addView(scoreStack, matchWrapParams());
 
         news2FooterRiskView = new TextView(this);
         news2FooterRiskView.setText(R.string.news2_evaluating);
@@ -1283,7 +1364,9 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         news2FooterRiskView.setTypeface(Typeface.DEFAULT_BOLD);
         news2FooterRiskView.setPadding(dp(14), dp(12), dp(14), dp(12));
         news2FooterRiskView.setBackground(roundedDrawable(Color.rgb(243, 244, 246), dp(16), 0, 0));
-        footer.addView(news2FooterRiskView, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        LinearLayout.LayoutParams riskParams = matchWrapParams();
+        riskParams.setMargins(0, dp(10), 0, 0);
+        footer.addView(news2FooterRiskView, riskParams);
 
         container.addView(footer, matchWrapParams());
 

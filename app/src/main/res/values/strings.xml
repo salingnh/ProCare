@@ -175,6 +175,9 @@
     <string name="patient_list_save_patient">Lưu bệnh nhân</string>
     <string name="patient_list_complete_before_save">Vui lòng chọn đủ 7 tiêu chí NEWS2 trước khi lưu.</string>
     <string name="patient_list_saved">Đã lưu bệnh nhân vào danh sách.</string>
+    <string name="patient_info_quick_title">Thông tin bệnh nhân</string>
+    <string name="patient_info_quick_hint">Nhập tối thiểu mã bệnh nhân hoặc họ tên để dễ tìm lại hồ sơ khi lưu.</string>
+    <string name="news2_highest_item_format">%1$s: %2$s (%3$d điểm)</string>
 
     <string name="patient_summary_empty">Chưa có bệnh nhân đã lưu. Sau khi hoàn tất phiếu, danh sách summary NEWS2/qSOFA/SOFA sẽ hiển thị tại đây.</string>
     <string name="patient_summary_title">Danh sách bệnh nhân đã đánh giá nhanh</string>
