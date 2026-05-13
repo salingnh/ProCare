@@ -165,6 +165,11 @@
     <string name="patient_list_title">Danh sách bệnh nhân</string>
     <string name="patient_list_subtitle">Theo dõi nhanh các phiếu NEWS2 đã lưu và tạo đánh giá mới cho bệnh nhân tại giường.</string>
     <string name="patient_list_add_new">+ Thêm đánh giá mới</string>
+    <string name="patient_list_search_hint">Tìm kiếm bệnh nhân…</string>
+    <string name="patient_list_sort_button">Đổi tiêu chí sắp xếp</string>
+    <string name="patient_list_sort_created_recent">Sắp xếp: ngày tạo gần nhất</string>
+    <string name="patient_list_sort_modified_recent">Sắp xếp: ngày sửa gần nhất</string>
+    <string name="patient_list_created_format">Tạo lúc: %1$s</string>
     <string name="patient_list_grid_mode">Xem lưới card</string>
     <string name="patient_list_list_mode">Xem danh sách</string>
     <string name="patient_list_empty">Chưa có bệnh nhân đã lưu. Nhấn “Thêm đánh giá mới” để bắt đầu chấm NEWS2.</string>

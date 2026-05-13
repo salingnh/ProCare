@@ -45,6 +45,16 @@ public final class AssessmentRepository {
     }
 
     public void appendAssessmentHistory(ClinicalAssessment assessment) {
+        long now = System.currentTimeMillis();
+        if (assessment.createdAtMillis <= 0) {
+            assessment.createdAtMillis = assessment.savedAtMillis > 0 ? assessment.savedAtMillis : now;
+        }
+        if (assessment.modifiedAtMillis <= 0) {
+            assessment.modifiedAtMillis = assessment.savedAtMillis > 0 ? assessment.savedAtMillis : now;
+        }
+        if (assessment.savedAtMillis <= 0) {
+            assessment.savedAtMillis = assessment.modifiedAtMillis;
+        }
         List<ClinicalAssessment> history = loadAssessmentHistory();
         history.add(App.self().getGSon().fromJson(App.self().getGSon().toJson(assessment), ClinicalAssessment.class));
         SharedPrefs.getInstance().put(KEY_ASSESSMENT_HISTORY, App.self().getGSon().toJson(history));

@@ -1,19 +1,55 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/assessment_scroll"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:fillViewport="true"
-    android:background="@drawable/assessment_screen_background"
-    android:clipToPadding="false">
+    android:background="@drawable/assessment_screen_background">
 
-    <LinearLayout
-        android:id="@+id/form_container"
+    <ScrollView
+        android:id="@+id/assessment_scroll"
         android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true"
+        android:clipToPadding="false">
+
+        <LinearLayout
+            android:id="@+id/form_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="16dp"
+            android:paddingTop="18dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="28dp" />
+    </ScrollView>
+
+    <TextView
+        android:id="@+id/scroll_date_bubble"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:paddingStart="16dp"
-        android:paddingTop="18dp"
-        android:paddingEnd="16dp"
-        android:paddingBottom="28dp" />
-</ScrollView>
+        android:layout_gravity="end|center_vertical"
+        android:layout_marginEnd="18dp"
+        android:background="@drawable/scroll_date_bubble_background"
+        android:elevation="8dp"
+        android:paddingStart="14dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="14dp"
+        android:paddingBottom="8dp"
+        android:textColor="#FFFFFF"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
+
+    <Button
+        android:id="@+id/fab_add_assessment"
+        android:layout_width="72dp"
+        android:layout_height="72dp"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="24dp"
+        android:layout_marginBottom="32dp"
+        android:background="@drawable/fab_add_background"
+        android:elevation="10dp"
+        android:text="+"
+        android:textColor="#1E3A8A"
+        android:textSize="34sp"
+        android:visibility="gone" />
+</FrameLayout>
