@@ -37,6 +37,8 @@ import androidx.core.content.FileProvider;
 import com.sangnv.procare.Model.ClinicalAssessment;
 import com.sangnv.procare.data.AssessmentRepository;
 import com.sangnv.procare.news2.News2Scoring;
+import com.sangnv.procare.ui.PatientListScreen;
+import com.sangnv.procare.ui.ProCareUi;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -62,15 +64,19 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     private static final int COLOR_PRIMARY_DARK = Color.rgb(30, 64, 175);
     private static final int COLOR_FIELD_STROKE = Color.rgb(209, 213, 219);
     private static final int COLOR_FIELD_BACKGROUND = Color.rgb(249, 250, 251);
-    private final AssessmentRepository assessmentRepository = new AssessmentRepository();
+
+
     private ClinicalAssessment assessment;
     private boolean isBinding;
     private boolean isFormReady;
     private boolean isDownloadingUpdate;
+    private boolean showingAssessment;
+    private boolean gridPatientView = true;
     private int currentWorkflowStep;
     private GitHubReleaseChecker gitHubReleaseChecker;
     private GitHubReleaseChecker.UpdateInfo availableUpdate;
     private final ExecutorService updateDownloadExecutor = Executors.newSingleThreadExecutor();
+    private final AssessmentRepository assessmentRepository = new AssessmentRepository();
     private LinearLayout formContainer;
     private LinearLayout updateBannerView;
     private TextView updateBannerTitleView;
@@ -155,16 +161,27 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        getWindow().setStatusBarColor(COLOR_PRIMARY_DARK);
-        getWindow().setNavigationBarColor(COLOR_SCREEN_BACKGROUND);
-        setTitle(R.string.app_name);
+        configureFullScreenWindow();
+        setTitle("");
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().hide();
+        }
 
         assessment = loadCurrentAssessment();
         formContainer = (LinearLayout) findViewById(R.id.form_container);
-        initializeAssessmentForm(formContainer);
-        recalculateAndSave(false);
+        showPatientListScreen();
         gitHubReleaseChecker = new GitHubReleaseChecker(this);
         gitHubReleaseChecker.checkForNewRelease();
+    }
+
+    private void configureFullScreenWindow() {
+        getWindow().setStatusBarColor(Color.TRANSPARENT);
+        getWindow().setNavigationBarColor(Color.TRANSPARENT);
+        getWindow().getDecorView().setSystemUiVisibility(
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                        | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                        | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                        | View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
     }
 
     @Override
@@ -176,6 +193,15 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         super.onDestroy();
     }
 
+
+    @Override
+    public void onBackPressed() {
+        if (showingAssessment) {
+            showPatientListScreen();
+            return;
+        }
+        super.onBackPressed();
+    }
 
     @Override
     public void onUpdateAvailable(GitHubReleaseChecker.UpdateInfo updateInfo) {
@@ -381,7 +407,11 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     }
 
     private int dp(int value) {
-        return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
+        return ProCareUi.dp(this, value);
+    }
+
+    private int systemBarDimension(String name) {
+        return ProCareUi.systemBarDimension(this, name);
     }
 
     @Override
@@ -401,7 +431,34 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         return super.onOptionsItemSelected(item);
     }
 
+    private void showPatientListScreen() {
+        showingAssessment = false;
+        isFormReady = false;
+        formContainer.removeAllViews();
+        formContainer.setPadding(dp(16), dp(18) + systemBarDimension("status_bar_height"), dp(16), dp(28) + systemBarDimension("navigation_bar_height"));
+        new PatientListScreen(this, new PatientListScreen.Listener() {
+            @Override
+            public void onAddNewAssessment() {
+                assessment = new ClinicalAssessment();
+                initializeAssessmentForm(formContainer);
+                recalculateAndSave(false);
+            }
+
+            @Override
+            public void onViewModeChanged(boolean gridMode) {
+                gridPatientView = gridMode;
+                showPatientListScreen();
+            }
+        }, COLOR_PRIMARY, COLOR_PRIMARY_DARK, COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY)
+                .render(formContainer, loadAssessmentHistory(), gridPatientView);
+        if (availableUpdate != null) {
+            updateBannerView = null;
+            showUpdateBanner(availableUpdate);
+        }
+    }
+
     private void initializeAssessmentForm(LinearLayout container) {
+        showingAssessment = true;
         isFormReady = false;
         isBinding = true;
         try {
@@ -416,7 +473,7 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     private void buildAssessmentForm(LinearLayout container) {
         container.removeAllViews();
         workflowStepContainers.clear();
-        container.setPadding(dp(16), dp(14), dp(16), dp(26));
+        container.setPadding(dp(16), dp(14) + systemBarDimension("status_bar_height"), dp(16), dp(26) + systemBarDimension("navigation_bar_height"));
 
         addNews2TopBar(container);
         quickSummaryView = addAlertText(container, getString(R.string.quick_summary_empty), "#6B7280");
@@ -493,31 +550,31 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     }
 
     private void applyNews2AutoScores() {
-        assessment.news2Respiration = scoreRespiration(parseInteger(assessment.news2RespirationMeasured), selectedScore(news2RespirationGroup));
+        assessment.news2Respiration = News2Scoring.scoreRespiration(parseInteger(assessment.news2RespirationMeasured), selectedScore(news2RespirationGroup));
         assessment.news2RespirationOption = optionByScore(news2RespirationGroup, assessment.news2Respiration);
         safelyCheckRadioByScore(news2RespirationGroup, assessment.news2Respiration);
 
         assessment.news2Spo2 = assessment.news2Spo2Scale2
-                ? scoreSpo2Scale2(parseInteger(assessment.news2Spo2Measured), assessment.news2Oxygen > 0, selectedScore(news2Spo2Group))
-                : scoreSpo2Scale1(parseInteger(assessment.news2Spo2Measured), selectedScore(news2Spo2Group));
+                ? News2Scoring.scoreSpo2Scale2(parseInteger(assessment.news2Spo2Measured), assessment.news2Oxygen > 0, selectedScore(news2Spo2Group))
+                : News2Scoring.scoreSpo2Scale1(parseInteger(assessment.news2Spo2Measured), selectedScore(news2Spo2Group));
         assessment.news2Spo2Option = assessment.news2Spo2Scale2
                 ? getString(R.string.news2_spo2_scale2_option)
                 : optionByScore(news2Spo2Group, assessment.news2Spo2);
         safelyCheckRadioByScore(news2Spo2Group, assessment.news2Spo2);
 
-        assessment.news2Temperature = scoreTemperature(parseDouble(assessment.news2TemperatureMeasured), selectedScore(news2TemperatureGroup));
+        assessment.news2Temperature = News2Scoring.scoreTemperature(parseDouble(assessment.news2TemperatureMeasured), selectedScore(news2TemperatureGroup));
         assessment.news2TemperatureOption = optionByScore(news2TemperatureGroup, assessment.news2Temperature);
         safelyCheckRadioByScore(news2TemperatureGroup, assessment.news2Temperature);
 
-        assessment.news2SystolicBp = scoreSystolicBp(parseInteger(assessment.news2SystolicBpMeasured), selectedScore(news2SystolicBpGroup));
+        assessment.news2SystolicBp = News2Scoring.scoreSystolicBp(parseInteger(assessment.news2SystolicBpMeasured), selectedScore(news2SystolicBpGroup));
         assessment.news2SystolicBpOption = optionByScore(news2SystolicBpGroup, assessment.news2SystolicBp);
         safelyCheckRadioByScore(news2SystolicBpGroup, assessment.news2SystolicBp);
 
-        assessment.news2HeartRate = scoreHeartRate(parseInteger(assessment.news2HeartRateMeasured), selectedScore(news2HeartRateGroup));
+        assessment.news2HeartRate = News2Scoring.scoreHeartRate(parseInteger(assessment.news2HeartRateMeasured), selectedScore(news2HeartRateGroup));
         assessment.news2HeartRateOption = optionByScore(news2HeartRateGroup, assessment.news2HeartRate);
         safelyCheckRadioByScore(news2HeartRateGroup, assessment.news2HeartRate);
 
-        assessment.news2Consciousness = scoreConsciousness(assessment.news2ConsciousnessMeasured, selectedScore(news2ConsciousnessGroup));
+        assessment.news2Consciousness = News2Scoring.scoreConsciousness(assessment.news2ConsciousnessMeasured, selectedScore(news2ConsciousnessGroup));
         assessment.news2ConsciousnessOption = consciousnessOption(assessment.news2ConsciousnessMeasured, news2ConsciousnessGroup);
         safelyCheckRadioByScore(news2ConsciousnessGroup, assessment.news2Consciousness);
 
@@ -1229,6 +1286,47 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         footer.addView(news2FooterRiskView, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
         container.addView(footer, matchWrapParams());
+
+        LinearLayout actions = new LinearLayout(this);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
+        actions.setPadding(0, dp(10), 0, 0);
+        Button backButton = new Button(this);
+        backButton.setText(R.string.patient_list_back);
+        stylePrimaryButton(backButton, false);
+        backButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showPatientListScreen();
+            }
+        });
+        Button saveButton = new Button(this);
+        saveButton.setText(R.string.patient_list_save_patient);
+        stylePrimaryButton(saveButton, true);
+        saveButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (completedNews2Count() < 7) {
+                    Toast.makeText(MainActivity.this, R.string.patient_list_complete_before_save, Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                updateAssessmentFromViews();
+                assessment.news2Total = assessment.news2Respiration + assessment.news2Spo2 + assessment.news2Oxygen
+                        + assessment.news2Temperature + assessment.news2SystolicBp + assessment.news2HeartRate
+                        + assessment.news2Consciousness;
+                assessment.savedAtMillis = System.currentTimeMillis();
+                appendAssessmentHistory();
+                saveCurrentAssessment();
+                Toast.makeText(MainActivity.this, R.string.patient_list_saved, Toast.LENGTH_SHORT).show();
+                showPatientListScreen();
+            }
+        });
+        LinearLayout.LayoutParams backParams = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
+        backParams.setMargins(0, 0, dp(6), 0);
+        LinearLayout.LayoutParams saveParams = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
+        saveParams.setMargins(dp(6), 0, 0, 0);
+        actions.addView(backButton, backParams);
+        actions.addView(saveButton, saveParams);
+        container.addView(actions, matchWrapParams());
     }
 
     private void addNews2HeaderCard(LinearLayout container) {
@@ -1277,41 +1375,16 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         checkBox.setPadding(dp(12), dp(10), dp(12), dp(10));
     }
 
-    private StateListDrawable checkedBackground(int checkedColor, int uncheckedColor, int checkedStroke, int uncheckedStroke, int radius) {
-        StateListDrawable drawable = new StateListDrawable();
-        drawable.addState(new int[]{android.R.attr.state_checked}, roundedDrawable(checkedColor, radius, dp(1), checkedStroke));
-        drawable.addState(new int[]{}, roundedDrawable(uncheckedColor, radius, dp(1), uncheckedStroke));
-        return drawable;
+    private android.graphics.drawable.StateListDrawable checkedBackground(int checkedColor, int uncheckedColor, int checkedStroke, int uncheckedStroke, int radius) {
+        return ProCareUi.checkedBackground(checkedColor, uncheckedColor, checkedStroke, uncheckedStroke, radius, dp(1));
     }
 
     private int scoreAccentColor(int score) {
-        switch (score) {
-            case 0:
-                return News2Scoring.COLOR_SUCCESS;
-            case 1:
-                return News2Scoring.COLOR_WARNING;
-            case 2:
-                return News2Scoring.COLOR_ORANGE;
-            case 3:
-                return News2Scoring.COLOR_DANGER;
-            default:
-                return COLOR_FIELD_STROKE;
-        }
+        return ProCareUi.scoreAccentColor(score);
     }
 
     private int scoreSoftColor(int score) {
-        switch (score) {
-            case 0:
-                return Color.rgb(236, 253, 245);
-            case 1:
-                return Color.rgb(254, 252, 232);
-            case 2:
-                return Color.rgb(255, 247, 237);
-            case 3:
-                return Color.rgb(254, 242, 242);
-            default:
-                return Color.WHITE;
-        }
+        return ProCareUi.scoreSoftColor(score);
     }
 
     private Button addButton(LinearLayout container, String text) {
@@ -1502,31 +1575,22 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         return new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
     }
 
+    private LinearLayout.LayoutParams matchWrapParamsWithMargins(int left, int top, int right, int bottom) {
+        LinearLayout.LayoutParams params = matchWrapParams();
+        params.setMargins(left, top, right, bottom);
+        return params;
+    }
+
     private GradientDrawable roundedDrawable(int color, int radius, int strokeWidth, int strokeColor) {
-        GradientDrawable drawable = new GradientDrawable();
-        drawable.setColor(color);
-        drawable.setCornerRadius(radius);
-        if (strokeWidth > 0) {
-            drawable.setStroke(strokeWidth, strokeColor);
-        }
-        return drawable;
+        return ProCareUi.roundedDrawable(color, radius, strokeWidth, strokeColor);
     }
 
     private ColorStateList optionTintList() {
-        return new ColorStateList(
-                new int[][]{new int[]{android.R.attr.state_checked}, new int[]{}},
-                new int[]{COLOR_PRIMARY, Color.rgb(148, 163, 184)});
+        return ProCareUi.optionTintList(COLOR_PRIMARY);
     }
 
     private void stylePrimaryButton(Button button, boolean filled) {
-        button.setAllCaps(false);
-        button.setTextSize(15);
-        button.setTypeface(Typeface.DEFAULT_BOLD);
-        button.setTextColor(filled ? Color.WHITE : COLOR_PRIMARY_DARK);
-        button.setPadding(dp(12), dp(10), dp(12), dp(10));
-        int backgroundColor = filled ? COLOR_PRIMARY : Color.rgb(236, 253, 245);
-        int strokeColor = filled ? COLOR_PRIMARY : Color.rgb(153, 246, 228);
-        button.setBackground(roundedDrawable(backgroundColor, dp(16), dp(1), strokeColor));
+        ProCareUi.stylePrimaryButton(this, button, filled, COLOR_PRIMARY, COLOR_PRIMARY_DARK);
     }
 
     private void safelyCheckRadioByScore(RadioGroup group, int score) {

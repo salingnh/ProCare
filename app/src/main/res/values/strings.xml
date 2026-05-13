@@ -160,6 +160,22 @@
     <string name="workflow_step_sofa_hint">Hoàn thiện các cơ quan có kết quả xét nghiệm/khí máu để xác định Sepsis-3 và mức độ nặng.</string>
     <string name="workflow_step_save">Bước 5: Chốt đánh giá &amp; lưu danh sách</string>
     <string name="workflow_step_save_hint">Xem lại chẩn đoán, kết cục điều trị nếu có, rồi lưu để bệnh nhân xuất hiện trong danh sách summary ưu tiên.</string>
+
+    <string name="patient_list_eyebrow">PROCARE NEWS2</string>
+    <string name="patient_list_title">Danh sách bệnh nhân</string>
+    <string name="patient_list_subtitle">Theo dõi nhanh các phiếu NEWS2 đã lưu và tạo đánh giá mới cho bệnh nhân tại giường.</string>
+    <string name="patient_list_add_new">+ Thêm đánh giá mới</string>
+    <string name="patient_list_grid_mode">Xem lưới card</string>
+    <string name="patient_list_list_mode">Xem danh sách</string>
+    <string name="patient_list_empty">Chưa có bệnh nhân đã lưu. Nhấn “Thêm đánh giá mới” để bắt đầu chấm NEWS2.</string>
+    <string name="patient_list_generated_name">Bệnh nhân NEWS2 #%1$d</string>
+    <string name="patient_list_score_format">NEWS2 %1$d • %2$s</string>
+    <string name="patient_list_unsaved_time">Chưa có thời gian lưu</string>
+    <string name="patient_list_back">Danh sách</string>
+    <string name="patient_list_save_patient">Lưu bệnh nhân</string>
+    <string name="patient_list_complete_before_save">Vui lòng chọn đủ 7 tiêu chí NEWS2 trước khi lưu.</string>
+    <string name="patient_list_saved">Đã lưu bệnh nhân vào danh sách.</string>
+
     <string name="patient_summary_empty">Chưa có bệnh nhân đã lưu. Sau khi hoàn tất phiếu, danh sách summary NEWS2/qSOFA/SOFA sẽ hiển thị tại đây.</string>
     <string name="patient_summary_title">Danh sách bệnh nhân đã đánh giá nhanh</string>
     <string name="patient_summary_scores_format">NEWS2 %1$d • %2$s | qSOFA %3$d/3 | SOFA %4$d/24</string>
