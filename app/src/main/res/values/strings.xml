@@ -122,6 +122,15 @@
     <string name="save_assessment">Hoàn tất / Lưu phiếu đánh giá</string>
     <string name="assessment_saved_format">Đã lưu phiếu đánh giá: %1$s</string>
     <string name="save_assessment_missing">Cần nhập mã bệnh nhân hoặc họ tên và ít nhất một sinh hiệu NEWS2 trước khi lưu.</string>
+
+    <string name="update_banner_title">Có phiên bản mới</string>
+    <string name="update_banner_message">ProCare %1$s đã sẵn sàng. Nhấn vào đây để tải và cài đặt.</string>
+    <string name="update_downloading_message">Đang tải ProCare %1$s…</string>
+    <string name="update_download_starting">Đang bắt đầu tải…</string>
+    <string name="update_download_progress">Đang tải: %1$d%%</string>
+    <string name="update_download_complete">Tải xong. Đang mở màn hình cài đặt…</string>
+    <string name="update_download_failed">Không tải được bản cập nhật. Nhấn để thử lại.</string>
+    <string name="update_open_failed">Không mở được màn hình tải/cài đặt bản cập nhật.</string>
     <string name="workflow_intro">Workflow tối ưu cho bác sĩ: nhận diện nhanh → nhập sinh hiệu → phân tầng NEWS2/qSOFA → xác nhận SOFA → lưu và xem danh sách bệnh nhân ưu tiên.</string>
     <string name="workflow_previous">Quay lại</string>
     <string name="workflow_next">Tiếp tục</string>
