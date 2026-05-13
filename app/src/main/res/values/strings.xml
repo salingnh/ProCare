@@ -89,4 +89,32 @@
     <string name="last_saved_format">Đã lưu tự động: %1$s</string>
     <string name="yes">Có</string>
     <string name="no">Không</string>
+    <string name="quick_summary_empty">Nhập sinh hiệu để tổng hợp nhanh NEWS2</string>
+    <string name="quick_summary_format">NEWS2 %1$d • %2$s\n%3$s</string>
+    <string name="news2_quick_hint">Nhập chỉ số thực đo, ứng dụng tự chọn điểm NEWS2 và tự gợi ý qSOFA khi đủ dữ liệu.</string>
+    <string name="news2_spo2_scale2">Dùng SpO2 Scale 2 (COPD / nguy cơ suy hô hấp tăng CO2)</string>
+    <string name="news2_spo2_scale2_option">Tự tính theo SpO2 Scale 2</string>
+    <string name="news2_oxygen_note">Ghi chú oxy hỗ trợ (nếu có)</string>
+    <string name="news2_consciousness_hint">Tri giác: A, lú lẫn mới, V, P hoặc U</string>
+    <string name="news2_risk_empty">Chưa có phân tầng NEWS2</string>
+    <string name="news2_action_empty">Hành động khuyến nghị sẽ hiển thị sau khi nhập sinh hiệu.</string>
+    <string name="news2_monitoring_empty">Tần suất theo dõi sẽ hiển thị sau khi nhập sinh hiệu.</string>
+    <string name="news2_highest_empty">Chưa có tiêu chí NEWS2 3 điểm.</string>
+    <string name="news2_risk_low_zero">Nguy cơ thấp (NEWS2 = 0)</string>
+    <string name="news2_risk_low">Nguy cơ thấp (NEWS2 1-4)</string>
+    <string name="news2_risk_single_three">Có tiêu chí đơn lẻ 3 điểm</string>
+    <string name="news2_risk_urgent">Nguy cơ trung bình/cao (NEWS2 5-6)</string>
+    <string name="news2_risk_emergency">Nguy cơ cao/cấp cứu (NEWS2 ≥ 7)</string>
+    <string name="news2_action_low">Tiếp tục theo dõi, báo bác sĩ khi lâm sàng xấu hoặc nghi nhiễm khuẩn.</string>
+    <string name="news2_action_single_three">Báo bác sĩ phụ trách, đánh giá lại sớm vì có một tiêu chí NEWS2 đạt 3 điểm.</string>
+    <string name="news2_action_urgent">Kích hoạt đánh giá khẩn cấp/RRT tại khoa, cân nhắc sepsis bundle nếu nghi nhiễm khuẩn.</string>
+    <string name="news2_action_emergency">Kích hoạt đáp ứng cấp cứu/RRT, cân nhắc hồi sức tích cực/ICU ngay.</string>
+    <string name="news2_monitoring_low_zero">Theo dõi tối thiểu mỗi 12 giờ nếu tình trạng ổn định.</string>
+    <string name="news2_monitoring_low">Theo dõi tối thiểu mỗi 4-6 giờ.</string>
+    <string name="news2_monitoring_hourly">Theo dõi tối thiểu mỗi 1 giờ hoặc liên tục tùy lâm sàng.</string>
+    <string name="news2_monitoring_emergency">Theo dõi liên tục, chuẩn bị chuyển cấp chăm sóc cao hơn.</string>
+    <string name="news2_highest_prefix">Tiêu chí 3 điểm: </string>
+    <string name="save_assessment">Hoàn tất / Lưu phiếu đánh giá</string>
+    <string name="assessment_saved_format">Đã lưu phiếu đánh giá: %1$s</string>
+    <string name="save_assessment_missing">Cần nhập mã bệnh nhân hoặc họ tên và ít nhất một sinh hiệu NEWS2 trước khi lưu.</string>
 </resources>
