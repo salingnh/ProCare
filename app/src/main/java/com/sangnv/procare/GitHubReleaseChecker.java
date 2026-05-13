@@ -44,7 +44,7 @@ public class GitHubReleaseChecker {
                 activity.runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        if (!activity.isFinishing()) {
+                        if (canShowDialog()) {
                             showUpdateDialog(releaseInfo);
                         }
                     }
@@ -118,13 +118,21 @@ public class GitHubReleaseChecker {
         return builder.toString();
     }
 
+    private boolean canShowDialog() {
+        return !activity.isFinishing() && !activity.isDestroyed();
+    }
+
     private void showUpdateDialog(ReleaseInfo releaseInfo) {
-        new AlertDialog.Builder(activity)
-                .setTitle(activity.getString(R.string.update_available_title))
-                .setMessage(activity.getString(R.string.update_available_message, releaseInfo.version, BuildConfig.VERSION_NAME))
-                .setPositiveButton(R.string.update_download_action, (dialog, which) -> openReleaseUrl(releaseInfo.downloadUrl))
-                .setNegativeButton(R.string.update_later_action, null)
-                .show();
+        try {
+            new AlertDialog.Builder(activity)
+                    .setTitle(activity.getString(R.string.update_available_title))
+                    .setMessage(activity.getString(R.string.update_available_message, releaseInfo.version, BuildConfig.VERSION_NAME))
+                    .setPositiveButton(R.string.update_download_action, (dialog, which) -> openReleaseUrl(releaseInfo.downloadUrl))
+                    .setNegativeButton(R.string.update_later_action, null)
+                    .show();
+        } catch (RuntimeException exception) {
+            // The release check must never prevent the main form from opening.
+        }
     }
 
     private void openReleaseUrl(String downloadUrl) {

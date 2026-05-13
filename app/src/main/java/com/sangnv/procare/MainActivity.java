@@ -35,6 +35,7 @@ public class MainActivity extends AppCompatActivity {
 
     private ClinicalAssessment assessment;
     private boolean isBinding;
+    private boolean isFormReady;
     private GitHubReleaseChecker gitHubReleaseChecker;
 
     private EditText patientIdView;
@@ -108,8 +109,7 @@ public class MainActivity extends AppCompatActivity {
         setTitle(R.string.app_name);
 
         assessment = loadCurrentAssessment();
-        buildAssessmentForm((LinearLayout) findViewById(R.id.form_container));
-        bindAssessmentToViews();
+        initializeAssessmentForm((LinearLayout) findViewById(R.id.form_container));
         recalculateAndSave(false);
         gitHubReleaseChecker = new GitHubReleaseChecker(this);
         gitHubReleaseChecker.checkForNewRelease();
@@ -138,6 +138,18 @@ public class MainActivity extends AppCompatActivity {
             return true;
         }
         return super.onOptionsItemSelected(item);
+    }
+
+    private void initializeAssessmentForm(LinearLayout container) {
+        isFormReady = false;
+        isBinding = true;
+        try {
+            buildAssessmentForm(container);
+            bindAssessmentToViews();
+            isFormReady = true;
+        } finally {
+            isBinding = false;
+        }
     }
 
     private void buildAssessmentForm(LinearLayout container) {
@@ -287,7 +299,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void recalculateAndSave(boolean appendHistory) {
-        if (isBinding) {
+        if (isBinding || !isFormReady) {
             return;
         }
 
