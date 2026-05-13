@@ -2,12 +2,15 @@ package com.sangnv.procare;
 
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
+import android.content.res.ColorStateList;
+import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
 import android.graphics.Color;
 import android.text.Editable;
+import android.text.InputType;
 import android.text.TextWatcher;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -23,6 +26,8 @@ import android.widget.ProgressBar;
 import android.widget.RadioGroup;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import androidx.cardview.widget.CardView;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.FileProvider;
@@ -51,6 +56,15 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     private static final String KEY_ASSESSMENT_HISTORY = "clinical_assessment_history";
 
     private static final int STEP_COUNT = 5;
+    private static final int COLOR_SCREEN_BACKGROUND = Color.rgb(244, 248, 251);
+    private static final int COLOR_CARD_BACKGROUND = Color.WHITE;
+    private static final int COLOR_TEXT_PRIMARY = Color.rgb(15, 23, 42);
+    private static final int COLOR_TEXT_SECONDARY = Color.rgb(71, 85, 105);
+    private static final int COLOR_PRIMARY = Color.rgb(0, 121, 107);
+    private static final int COLOR_PRIMARY_DARK = Color.rgb(0, 96, 86);
+    private static final int COLOR_FIELD_STROKE = Color.rgb(203, 213, 225);
+    private static final int COLOR_FIELD_BACKGROUND = Color.rgb(248, 250, 252);
+
 
     private ClinicalAssessment assessment;
     private boolean isBinding;
@@ -119,7 +133,7 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     private CheckBox qsofaConsciousnessView;
     private CheckBox vasopressorView;
 
-    private final List<LinearLayout> workflowStepContainers = new ArrayList<>();
+    private final List<View> workflowStepContainers = new ArrayList<>();
     private TextView patientSummaryListView;
     private TextView workflowProgressView;
     private TextView quickSummaryView;
@@ -140,6 +154,8 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        getWindow().setStatusBarColor(COLOR_PRIMARY_DARK);
+        getWindow().setNavigationBarColor(COLOR_SCREEN_BACKGROUND);
         setTitle(R.string.app_name);
 
         assessment = loadCurrentAssessment();
@@ -408,9 +424,9 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         LinearLayout stepPatient = addWorkflowStep(container, R.string.workflow_step_patient, R.string.workflow_step_patient_hint);
         addSection(stepPatient, getString(R.string.section_patient_info));
         patientIdView = addEditText(stepPatient, getString(R.string.patient_id));
-        admissionDateTimeView = addEditText(stepPatient, getString(R.string.admission_datetime));
+        admissionDateTimeView = addDateTimeEditText(stepPatient, getString(R.string.admission_datetime));
         fullNameView = addEditText(stepPatient, getString(R.string.full_name));
-        ageView = addEditText(stepPatient, getString(R.string.age));
+        ageView = addNumberEditText(stepPatient, getString(R.string.age));
         genderGroup = addRadioGroup(stepPatient, getString(R.string.gender), new String[]{getString(R.string.male), getString(R.string.female)}, null);
         suspectedInfectionView = addEditText(stepPatient, getString(R.string.suspected_infection));
         wardView = addEditText(stepPatient, getString(R.string.ward));
@@ -453,8 +469,8 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         qsofaConsciousnessView = addCheckBox(stepQsofa, getString(R.string.qsofa_consciousness));
         qsofaTotalView = addTotalText(stepQsofa, getString(R.string.qsofa_total));
         addSection(stepQsofa, getString(R.string.section_lactate));
-        lactateView = addEditText(stepQsofa, getString(R.string.lactate_value));
-        lactateSampleTimeView = addEditText(stepQsofa, getString(R.string.lactate_sample_time));
+        lactateView = addDecimalEditText(stepQsofa, getString(R.string.lactate_value));
+        lactateSampleTimeView = addDateTimeEditText(stepQsofa, getString(R.string.lactate_sample_time));
         lactateLevelGroup = addRadioGroup(stepQsofa, getString(R.string.lactate_level), new String[]{"< 2 mmol/L", "2 - 3.9 mmol/L", "≥ 4 mmol/L"}, null);
 
         LinearLayout stepSofa = addWorkflowStep(container, R.string.workflow_step_sofa, R.string.workflow_step_sofa_hint);
@@ -478,7 +494,7 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         addSection(stepSave, getString(R.string.section_outcome));
         sepsisDiagnosisView = addTotalText(stepSave, getString(R.string.sepsis_diagnosis));
         treatmentOutcomeGroup = addRadioGroup(stepSave, getString(R.string.treatment_outcome), new String[]{getString(R.string.outcome_recovered), getString(R.string.outcome_transfer), getString(R.string.outcome_death)}, null);
-        treatmentDaysView = addEditText(stepSave, getString(R.string.treatment_days));
+        treatmentDaysView = addNumberEditText(stepSave, getString(R.string.treatment_days));
         saveAssessmentButton = addButton(stepSave, getString(R.string.save_assessment));
         saveAssessmentButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -855,10 +871,11 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         String highestCriterion = highestNews2CriterionText();
         quickSummaryView.setText(getString(R.string.quick_summary_format, assessment.news2Total, risk, action));
         quickSummaryView.setTextColor(Color.WHITE);
-        quickSummaryView.setBackgroundColor(color);
+        quickSummaryView.setBackground(roundedDrawable(color, dp(18), 0, 0));
         news2RiskView.setText(risk);
         news2RiskView.setTextColor(Color.WHITE);
-        news2RiskView.setBackgroundColor(color);
+        news2RiskView.setBackground(roundedDrawable(color, dp(18), 0, 0));
+        news2TotalView.setTextColor(color);
         news2ActionView.setText(action);
         news2MonitoringView.setText(monitoring);
         news2HighestCriterionView.setText(highestCriterion);
@@ -951,10 +968,18 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
 
     private boolean hasMinimalAssessmentData() {
         boolean hasPatient = hasText(assessment.patientId) || hasText(assessment.fullName);
-        boolean hasNews2Input = hasText(assessment.news2RespirationMeasured) || hasText(assessment.news2Spo2Measured)
-                || hasText(assessment.news2TemperatureMeasured) || hasText(assessment.news2SystolicBpMeasured)
-                || hasText(assessment.news2HeartRateMeasured) || hasText(assessment.news2ConsciousnessMeasured);
-        return hasPatient && hasNews2Input;
+        boolean hasMeasuredNews2Input = hasText(assessment.news2RespirationMeasured) || hasText(assessment.news2Spo2Measured)
+                || hasText(assessment.news2OxygenMeasured) || hasText(assessment.news2TemperatureMeasured)
+                || hasText(assessment.news2SystolicBpMeasured) || hasText(assessment.news2HeartRateMeasured)
+                || hasText(assessment.news2ConsciousnessMeasured);
+        boolean hasSelectedNews2Option = findCheckedRadioButton(news2RespirationGroup) != null
+                || findCheckedRadioButton(news2Spo2Group) != null
+                || findCheckedRadioButton(news2OxygenGroup) != null
+                || findCheckedRadioButton(news2TemperatureGroup) != null
+                || findCheckedRadioButton(news2SystolicBpGroup) != null
+                || findCheckedRadioButton(news2HeartRateGroup) != null
+                || findCheckedRadioButton(news2ConsciousnessGroup) != null;
+        return hasPatient && (hasMeasuredNews2Input || hasSelectedNews2Option);
     }
 
     private String buildSepsisDiagnosis() {
@@ -1019,7 +1044,9 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         workflowProgressView = addAlertText(container, "", "#1565C0");
         LinearLayout controls = new LinearLayout(this);
         controls.setOrientation(LinearLayout.HORIZONTAL);
+        controls.setPadding(0, dp(10), 0, dp(10));
         previousStepButton = new Button(this);
+        stylePrimaryButton(previousStepButton, false);
         previousStepButton.setText(R.string.workflow_previous);
         previousStepButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -1028,6 +1055,7 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
             }
         });
         nextStepButton = new Button(this);
+        stylePrimaryButton(nextStepButton, true);
         nextStepButton.setText(R.string.workflow_next);
         nextStepButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -1035,19 +1063,35 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
                 goToWorkflowStep(currentWorkflowStep + 1);
             }
         });
-        controls.addView(previousStepButton, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-        controls.addView(nextStepButton, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        LinearLayout.LayoutParams previousParams = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
+        previousParams.setMargins(0, 0, dp(6), 0);
+        LinearLayout.LayoutParams nextParams = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
+        nextParams.setMargins(dp(6), 0, 0, 0);
+        controls.addView(previousStepButton, previousParams);
+        controls.addView(nextStepButton, nextParams);
         container.addView(controls, matchWrapParams());
     }
 
     private LinearLayout addWorkflowStep(LinearLayout container, int titleResId, int hintResId) {
+        CardView cardView = new CardView(this);
+        cardView.setCardBackgroundColor(COLOR_CARD_BACKGROUND);
+        cardView.setRadius(dp(22));
+        cardView.setCardElevation(dp(3));
+        cardView.setUseCompatPadding(true);
+
         LinearLayout stepContainer = new LinearLayout(this);
         stepContainer.setOrientation(LinearLayout.VERTICAL);
-        stepContainer.setPadding(0, 12, 0, 24);
+        stepContainer.setPadding(dp(18), dp(14), dp(18), dp(18));
         addSection(stepContainer, getString(titleResId));
-        addLabel(stepContainer, getString(hintResId));
-        workflowStepContainers.add(stepContainer);
-        container.addView(stepContainer, matchWrapParams());
+        TextView hint = addLabel(stepContainer, getString(hintResId));
+        hint.setTextColor(COLOR_TEXT_SECONDARY);
+        hint.setBackground(roundedDrawable(Color.rgb(240, 253, 250), dp(14), dp(1), Color.rgb(153, 246, 228)));
+        hint.setPadding(dp(12), dp(10), dp(12), dp(10));
+        cardView.addView(stepContainer, matchWrapParams());
+        workflowStepContainers.add(cardView);
+        LinearLayout.LayoutParams params = matchWrapParams();
+        params.setMargins(0, dp(6), 0, dp(14));
+        container.addView(cardView, params);
         return stepContainer;
     }
 
@@ -1061,7 +1105,16 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
 
     private void updateWorkflowStepVisibility() {
         for (int i = 0; i < workflowStepContainers.size(); i++) {
-            workflowStepContainers.get(i).setVisibility(i == currentWorkflowStep ? View.VISIBLE : View.GONE);
+            View stepView = workflowStepContainers.get(i);
+            boolean visible = i == currentWorkflowStep;
+            if (visible && stepView.getVisibility() != View.VISIBLE) {
+                stepView.setAlpha(0f);
+                stepView.setTranslationY(dp(10));
+                stepView.setVisibility(View.VISIBLE);
+                stepView.animate().alpha(1f).translationY(0f).setDuration(220).start();
+            } else if (!visible) {
+                stepView.setVisibility(View.GONE);
+            }
         }
         if (workflowProgressView != null) {
             workflowProgressView.setText(getWorkflowProgressText());
@@ -1178,28 +1231,43 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     private Button addButton(LinearLayout container, String text) {
         Button button = new Button(this);
         button.setText(text);
-        container.addView(button, matchWrapParams());
+        stylePrimaryButton(button, true);
+        LinearLayout.LayoutParams params = matchWrapParams();
+        params.setMargins(0, dp(12), 0, dp(8));
+        container.addView(button, params);
         return button;
     }
 
     private TextView addAlertText(LinearLayout container, String text, String color) {
         TextView textView = addLabel(container, text);
-        textView.setTextSize(18);
+        int parsedColor = Color.parseColor(color);
+        textView.setTextSize(16);
+        textView.setTypeface(Typeface.DEFAULT_BOLD);
         textView.setTextColor(Color.WHITE);
-        textView.setBackgroundColor(Color.parseColor(color));
-        textView.setPadding(16, 16, 16, 16);
+        textView.setBackground(roundedDrawable(parsedColor, dp(18), 0, 0));
+        textView.setPadding(dp(16), dp(14), dp(16), dp(14));
+        LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) textView.getLayoutParams();
+        params.setMargins(0, dp(6), 0, dp(10));
+        textView.setLayoutParams(params);
         return textView;
     }
 
     private EditText addNumberEditText(LinearLayout container, String hint) {
         EditText editText = addEditText(container, hint);
-        editText.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        editText.setInputType(InputType.TYPE_CLASS_NUMBER);
         return editText;
     }
 
     private EditText addDecimalEditText(LinearLayout container, String hint) {
         EditText editText = addEditText(container, hint);
-        editText.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        editText.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        return editText;
+    }
+
+    private EditText addDateTimeEditText(LinearLayout container, String hint) {
+        EditText editText = addEditText(container, hint);
+        editText.setSingleLine(true);
+        editText.setInputType(InputType.TYPE_CLASS_DATETIME | InputType.TYPE_DATETIME_VARIATION_NORMAL);
         return editText;
     }
 
@@ -1207,6 +1275,19 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         EditText editText = new EditText(this);
         editText.setHint(hint);
         editText.setSingleLine(false);
+        editText.setMinLines(1);
+        editText.setTextColor(COLOR_TEXT_PRIMARY);
+        editText.setHintTextColor(Color.rgb(100, 116, 139));
+        editText.setTextSize(16);
+        editText.setPadding(dp(14), dp(12), dp(14), dp(12));
+        editText.setBackground(roundedDrawable(COLOR_FIELD_BACKGROUND, dp(16), dp(1), COLOR_FIELD_STROKE));
+        editText.setOnFocusChangeListener(new View.OnFocusChangeListener() {
+            @Override
+            public void onFocusChange(View v, boolean hasFocus) {
+                v.setBackground(roundedDrawable(COLOR_FIELD_BACKGROUND, dp(16), dp(1), hasFocus ? COLOR_PRIMARY : COLOR_FIELD_STROKE));
+                v.animate().scaleX(hasFocus ? 1.01f : 1f).scaleY(hasFocus ? 1.01f : 1f).setDuration(150).start();
+            }
+        });
         editText.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {
@@ -1221,20 +1302,29 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
             public void afterTextChanged(Editable s) {
             }
         });
-        container.addView(editText, matchWrapParams());
+        LinearLayout.LayoutParams params = matchWrapParams();
+        params.setMargins(0, dp(6), 0, dp(10));
+        container.addView(editText, params);
         return editText;
     }
 
     private CheckBox addCheckBox(LinearLayout container, String text) {
         CheckBox checkBox = new CheckBox(this);
         checkBox.setText(text);
+        checkBox.setTextColor(COLOR_TEXT_PRIMARY);
+        checkBox.setTextSize(15);
+        checkBox.setPadding(dp(10), dp(8), dp(10), dp(8));
+        checkBox.setButtonTintList(optionTintList());
+        checkBox.setBackground(roundedDrawable(Color.rgb(248, 250, 252), dp(14), dp(1), Color.rgb(226, 232, 240)));
         checkBox.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
                 recalculateAndSave(false);
             }
         });
-        container.addView(checkBox, matchWrapParams());
+        LinearLayout.LayoutParams params = matchWrapParams();
+        params.setMargins(0, dp(4), 0, dp(6));
+        container.addView(checkBox, params);
         return checkBox;
     }
 
@@ -1243,16 +1333,25 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     }
 
     private RadioGroup addRadioGroup(LinearLayout container, String label, String[] options, int[] scores) {
-        addLabel(container, label);
+        TextView labelView = addLabel(container, label);
+        labelView.setTypeface(Typeface.DEFAULT_BOLD);
         RadioGroup group = new RadioGroup(this);
         group.setOrientation(RadioGroup.VERTICAL);
+        group.setPadding(0, dp(2), 0, dp(6));
         for (int i = 0; i < options.length; i++) {
             RadioButton radioButton = new RadioButton(this);
             radioButton.setId(View.generateViewId());
-            radioButton.setText(scores == null ? options[i] : options[i] + " (" + scores[i] + " điểm)");
+            radioButton.setText(scores == null ? options[i] : options[i] + "  •  " + scores[i] + " điểm");
             radioButton.setContentDescription(options[i]);
             radioButton.setTag(scores == null ? options[i] : scores[i]);
-            group.addView(radioButton, matchWrapParams());
+            radioButton.setTextColor(COLOR_TEXT_PRIMARY);
+            radioButton.setTextSize(15);
+            radioButton.setPadding(dp(10), dp(8), dp(10), dp(8));
+            radioButton.setButtonTintList(optionTintList());
+            radioButton.setBackground(roundedDrawable(Color.rgb(248, 250, 252), dp(14), dp(1), Color.rgb(226, 232, 240)));
+            LinearLayout.LayoutParams optionParams = matchWrapParams();
+            optionParams.setMargins(0, dp(4), 0, dp(4));
+            group.addView(radioButton, optionParams);
         }
         group.setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener() {
             @Override
@@ -1266,31 +1365,73 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
 
     private TextView addTotalText(LinearLayout container, String text) {
         TextView textView = addLabel(container, text);
-        textView.setTextSize(18);
+        textView.setTextSize(19);
+        textView.setTypeface(Typeface.DEFAULT_BOLD);
+        textView.setTextColor(COLOR_PRIMARY_DARK);
+        textView.setBackground(roundedDrawable(Color.rgb(236, 253, 245), dp(18), dp(1), Color.rgb(153, 246, 228)));
+        textView.setPadding(dp(16), dp(14), dp(16), dp(14));
+        LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) textView.getLayoutParams();
+        params.setMargins(0, dp(12), 0, dp(10));
+        textView.setLayoutParams(params);
         return textView;
     }
 
     private void addTitle(LinearLayout container, String text) {
         TextView textView = addLabel(container, text);
-        textView.setTextSize(22);
+        textView.setTextSize(25);
+        textView.setTypeface(Typeface.DEFAULT_BOLD);
+        textView.setTextColor(COLOR_TEXT_PRIMARY);
+        textView.setPadding(0, dp(10), 0, dp(6));
     }
 
     private void addSection(LinearLayout container, String text) {
         TextView textView = addLabel(container, text);
         textView.setTextSize(20);
-        textView.setPadding(0, 24, 0, 8);
+        textView.setTypeface(Typeface.DEFAULT_BOLD);
+        textView.setTextColor(COLOR_PRIMARY_DARK);
+        textView.setPadding(0, dp(16), 0, dp(8));
     }
 
     private TextView addLabel(LinearLayout container, String text) {
         TextView textView = new TextView(this);
         textView.setText(text);
-        textView.setPadding(0, 12, 0, 4);
+        textView.setTextColor(COLOR_TEXT_SECONDARY);
+        textView.setTextSize(15);
+        textView.setLineSpacing(dp(2), 1.0f);
+        textView.setPadding(0, dp(10), 0, dp(4));
         container.addView(textView, matchWrapParams());
         return textView;
     }
 
     private LinearLayout.LayoutParams matchWrapParams() {
         return new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+    }
+
+    private GradientDrawable roundedDrawable(int color, int radius, int strokeWidth, int strokeColor) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setColor(color);
+        drawable.setCornerRadius(radius);
+        if (strokeWidth > 0) {
+            drawable.setStroke(strokeWidth, strokeColor);
+        }
+        return drawable;
+    }
+
+    private ColorStateList optionTintList() {
+        return new ColorStateList(
+                new int[][]{new int[]{android.R.attr.state_checked}, new int[]{}},
+                new int[]{COLOR_PRIMARY, Color.rgb(148, 163, 184)});
+    }
+
+    private void stylePrimaryButton(Button button, boolean filled) {
+        button.setAllCaps(false);
+        button.setTextSize(15);
+        button.setTypeface(Typeface.DEFAULT_BOLD);
+        button.setTextColor(filled ? Color.WHITE : COLOR_PRIMARY_DARK);
+        button.setPadding(dp(12), dp(10), dp(12), dp(10));
+        int backgroundColor = filled ? COLOR_PRIMARY : Color.rgb(236, 253, 245);
+        int strokeColor = filled ? COLOR_PRIMARY : Color.rgb(153, 246, 228);
+        button.setBackground(roundedDrawable(backgroundColor, dp(16), dp(1), strokeColor));
     }
 
     private void safelyCheckRadioByScore(RadioGroup group, int score) {
