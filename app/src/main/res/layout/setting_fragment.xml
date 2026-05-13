@@ -24,14 +24,14 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:inputType="textPersonName"
-                android:text="Name" />
+                android:hint="@string/setting_table_hint" />
 
             <Button
                 android:id="@+id/button_them"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_weight="3"
-                android:text="Thêm" />
+                android:text="@string/add" />
         </LinearLayout>
 
         <androidx.recyclerview.widget.RecyclerView

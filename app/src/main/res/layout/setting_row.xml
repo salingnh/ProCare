@@ -1,75 +1,48 @@
 <?xml version="1.0" encoding="utf-8"?>
-<com.chauthai.swipereveallayout.SwipeRevealLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:id="@+id/swipe_layout"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_centerInParent="true"
     android:layout_margin="10dp"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:padding="8dp">
 
-    app:dragEdge="right"
-    app:mode="same_level">
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
 
-    <FrameLayout
-        android:id="@+id/delete_layout"
-        android:layout_width="70dp"
-        android:layout_height="match_parent">
-
-        <LinearLayout
+        <TextView
+            android:id="@+id/setting_text"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:orientation="horizontal">
+            android:layout_height="wrap_content"
+            android:text="@string/table_label"
+            android:textSize="20sp" />
 
-            <androidx.appcompat.widget.AppCompatImageButton
-                android:id="@+id/btn_edit_item"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:layout_gravity="center"
-                android:background="@null"
-                android:contentDescription="icn_edit"
-                android:gravity="center"
-                app:srcCompat="@drawable/ic_mode_edit" />
-
-            <androidx.appcompat.widget.AppCompatImageButton
-                android:id="@+id/btn_delete_item"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:layout_gravity="center"
-                android:background="@null"
-                android:layout_weight="1"
-                android:contentDescription="icn_delete"
-                android:gravity="center"
-                app:srcCompat="@drawable/ic_delete" />
-
-        </LinearLayout>
-
-    </FrameLayout>
-
-    <FrameLayout
-        android:id="@+id/front_layout"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="@null">
-
-        <LinearLayout
+        <TextView
+            android:id="@+id/setting_text_detail"
             android:layout_width="match_parent"
-            android:layout_height="match_parent">
+            android:layout_height="wrap_content"
+            android:text="@string/table_total_label" />
+    </LinearLayout>
 
-            <TextView
-                android:id="@+id/setting_text"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:text="Bảng"
-                android:textSize="20dp" />
+    <androidx.appcompat.widget.AppCompatImageButton
+        android:id="@+id/btn_edit_item"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/edit"
+        android:gravity="center"
+        app:srcCompat="@drawable/ic_mode_edit" />
 
-            <TextView
-                android:id="@+id/setting_text_detail"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:layout_weight="4"
-                android:text="Total" />
-        </LinearLayout>
-    </FrameLayout>
-</com.chauthai.swipereveallayout.SwipeRevealLayout>
+    <androidx.appcompat.widget.AppCompatImageButton
+        android:id="@+id/btn_delete_item"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/delete"
+        android:gravity="center"
+        app:srcCompat="@drawable/ic_delete" />
+</LinearLayout>

@@ -1,9 +1,12 @@
 package com.sangnv.procare.ui.setting;
 
-import androidx.lifecycle.ViewModelProviders;
-
 import android.content.Context;
 import android.os.Bundle;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.Button;
+import android.widget.EditText;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -12,33 +15,13 @@ import androidx.recyclerview.widget.DividerItemDecoration;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import android.util.Log;
-import android.view.LayoutInflater;
-import android.view.View;
-import android.view.ViewGroup;
-import android.widget.Button;
-import android.widget.EditText;
-
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
 import com.sangnv.procare.R;
 import com.sangnv.procare.utils.AppState;
-import com.sangnv.procare.utils.SharedPrefs;
-
-import java.util.ArrayList;
-import java.util.List;
 
 import static androidx.recyclerview.widget.LinearLayoutManager.VERTICAL;
 
 public class SettingFragment extends Fragment {
-    private static final String TAG = SettingFragment.class.getName();
-
-    private SettingViewModel mViewModel;
-    private Context context;
-    private View mView;
     private EditText editText;
-    private Button button;
-    private RecyclerView recyclerView;
     private SettingAdapter settingAdapter;
     private OnSettingFragmentListener mListener;
 
@@ -50,46 +33,41 @@ public class SettingFragment extends Fragment {
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container,
                              @Nullable Bundle savedInstanceState) {
+        View view = inflater.inflate(R.layout.setting_fragment, container, false);
+        Context context = view.getContext();
+        RecyclerView recyclerView = view.findViewById(R.id.list_setting);
+        editText = view.findViewById(R.id.editText);
+        Button button = view.findViewById(R.id.button_them);
 
-        mView = inflater.inflate(R.layout.setting_fragment, container, false);
-        recyclerView = mView.findViewById(R.id.list_setting);
-        context = mView.getContext();
+        settingAdapter = new SettingAdapter(AppState.getInstance().getDanhSachBang(), mListener);
         recyclerView.setLayoutManager(new LinearLayoutManager(context));
-        editText = mView.findViewById(R.id.editText);
-        button = mView.findViewById(R.id.button_them);
+        recyclerView.addItemDecoration(new DividerItemDecoration(context, VERTICAL));
+        recyclerView.setAdapter(settingAdapter);
+
         button.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                String bang = editText.getText().toString();
-                Log.i(TAG, "onClick them: bang danh gia " + bang);
-                addItem(bang);
+                addItem(editText.getText().toString());
+                editText.setText("");
             }
         });
-        return mView;
+        return view;
     }
 
     public void addItem(String item) {
         AppState.getInstance().addBang(item);
-        settingAdapter.notifyDataSetChanged();
+        refreshItem();
     }
 
     public void removeItem(int position) {
         AppState.getInstance().removeBang(position);
-        settingAdapter.notifyDataSetChanged();
+        refreshItem();
     }
 
     public void refreshItem() {
-        settingAdapter.notifyDataSetChanged();
-    }
-
-    @Override
-    public void onActivityCreated(@Nullable Bundle savedInstanceState) {
-        super.onActivityCreated(savedInstanceState);
-        mViewModel = ViewModelProviders.of(this).get(SettingViewModel.class);
-
-        // TODO: Use the ViewModel
-        settingAdapter = new SettingAdapter(AppState.getInstance().getDanhSachBang(), mListener);
-        setupRecyclerView();
+        if (settingAdapter != null) {
+            settingAdapter.notifyDataSetChanged();
+        }
     }
 
     @Override
@@ -112,18 +90,10 @@ public class SettingFragment extends Fragment {
     public interface OnSettingFragmentListener {
         void onItemEdit(String item);
 
-        //sang them ham xu ly refresh
         void onRefreshSwipe();
 
         void onAddItem(String item);
 
         void onRemoveItem(int position);
-    }
-
-    private void setupRecyclerView() {
-        //duong ngan cach 2 item
-        DividerItemDecoration itemDecor = new DividerItemDecoration(context, VERTICAL);
-        recyclerView.addItemDecoration(itemDecor);
-        recyclerView.setAdapter(settingAdapter);
     }
 }
