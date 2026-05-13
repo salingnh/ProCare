@@ -131,4 +131,26 @@
     <string name="update_download_complete">Tải xong. Đang mở màn hình cài đặt…</string>
     <string name="update_download_failed">Không tải được bản cập nhật. Nhấn để thử lại.</string>
     <string name="update_open_failed">Không mở được màn hình tải/cài đặt bản cập nhật.</string>
+    <string name="workflow_intro">Workflow tối ưu cho bác sĩ: nhận diện nhanh → nhập sinh hiệu → phân tầng NEWS2/qSOFA → xác nhận SOFA → lưu và xem danh sách bệnh nhân ưu tiên.</string>
+    <string name="workflow_previous">Quay lại</string>
+    <string name="workflow_next">Tiếp tục</string>
+    <string name="workflow_reviewing">Đang ở bước cuối</string>
+    <string name="workflow_progress_format">Bước %1$d/%2$d • %3$s</string>
+    <string name="workflow_step_patient">Bước 1: Nhận diện bệnh nhân</string>
+    <string name="workflow_step_patient_hint">Chỉ nhập thông tin cần cho phân loại và tìm lại hồ sơ: ID/họ tên, khoa, lý do nghi nhiễm và bệnh nền quan trọng.</string>
+    <string name="workflow_step_news2">Bước 2: Sàng lọc sinh hiệu NEWS2</string>
+    <string name="workflow_step_news2_hint">Nhập chỉ số thực đo trước; hệ thống tự chọn mức điểm và hiển thị ngay mức nguy cơ cùng hành động khuyến nghị.</string>
+    <string name="workflow_step_qsofa_lactate">Bước 3: qSOFA &amp; Lactate</string>
+    <string name="workflow_step_qsofa_lactate_hint">qSOFA được gợi ý từ sinh hiệu; bác sĩ xác nhận lại, sau đó thêm Lactate để hỗ trợ phân tầng sốc nhiễm khuẩn.</string>
+    <string name="workflow_step_sofa">Bước 4: SOFA trong 24 giờ</string>
+    <string name="workflow_step_sofa_hint">Hoàn thiện các cơ quan có kết quả xét nghiệm/khí máu để xác định Sepsis-3 và mức độ nặng.</string>
+    <string name="workflow_step_save">Bước 5: Chốt đánh giá &amp; lưu danh sách</string>
+    <string name="workflow_step_save_hint">Xem lại chẩn đoán, kết cục điều trị nếu có, rồi lưu để bệnh nhân xuất hiện trong danh sách summary ưu tiên.</string>
+    <string name="patient_summary_empty">Chưa có bệnh nhân đã lưu. Sau khi hoàn tất phiếu, danh sách summary NEWS2/qSOFA/SOFA sẽ hiển thị tại đây.</string>
+    <string name="patient_summary_title">Danh sách bệnh nhân đã đánh giá nhanh</string>
+    <string name="patient_summary_scores_format">NEWS2 %1$d • %2$s | qSOFA %3$d/3 | SOFA %4$d/24</string>
+    <string name="patient_summary_saved_format">Lưu lúc: %1$s</string>
+    <string name="patient_summary_name_with_id">%1$s • ID %2$s</string>
+    <string name="patient_summary_id_only">ID %1$s</string>
+    <string name="patient_summary_unknown">Chưa rõ danh tính</string>
 </resources>

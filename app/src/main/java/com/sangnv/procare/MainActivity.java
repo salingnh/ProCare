@@ -50,10 +50,13 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     private static final String KEY_CURRENT_ASSESSMENT = "clinical_assessment_current";
     private static final String KEY_ASSESSMENT_HISTORY = "clinical_assessment_history";
 
+    private static final int STEP_COUNT = 5;
+
     private ClinicalAssessment assessment;
     private boolean isBinding;
     private boolean isFormReady;
     private boolean isDownloadingUpdate;
+    private int currentWorkflowStep;
     private GitHubReleaseChecker gitHubReleaseChecker;
     private GitHubReleaseChecker.UpdateInfo availableUpdate;
     private final ExecutorService updateDownloadExecutor = Executors.newSingleThreadExecutor();
@@ -116,6 +119,9 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     private CheckBox qsofaConsciousnessView;
     private CheckBox vasopressorView;
 
+    private final List<LinearLayout> workflowStepContainers = new ArrayList<>();
+    private TextView patientSummaryListView;
+    private TextView workflowProgressView;
     private TextView quickSummaryView;
     private TextView news2TotalView;
     private TextView news2RiskView;
@@ -126,6 +132,8 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     private TextView sofaTotalView;
     private TextView sepsisDiagnosisView;
     private TextView lastSavedView;
+    private Button previousStepButton;
+    private Button nextStepButton;
     private Button saveAssessmentButton;
 
     @Override
@@ -390,81 +398,88 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
 
     private void buildAssessmentForm(LinearLayout container) {
         container.removeAllViews();
+        workflowStepContainers.clear();
         addTitle(container, getString(R.string.assessment_form_title));
+        addLabel(container, getString(R.string.workflow_intro));
+        patientSummaryListView = addAlertText(container, getString(R.string.patient_summary_empty), "#263238");
         quickSummaryView = addAlertText(container, getString(R.string.quick_summary_empty), "#455A64");
+        addWorkflowControls(container);
 
-        addSection(container, getString(R.string.section_patient_info));
-        patientIdView = addEditText(container, getString(R.string.patient_id));
-        admissionDateTimeView = addEditText(container, getString(R.string.admission_datetime));
-        fullNameView = addEditText(container, getString(R.string.full_name));
-        ageView = addEditText(container, getString(R.string.age));
-        genderGroup = addRadioGroup(container, getString(R.string.gender), new String[]{getString(R.string.male), getString(R.string.female)}, null);
-        suspectedInfectionView = addEditText(container, getString(R.string.suspected_infection));
-        wardView = addEditText(container, getString(R.string.ward));
+        LinearLayout stepPatient = addWorkflowStep(container, R.string.workflow_step_patient, R.string.workflow_step_patient_hint);
+        addSection(stepPatient, getString(R.string.section_patient_info));
+        patientIdView = addEditText(stepPatient, getString(R.string.patient_id));
+        admissionDateTimeView = addEditText(stepPatient, getString(R.string.admission_datetime));
+        fullNameView = addEditText(stepPatient, getString(R.string.full_name));
+        ageView = addEditText(stepPatient, getString(R.string.age));
+        genderGroup = addRadioGroup(stepPatient, getString(R.string.gender), new String[]{getString(R.string.male), getString(R.string.female)}, null);
+        suspectedInfectionView = addEditText(stepPatient, getString(R.string.suspected_infection));
+        wardView = addEditText(stepPatient, getString(R.string.ward));
+        addLabel(stepPatient, getString(R.string.comorbidities));
+        diabetesView = addCheckBox(stepPatient, getString(R.string.diabetes));
+        chronicKidneyDiseaseView = addCheckBox(stepPatient, getString(R.string.chronic_kidney_disease));
+        liverFailureView = addCheckBox(stepPatient, getString(R.string.liver_failure));
+        hypertensionView = addCheckBox(stepPatient, getString(R.string.hypertension));
+        copdView = addCheckBox(stepPatient, getString(R.string.copd));
+        otherComorbidityView = addEditText(stepPatient, getString(R.string.other_comorbidity));
 
-        addLabel(container, getString(R.string.comorbidities));
-        diabetesView = addCheckBox(container, getString(R.string.diabetes));
-        chronicKidneyDiseaseView = addCheckBox(container, getString(R.string.chronic_kidney_disease));
-        liverFailureView = addCheckBox(container, getString(R.string.liver_failure));
-        hypertensionView = addCheckBox(container, getString(R.string.hypertension));
-        copdView = addCheckBox(container, getString(R.string.copd));
-        otherComorbidityView = addEditText(container, getString(R.string.other_comorbidity));
+        LinearLayout stepNews2 = addWorkflowStep(container, R.string.workflow_step_news2, R.string.workflow_step_news2_hint);
+        addSection(stepNews2, getString(R.string.section_news2));
+        addLabel(stepNews2, getString(R.string.news2_quick_hint));
+        news2RespirationMeasuredView = addNumberEditText(stepNews2, getString(R.string.news2_respiration));
+        news2RespirationGroup = addScoreRadioGroup(stepNews2, getString(R.string.news2_respiration), new String[]{"≤ 8", "9-11", "12-20", "21-24", "≥ 25"}, new int[]{3, 1, 0, 2, 3});
+        news2Spo2Scale2View = addCheckBox(stepNews2, getString(R.string.news2_spo2_scale2));
+        news2Spo2MeasuredView = addNumberEditText(stepNews2, getString(R.string.news2_spo2));
+        news2Spo2Group = addScoreRadioGroup(stepNews2, getString(R.string.news2_spo2), new String[]{"≤ 91", "92-93", "94-95", "≥ 96"}, new int[]{3, 2, 1, 0});
+        news2OxygenMeasuredView = addEditText(stepNews2, getString(R.string.news2_oxygen_note));
+        news2OxygenGroup = addScoreRadioGroup(stepNews2, getString(R.string.news2_oxygen), new String[]{getString(R.string.yes), getString(R.string.no)}, new int[]{2, 0});
+        news2TemperatureMeasuredView = addDecimalEditText(stepNews2, getString(R.string.news2_temperature));
+        news2TemperatureGroup = addScoreRadioGroup(stepNews2, getString(R.string.news2_temperature), new String[]{"≤ 35.0", "35.1-36.0", "36.1-38.0", "38.1-39.0", "≥ 39.1"}, new int[]{3, 1, 0, 1, 2});
+        news2SystolicBpMeasuredView = addNumberEditText(stepNews2, getString(R.string.news2_systolic_bp));
+        news2SystolicBpGroup = addScoreRadioGroup(stepNews2, getString(R.string.news2_systolic_bp), new String[]{"≤ 90", "91-100", "101-110", "111-219", "≥ 220"}, new int[]{3, 2, 1, 0, 3});
+        news2HeartRateMeasuredView = addNumberEditText(stepNews2, getString(R.string.news2_heart_rate));
+        news2HeartRateGroup = addScoreRadioGroup(stepNews2, getString(R.string.news2_heart_rate), new String[]{"≤ 40", "41-50", "51-90", "91-110", "111-130", "≥ 131"}, new int[]{3, 1, 0, 1, 2, 3});
+        news2ConsciousnessMeasuredView = addEditText(stepNews2, getString(R.string.news2_consciousness_hint));
+        news2ConsciousnessGroup = addScoreRadioGroup(stepNews2, getString(R.string.news2_consciousness), new String[]{"Tỉnh (A)", "Lú lẫn mới", "Gọi hỏi (V)", "Đau (P)", "Không đáp ứng (U)"}, new int[]{0, 3, 3, 3, 3});
+        news2TotalView = addTotalText(stepNews2, getString(R.string.news2_total));
+        news2RiskView = addAlertText(stepNews2, getString(R.string.news2_risk_empty), "#455A64");
+        news2ActionView = addLabel(stepNews2, getString(R.string.news2_action_empty));
+        news2MonitoringView = addLabel(stepNews2, getString(R.string.news2_monitoring_empty));
+        news2HighestCriterionView = addLabel(stepNews2, getString(R.string.news2_highest_empty));
 
-        addSection(container, getString(R.string.section_news2));
-        addLabel(container, getString(R.string.news2_quick_hint));
-        news2RespirationMeasuredView = addNumberEditText(container, getString(R.string.news2_respiration));
-        news2RespirationGroup = addScoreRadioGroup(container, getString(R.string.news2_respiration), new String[]{"≤ 8", "9-11", "12-20", "21-24", "≥ 25"}, new int[]{3, 1, 0, 2, 3});
-        news2Spo2Scale2View = addCheckBox(container, getString(R.string.news2_spo2_scale2));
-        news2Spo2MeasuredView = addNumberEditText(container, getString(R.string.news2_spo2));
-        news2Spo2Group = addScoreRadioGroup(container, getString(R.string.news2_spo2), new String[]{"≤ 91", "92-93", "94-95", "≥ 96"}, new int[]{3, 2, 1, 0});
-        news2OxygenMeasuredView = addEditText(container, getString(R.string.news2_oxygen_note));
-        news2OxygenGroup = addScoreRadioGroup(container, getString(R.string.news2_oxygen), new String[]{getString(R.string.yes), getString(R.string.no)}, new int[]{2, 0});
-        news2TemperatureMeasuredView = addDecimalEditText(container, getString(R.string.news2_temperature));
-        news2TemperatureGroup = addScoreRadioGroup(container, getString(R.string.news2_temperature), new String[]{"≤ 35.0", "35.1-36.0", "36.1-38.0", "38.1-39.0", "≥ 39.1"}, new int[]{3, 1, 0, 1, 2});
-        news2SystolicBpMeasuredView = addNumberEditText(container, getString(R.string.news2_systolic_bp));
-        news2SystolicBpGroup = addScoreRadioGroup(container, getString(R.string.news2_systolic_bp), new String[]{"≤ 90", "91-100", "101-110", "111-219", "≥ 220"}, new int[]{3, 2, 1, 0, 3});
-        news2HeartRateMeasuredView = addNumberEditText(container, getString(R.string.news2_heart_rate));
-        news2HeartRateGroup = addScoreRadioGroup(container, getString(R.string.news2_heart_rate), new String[]{"≤ 40", "41-50", "51-90", "91-110", "111-130", "≥ 131"}, new int[]{3, 1, 0, 1, 2, 3});
-        news2ConsciousnessMeasuredView = addEditText(container, getString(R.string.news2_consciousness_hint));
-        news2ConsciousnessGroup = addScoreRadioGroup(container, getString(R.string.news2_consciousness), new String[]{"Tỉnh (A)", "Lú lẫn mới", "Gọi hỏi (V)", "Đau (P)", "Không đáp ứng (U)"}, new int[]{0, 3, 3, 3, 3});
-        news2TotalView = addTotalText(container, getString(R.string.news2_total));
-        news2RiskView = addAlertText(container, getString(R.string.news2_risk_empty), "#455A64");
-        news2ActionView = addLabel(container, getString(R.string.news2_action_empty));
-        news2MonitoringView = addLabel(container, getString(R.string.news2_monitoring_empty));
-        news2HighestCriterionView = addLabel(container, getString(R.string.news2_highest_empty));
+        LinearLayout stepQsofa = addWorkflowStep(container, R.string.workflow_step_qsofa_lactate, R.string.workflow_step_qsofa_lactate_hint);
+        addSection(stepQsofa, getString(R.string.section_qsofa));
+        qsofaRespirationView = addCheckBox(stepQsofa, getString(R.string.qsofa_respiration));
+        qsofaSystolicBpView = addCheckBox(stepQsofa, getString(R.string.qsofa_systolic_bp));
+        qsofaConsciousnessView = addCheckBox(stepQsofa, getString(R.string.qsofa_consciousness));
+        qsofaTotalView = addTotalText(stepQsofa, getString(R.string.qsofa_total));
+        addSection(stepQsofa, getString(R.string.section_lactate));
+        lactateView = addEditText(stepQsofa, getString(R.string.lactate_value));
+        lactateSampleTimeView = addEditText(stepQsofa, getString(R.string.lactate_sample_time));
+        lactateLevelGroup = addRadioGroup(stepQsofa, getString(R.string.lactate_level), new String[]{"< 2 mmol/L", "2 - 3.9 mmol/L", "≥ 4 mmol/L"}, null);
 
-        addSection(container, getString(R.string.section_qsofa));
-        qsofaRespirationView = addCheckBox(container, getString(R.string.qsofa_respiration));
-        qsofaSystolicBpView = addCheckBox(container, getString(R.string.qsofa_systolic_bp));
-        qsofaConsciousnessView = addCheckBox(container, getString(R.string.qsofa_consciousness));
-        qsofaTotalView = addTotalText(container, getString(R.string.qsofa_total));
+        LinearLayout stepSofa = addWorkflowStep(container, R.string.workflow_step_sofa, R.string.workflow_step_sofa_hint);
+        addSection(stepSofa, getString(R.string.section_sofa));
+        sofaRespirationMeasuredView = addEditText(stepSofa, getString(R.string.actual_result));
+        sofaRespirationGroup = addScoreRadioGroup(stepSofa, getString(R.string.sofa_respiration), new String[]{"0", "1", "2", "3", "4"}, new int[]{0, 1, 2, 3, 4});
+        sofaCoagulationMeasuredView = addEditText(stepSofa, getString(R.string.actual_result));
+        sofaCoagulationGroup = addScoreRadioGroup(stepSofa, getString(R.string.sofa_coagulation), new String[]{"0", "1", "2", "3", "4"}, new int[]{0, 1, 2, 3, 4});
+        sofaLiverMeasuredView = addEditText(stepSofa, getString(R.string.actual_result));
+        sofaLiverGroup = addScoreRadioGroup(stepSofa, getString(R.string.sofa_liver), new String[]{"0", "1", "2", "3", "4"}, new int[]{0, 1, 2, 3, 4});
+        sofaCardiovascularMeasuredView = addEditText(stepSofa, getString(R.string.actual_result));
+        sofaCardiovascularGroup = addScoreRadioGroup(stepSofa, getString(R.string.sofa_cardiovascular), new String[]{"0", "1", "2", "3", "4"}, new int[]{0, 1, 2, 3, 4});
+        sofaNeurologicMeasuredView = addEditText(stepSofa, getString(R.string.actual_result));
+        sofaNeurologicGroup = addScoreRadioGroup(stepSofa, getString(R.string.sofa_neurologic), new String[]{"0", "1", "2", "3", "4"}, new int[]{0, 1, 2, 3, 4});
+        sofaRenalMeasuredView = addEditText(stepSofa, getString(R.string.actual_result));
+        sofaRenalGroup = addScoreRadioGroup(stepSofa, getString(R.string.sofa_renal), new String[]{"0", "1", "2", "3", "4"}, new int[]{0, 1, 2, 3, 4});
+        vasopressorView = addCheckBox(stepSofa, getString(R.string.vasopressor));
+        sofaTotalView = addTotalText(stepSofa, getString(R.string.sofa_total));
 
-        addSection(container, getString(R.string.section_lactate));
-        lactateView = addEditText(container, getString(R.string.lactate_value));
-        lactateSampleTimeView = addEditText(container, getString(R.string.lactate_sample_time));
-        lactateLevelGroup = addRadioGroup(container, getString(R.string.lactate_level), new String[]{"< 2 mmol/L", "2 - 3.9 mmol/L", "≥ 4 mmol/L"}, null);
-
-        addSection(container, getString(R.string.section_sofa));
-        sofaRespirationMeasuredView = addEditText(container, getString(R.string.actual_result));
-        sofaRespirationGroup = addScoreRadioGroup(container, getString(R.string.sofa_respiration), new String[]{"0", "1", "2", "3", "4"}, new int[]{0, 1, 2, 3, 4});
-        sofaCoagulationMeasuredView = addEditText(container, getString(R.string.actual_result));
-        sofaCoagulationGroup = addScoreRadioGroup(container, getString(R.string.sofa_coagulation), new String[]{"0", "1", "2", "3", "4"}, new int[]{0, 1, 2, 3, 4});
-        sofaLiverMeasuredView = addEditText(container, getString(R.string.actual_result));
-        sofaLiverGroup = addScoreRadioGroup(container, getString(R.string.sofa_liver), new String[]{"0", "1", "2", "3", "4"}, new int[]{0, 1, 2, 3, 4});
-        sofaCardiovascularMeasuredView = addEditText(container, getString(R.string.actual_result));
-        sofaCardiovascularGroup = addScoreRadioGroup(container, getString(R.string.sofa_cardiovascular), new String[]{"0", "1", "2", "3", "4"}, new int[]{0, 1, 2, 3, 4});
-        sofaNeurologicMeasuredView = addEditText(container, getString(R.string.actual_result));
-        sofaNeurologicGroup = addScoreRadioGroup(container, getString(R.string.sofa_neurologic), new String[]{"0", "1", "2", "3", "4"}, new int[]{0, 1, 2, 3, 4});
-        sofaRenalMeasuredView = addEditText(container, getString(R.string.actual_result));
-        sofaRenalGroup = addScoreRadioGroup(container, getString(R.string.sofa_renal), new String[]{"0", "1", "2", "3", "4"}, new int[]{0, 1, 2, 3, 4});
-        vasopressorView = addCheckBox(container, getString(R.string.vasopressor));
-        sofaTotalView = addTotalText(container, getString(R.string.sofa_total));
-
-        addSection(container, getString(R.string.section_outcome));
-        sepsisDiagnosisView = addTotalText(container, getString(R.string.sepsis_diagnosis));
-        treatmentOutcomeGroup = addRadioGroup(container, getString(R.string.treatment_outcome), new String[]{getString(R.string.outcome_recovered), getString(R.string.outcome_transfer), getString(R.string.outcome_death)}, null);
-        treatmentDaysView = addEditText(container, getString(R.string.treatment_days));
-        saveAssessmentButton = addButton(container, getString(R.string.save_assessment));
+        LinearLayout stepSave = addWorkflowStep(container, R.string.workflow_step_save, R.string.workflow_step_save_hint);
+        addSection(stepSave, getString(R.string.section_outcome));
+        sepsisDiagnosisView = addTotalText(stepSave, getString(R.string.sepsis_diagnosis));
+        treatmentOutcomeGroup = addRadioGroup(stepSave, getString(R.string.treatment_outcome), new String[]{getString(R.string.outcome_recovered), getString(R.string.outcome_transfer), getString(R.string.outcome_death)}, null);
+        treatmentDaysView = addEditText(stepSave, getString(R.string.treatment_days));
+        saveAssessmentButton = addButton(stepSave, getString(R.string.save_assessment));
         saveAssessmentButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -475,9 +490,12 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
                 }
                 appendAssessmentHistory();
                 lastSavedView.setText(getString(R.string.assessment_saved_format, DateFormat.getDateTimeInstance().format(new Date(assessment.savedAtMillis))));
+                updatePatientSummaryList();
             }
         });
-        lastSavedView = addTotalText(container, getString(R.string.last_saved));
+        lastSavedView = addTotalText(stepSave, getString(R.string.last_saved));
+        updateWorkflowStepVisibility();
+        updatePatientSummaryList();
     }
 
     private void bindAssessmentToViews() {
@@ -995,6 +1013,166 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         } catch (JsonSyntaxException exception) {
             return new ClinicalAssessment();
         }
+    }
+
+    private void addWorkflowControls(LinearLayout container) {
+        workflowProgressView = addAlertText(container, "", "#1565C0");
+        LinearLayout controls = new LinearLayout(this);
+        controls.setOrientation(LinearLayout.HORIZONTAL);
+        previousStepButton = new Button(this);
+        previousStepButton.setText(R.string.workflow_previous);
+        previousStepButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                goToWorkflowStep(currentWorkflowStep - 1);
+            }
+        });
+        nextStepButton = new Button(this);
+        nextStepButton.setText(R.string.workflow_next);
+        nextStepButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                goToWorkflowStep(currentWorkflowStep + 1);
+            }
+        });
+        controls.addView(previousStepButton, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        controls.addView(nextStepButton, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        container.addView(controls, matchWrapParams());
+    }
+
+    private LinearLayout addWorkflowStep(LinearLayout container, int titleResId, int hintResId) {
+        LinearLayout stepContainer = new LinearLayout(this);
+        stepContainer.setOrientation(LinearLayout.VERTICAL);
+        stepContainer.setPadding(0, 12, 0, 24);
+        addSection(stepContainer, getString(titleResId));
+        addLabel(stepContainer, getString(hintResId));
+        workflowStepContainers.add(stepContainer);
+        container.addView(stepContainer, matchWrapParams());
+        return stepContainer;
+    }
+
+    private void goToWorkflowStep(int step) {
+        if (step < 0 || step >= STEP_COUNT) {
+            return;
+        }
+        currentWorkflowStep = step;
+        updateWorkflowStepVisibility();
+    }
+
+    private void updateWorkflowStepVisibility() {
+        for (int i = 0; i < workflowStepContainers.size(); i++) {
+            workflowStepContainers.get(i).setVisibility(i == currentWorkflowStep ? View.VISIBLE : View.GONE);
+        }
+        if (workflowProgressView != null) {
+            workflowProgressView.setText(getWorkflowProgressText());
+        }
+        if (previousStepButton != null) {
+            previousStepButton.setEnabled(currentWorkflowStep > 0);
+        }
+        if (nextStepButton != null) {
+            nextStepButton.setEnabled(currentWorkflowStep < STEP_COUNT - 1);
+            nextStepButton.setText(currentWorkflowStep == STEP_COUNT - 1 ? R.string.workflow_reviewing : R.string.workflow_next);
+        }
+    }
+
+    private String getWorkflowProgressText() {
+        int titleResId;
+        switch (currentWorkflowStep) {
+            case 0:
+                titleResId = R.string.workflow_step_patient;
+                break;
+            case 1:
+                titleResId = R.string.workflow_step_news2;
+                break;
+            case 2:
+                titleResId = R.string.workflow_step_qsofa_lactate;
+                break;
+            case 3:
+                titleResId = R.string.workflow_step_sofa;
+                break;
+            default:
+                titleResId = R.string.workflow_step_save;
+                break;
+        }
+        return getString(R.string.workflow_progress_format, currentWorkflowStep + 1, STEP_COUNT, getString(titleResId));
+    }
+
+    private void updatePatientSummaryList() {
+        if (patientSummaryListView == null) {
+            return;
+        }
+        List<ClinicalAssessment> history = loadAssessmentHistory();
+        if (history.isEmpty()) {
+            patientSummaryListView.setText(getString(R.string.patient_summary_empty));
+            return;
+        }
+        StringBuilder builder = new StringBuilder(getString(R.string.patient_summary_title));
+        int start = Math.max(0, history.size() - 10);
+        for (int i = history.size() - 1; i >= start; i--) {
+            ClinicalAssessment item = history.get(i);
+            builder.append("\n\n• ").append(patientDisplayName(item));
+            builder.append("\n  ").append(getString(R.string.patient_summary_scores_format,
+                    item.news2Total,
+                    riskTextForNews2(item),
+                    item.qsofaTotal,
+                    item.sofaTotal));
+            if (hasText(item.sepsisDiagnosis)) {
+                builder.append("\n  ").append(item.sepsisDiagnosis);
+            }
+            if (item.savedAtMillis > 0) {
+                builder.append("\n  ").append(getString(R.string.patient_summary_saved_format,
+                        DateFormat.getDateTimeInstance().format(new Date(item.savedAtMillis))));
+            }
+        }
+        patientSummaryListView.setText(builder.toString());
+    }
+
+    private List<ClinicalAssessment> loadAssessmentHistory() {
+        String json = SharedPrefs.getInstance().get(KEY_ASSESSMENT_HISTORY, String.class);
+        if (json == null || json.trim().isEmpty()) {
+            return new ArrayList<>();
+        }
+        try {
+            List<ClinicalAssessment> history = App.self().getGSon().fromJson(json, new TypeToken<List<ClinicalAssessment>>() {
+            }.getType());
+            return history == null ? new ArrayList<ClinicalAssessment>() : history;
+        } catch (JsonSyntaxException exception) {
+            return new ArrayList<>();
+        }
+    }
+
+    private String patientDisplayName(ClinicalAssessment item) {
+        if (hasText(item.fullName) && hasText(item.patientId)) {
+            return getString(R.string.patient_summary_name_with_id, item.fullName.trim(), item.patientId.trim());
+        }
+        if (hasText(item.fullName)) {
+            return item.fullName.trim();
+        }
+        if (hasText(item.patientId)) {
+            return getString(R.string.patient_summary_id_only, item.patientId.trim());
+        }
+        return getString(R.string.patient_summary_unknown);
+    }
+
+    private String riskTextForNews2(ClinicalAssessment item) {
+        if (item.news2Total >= 7) {
+            return getString(R.string.news2_risk_emergency);
+        }
+        if (item.news2Total >= 5) {
+            return getString(R.string.news2_risk_urgent);
+        }
+        if (hasSingleThreeScore(item)) {
+            return getString(R.string.news2_risk_single_three);
+        }
+        if (item.news2Total == 0) {
+            return getString(R.string.news2_risk_low_zero);
+        }
+        return getString(R.string.news2_risk_low);
+    }
+
+    private boolean hasSingleThreeScore(ClinicalAssessment item) {
+        return item.news2Respiration == 3 || item.news2Spo2 == 3 || item.news2Temperature == 3
+                || item.news2SystolicBp == 3 || item.news2HeartRate == 3 || item.news2Consciousness == 3;
     }
 
     private Button addButton(LinearLayout container, String text) {
