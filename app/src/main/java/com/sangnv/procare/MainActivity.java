@@ -32,6 +32,7 @@ public class MainActivity extends AppCompatActivity {
 
     private ClinicalAssessment assessment;
     private boolean isBinding;
+    private GitHubReleaseChecker gitHubReleaseChecker;
 
     private EditText patientIdView;
     private EditText admissionDateTimeView;
@@ -100,6 +101,16 @@ public class MainActivity extends AppCompatActivity {
         buildAssessmentForm((LinearLayout) findViewById(R.id.form_container));
         bindAssessmentToViews();
         recalculateAndSave(false);
+        gitHubReleaseChecker = new GitHubReleaseChecker(this);
+        gitHubReleaseChecker.checkForNewRelease();
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (gitHubReleaseChecker != null) {
+            gitHubReleaseChecker.shutdown();
+        }
+        super.onDestroy();
     }
 
     @Override

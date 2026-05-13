@@ -57,15 +57,11 @@ jobs:
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
 
-      - name: Build debug APK
-        run: ./gradlew clean assembleDebug --stacktrace
-
-      - name: Prepare APK artifact
-        id: package_apk
+      - name: Resolve release version
+        id: release
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p "$RELEASE_DIR"
 
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             RELEASE_TAG="${GITHUB_REF_NAME}"
@@ -75,12 +71,30 @@ jobs:
             RELEASE_TAG="manual-${GITHUB_RUN_NUMBER}"
           fi
 
+          VERSION_NAME="${RELEASE_TAG#v}"
+          if [[ -z "$VERSION_NAME" ]]; then
+            VERSION_NAME="1.0"
+          fi
+
+          echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Build debug APK
+        run: ./gradlew clean assembleDebug -PreleaseVersionName="${{ steps.release.outputs.version_name }}" --stacktrace
+
+      - name: Prepare APK artifact
+        id: package_apk
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RELEASE_DIR"
+
+          RELEASE_TAG="${{ steps.release.outputs.release_tag }}"
           APK_SOURCE="$APK_OUTPUT_DIR/app-debug.apk"
           APK_NAME="ProCare-${RELEASE_TAG}.apk"
           APK_PATH="$RELEASE_DIR/$APK_NAME"
 
           cp "$APK_SOURCE" "$APK_PATH"
-          echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
           echo "apk_path=$APK_PATH" >> "$GITHUB_OUTPUT"
           echo "apk_name=$APK_NAME" >> "$GITHUB_OUTPUT"
 
@@ -95,7 +109,7 @@ jobs:
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ steps.package_apk.outputs.release_tag }}
+          RELEASE_TAG: ${{ steps.release.outputs.release_tag }}
           APK_PATH: ${{ steps.package_apk.outputs.apk_path }}
         shell: bash
         run: |

@@ -89,4 +89,9 @@
     <string name="last_saved_format">Đã lưu tự động: %1$s</string>
     <string name="yes">Có</string>
     <string name="no">Không</string>
+
+    <string name="update_available_title">Có phiên bản mới</string>
+    <string name="update_available_message">Đã có ProCare phiên bản %1$s mới hơn phiên bản đang dùng (%2$s). Vui lòng tải về và cài đặt bản mới nhất.</string>
+    <string name="update_download_action">Tải về</string>
+    <string name="update_later_action">Để sau</string>
 </resources>
