@@ -1,17 +1,13 @@
 package com.sangnv.procare;
 
-import androidx.appcompat.app.AppCompatActivity;
-
 import android.os.Bundle;
-import android.util.Log;
 import android.view.Menu;
 
-import com.sangnv.procare.Model.ItemRow;
-import com.sangnv.procare.ui.setting.SettingAdapter;
+import androidx.appcompat.app.AppCompatActivity;
+
 import com.sangnv.procare.ui.setting.SettingFragment;
 
 public class SettingActivity extends AppCompatActivity implements SettingFragment.OnSettingFragmentListener {
-    private static final String TAG = SettingActivity.class.getName();
     private SettingFragment settingFragment;
 
     @Override
@@ -19,38 +15,44 @@ public class SettingActivity extends AppCompatActivity implements SettingFragmen
         super.onCreate(savedInstanceState);
         setContentView(R.layout.setting_activity);
 
-        settingFragment = SettingFragment.newInstance();
         if (savedInstanceState == null) {
+            settingFragment = SettingFragment.newInstance();
             getSupportFragmentManager().beginTransaction()
                     .replace(R.id.container, settingFragment)
                     .commitNow();
+        } else {
+            settingFragment = (SettingFragment) getSupportFragmentManager().findFragmentById(R.id.container);
         }
     }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.setting_menu, menu);
         return true;
     }
 
     @Override
     public void onItemEdit(String item) {
-        Log.i(TAG, "onItemEdit: " + item);
     }
 
     @Override
     public void onRefreshSwipe() {
-        settingFragment.refreshItem();
+        if (settingFragment != null) {
+            settingFragment.refreshItem();
+        }
     }
 
     @Override
     public void onAddItem(String item) {
-        settingFragment.addItem(item);
+        if (settingFragment != null) {
+            settingFragment.addItem(item);
+        }
     }
 
     @Override
     public void onRemoveItem(int position) {
-        settingFragment.removeItem(position);
+        if (settingFragment != null) {
+            settingFragment.removeItem(position);
+        }
     }
 }

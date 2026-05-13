@@ -61,15 +61,15 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:layout_weight="1"
-                android:text="Bảng"
-                android:textSize="20dp" />
+                android:text="@string/table_label"
+                android:textSize="20sp" />
 
             <TextView
                 android:id="@+id/setting_text_detail"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:layout_weight="4"
-                android:text="Total" />
+                android:text="@string/table_total_label" />
         </LinearLayout>
     </FrameLayout>
 </com.chauthai.swipereveallayout.SwipeRevealLayout>
