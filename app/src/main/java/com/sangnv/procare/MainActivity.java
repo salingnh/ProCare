@@ -8,6 +8,7 @@ import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.StateListDrawable;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Build;
 import android.os.Environment;
 import android.graphics.Color;
 import android.text.Editable;
@@ -15,6 +16,7 @@ import android.text.InputType;
 import android.text.TextWatcher;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.WindowManager;
 import android.view.View;
 import android.util.Log;
 import android.widget.Button;
@@ -51,9 +53,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.text.DateFormat;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -69,6 +69,7 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     private static final int COLOR_PRIMARY_DARK = Color.rgb(30, 64, 175);
     private static final int COLOR_FIELD_STROKE = Color.rgb(209, 213, 219);
     private static final int COLOR_FIELD_BACKGROUND = Color.rgb(249, 250, 251);
+    private static final int ASSESSMENT_STATUS_FALLBACK_HEIGHT_DP = 150;
 
 
     private ClinicalAssessment assessment;
@@ -85,6 +86,7 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     private final ExecutorService updateDownloadExecutor = Executors.newSingleThreadExecutor();
     private final AssessmentRepository assessmentRepository = new AssessmentRepository();
     private LinearLayout formContainer;
+    private LinearLayout assessmentStatusContainer;
     private Button floatingAddButton;
     private TextView scrollDateBubble;
     private LinearLayout updateBannerView;
@@ -146,11 +148,12 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     private CheckBox vasopressorView;
 
     private final List<View> workflowStepContainers = new ArrayList<>();
-    private TextView patientSummaryListView;
     private TextView workflowProgressView;
+    private TextView assessmentStatusTitleView;
+    private TextView assessmentStatusScoreView;
+    private TextView assessmentStatusRiskView;
+    private ProgressBar assessmentStatusProgressView;
     private TextView quickSummaryView;
-    private TextView news2CompletionView;
-    private ProgressBar news2CompletionProgressView;
     private TextView news2FooterScoreView;
     private TextView news2FooterRiskView;
     private TextView news2TotalView;
@@ -178,6 +181,7 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
 
         assessment = loadCurrentAssessment();
         formContainer = (LinearLayout) findViewById(R.id.form_container);
+        assessmentStatusContainer = (LinearLayout) findViewById(R.id.assessment_status_container);
         floatingAddButton = (Button) findViewById(R.id.fab_add_assessment);
         scrollDateBubble = (TextView) findViewById(R.id.scroll_date_bubble);
         configureFloatingAddButton();
@@ -193,8 +197,12 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         getWindow().getDecorView().setSystemUiVisibility(
                 View.SYSTEM_UI_FLAG_LAYOUT_STABLE
                         | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                        | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
                         | View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            WindowManager.LayoutParams attributes = getWindow().getAttributes();
+            attributes.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+            getWindow().setAttributes(attributes);
+        }
     }
 
     @Override
@@ -527,6 +535,10 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         showingAssessment = false;
         isFormReady = false;
         formContainer.removeAllViews();
+        if (assessmentStatusContainer != null) {
+            assessmentStatusContainer.setVisibility(View.GONE);
+            assessmentStatusContainer.removeAllViews();
+        }
         if (floatingAddButton != null) {
             floatingAddButton.setVisibility(View.VISIBLE);
         }
@@ -581,6 +593,7 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         if (scrollDateBubble != null) {
             scrollDateBubble.setVisibility(View.GONE);
         }
+        configureFixedAssessmentStatusCard();
         isFormReady = false;
         isBinding = true;
         try {
@@ -595,7 +608,8 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     private void buildAssessmentForm(LinearLayout container) {
         container.removeAllViews();
         workflowStepContainers.clear();
-        container.setPadding(dp(16), dp(14) + systemBarDimension("status_bar_height"), dp(16), dp(26) + systemBarDimension("navigation_bar_height"));
+        setAssessmentFormPadding(container, dp(ASSESSMENT_STATUS_FALLBACK_HEIGHT_DP));
+        updateAssessmentFormPaddingForFixedStatus();
 
         addNews2TopBar(container);
         addWorkflowControls(container);
@@ -873,13 +887,6 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     private void updateQuickSummaryViews() {
         int completedCount = completedNews2Count();
         boolean complete = missingNews2Fields().isEmpty();
-        if (news2CompletionView != null) {
-            news2CompletionView.setText(getString(R.string.news2_completed_format, completedCount, 7));
-        }
-        if (news2CompletionProgressView != null) {
-            news2CompletionProgressView.setProgress(completedCount);
-        }
-
         updateQsofaSofaViews();
         if (!complete) {
             String missingText = getString(R.string.news2_missing_required_format, ClinicalValueParser.joinStrings(missingNews2Fields(), ", "));
@@ -915,6 +922,7 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
                 news2FooterRiskView.setTextColor(Color.rgb(107, 114, 128));
                 news2FooterRiskView.setBackground(roundedDrawable(Color.rgb(243, 244, 246), dp(16), 0, 0));
             }
+            updateAssessmentStatusCard();
             return;
         }
 
@@ -955,6 +963,7 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
             news2FooterRiskView.setTextColor(Color.WHITE);
             news2FooterRiskView.setBackground(roundedDrawable(color, dp(16), 0, 0));
         }
+        updateAssessmentStatusCard();
     }
 
     private void updateQsofaSofaViews() {
@@ -1125,6 +1134,10 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         return assessmentRepository.loadCurrentAssessment();
     }
 
+    private List<ClinicalAssessment> loadAssessmentHistory() {
+        return assessmentRepository.loadAssessmentHistory();
+    }
+
     private ClinicalAssessment cloneAssessment(ClinicalAssessment source) {
         if (source == null) {
             return new ClinicalAssessment();
@@ -1218,6 +1231,7 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
             nextStepButton.setEnabled(currentWorkflowStep < STEP_COUNT - 1);
             nextStepButton.setText(currentWorkflowStep == STEP_COUNT - 1 ? R.string.workflow_reviewing : R.string.workflow_next);
         }
+        updateAssessmentStatusCard();
     }
 
     private String getWorkflowProgressText() {
@@ -1242,109 +1256,57 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         return getString(R.string.workflow_progress_format, currentWorkflowStep + 1, STEP_COUNT, getString(titleResId));
     }
 
-    private void updatePatientSummaryList() {
-        if (patientSummaryListView == null) {
+    private void configureFixedAssessmentStatusCard() {
+        if (assessmentStatusContainer == null) {
             return;
         }
-        List<ClinicalAssessment> history = loadAssessmentHistory();
-        if (history.isEmpty()) {
-            patientSummaryListView.setText(getString(R.string.patient_summary_empty));
-            return;
-        }
-        StringBuilder builder = new StringBuilder(getString(R.string.patient_summary_title));
-        int start = Math.max(0, history.size() - 10);
-        for (int i = history.size() - 1; i >= start; i--) {
-            ClinicalAssessment item = history.get(i);
-            builder.append("\n\n• ").append(patientDisplayName(item));
-            builder.append("\n  ").append(getString(R.string.patient_summary_scores_format,
-                    item.news2Total,
-                    riskTextForNews2(item),
-                    item.qsofaTotal,
-                    item.sofaTotal));
-            if (hasText(item.sepsisDiagnosis)) {
-                builder.append("\n  ").append(item.sepsisDiagnosis);
-            }
-            if (item.savedAtMillis > 0) {
-                builder.append("\n  ").append(getString(R.string.patient_summary_saved_format,
-                        DateFormat.getDateTimeInstance().format(new Date(item.savedAtMillis))));
-            }
-        }
-        patientSummaryListView.setText(builder.toString());
-    }
+        assessmentStatusContainer.removeAllViews();
+        assessmentStatusContainer.setVisibility(View.VISIBLE);
+        assessmentStatusContainer.setPadding(dp(16), dp(14) + systemBarDimension("status_bar_height"), dp(16), 0);
 
-    private List<ClinicalAssessment> loadAssessmentHistory() {
-        return assessmentRepository.loadAssessmentHistory();
-    }
-
-    private String patientDisplayName(ClinicalAssessment item) {
-        if (hasText(item.fullName) && hasText(item.patientId)) {
-            return getString(R.string.patient_summary_name_with_id, item.fullName.trim(), item.patientId.trim());
-        }
-        if (hasText(item.fullName)) {
-            return item.fullName.trim();
-        }
-        if (hasText(item.patientId)) {
-            return getString(R.string.patient_summary_id_only, item.patientId.trim());
-        }
-        return getString(R.string.patient_summary_unknown);
-    }
-
-    private String riskTextForNews2(ClinicalAssessment item) {
-        if (item.news2Total >= 7) {
-            return getString(R.string.news2_risk_emergency);
-        }
-        if (item.news2Total >= 5) {
-            return getString(R.string.news2_risk_urgent);
-        }
-        if (hasSingleThreeScore(item)) {
-            return getString(R.string.news2_risk_single_three);
-        }
-        if (item.news2Total == 0) {
-            return getString(R.string.news2_risk_low_zero);
-        }
-        return getString(R.string.news2_risk_low);
-    }
-
-    private boolean hasSingleThreeScore(ClinicalAssessment item) {
-        return News2Scoring.hasSingleThreeScore(item);
-    }
-
-
-
-    private void addNews2TopBar(LinearLayout container) {
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.VERTICAL);
         header.setPadding(dp(16), dp(14), dp(16), dp(14));
-        header.setBackground(roundedDrawable(Color.argb(238, 255, 255, 255), dp(22), dp(1), Color.rgb(229, 231, 235)));
+        header.setBackground(roundedDrawable(Color.argb(248, 255, 255, 255), dp(22), dp(1), Color.rgb(229, 231, 235)));
 
         LinearLayout titleRow = new LinearLayout(this);
         titleRow.setOrientation(LinearLayout.HORIZONTAL);
         titleRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
 
-        TextView icon = new TextView(this);
-        icon.setText("♥");
-        icon.setTextSize(22);
-        icon.setTypeface(Typeface.DEFAULT_BOLD);
-        icon.setGravity(android.view.Gravity.CENTER);
-        icon.setTextColor(COLOR_PRIMARY);
-        icon.setBackground(roundedDrawable(Color.rgb(219, 234, 254), dp(12), 0, 0));
-        LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(dp(42), dp(42));
-        titleRow.addView(icon, iconParams);
+        Button backButton = new Button(this);
+        backButton.setText("‹");
+        backButton.setTextSize(26);
+        backButton.setTextColor(COLOR_PRIMARY_DARK);
+        backButton.setContentDescription(getString(R.string.patient_list_back_assessment));
+        backButton.setBackground(roundedDrawable(Color.rgb(239, 246, 255), dp(18), dp(1), Color.rgb(191, 219, 254)));
+        backButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showPatientListScreen();
+            }
+        });
+        titleRow.addView(backButton, new LinearLayout.LayoutParams(dp(46), dp(42)));
 
-        LinearLayout titleStack = new LinearLayout(this);
-        titleStack.setOrientation(LinearLayout.VERTICAL);
-        titleStack.setPadding(dp(10), 0, 0, 0);
-        TextView title = new TextView(this);
-        title.setText(R.string.news2_screen_title);
-        title.setTextColor(COLOR_TEXT_PRIMARY);
-        title.setTextSize(18);
-        title.setTypeface(Typeface.DEFAULT_BOLD);
-        titleStack.addView(title, matchWrapParams());
-        news2CompletionView = new TextView(this);
-        news2CompletionView.setTextColor(Color.rgb(107, 114, 128));
-        news2CompletionView.setTextSize(12);
-        titleStack.addView(news2CompletionView, matchWrapParams());
-        titleRow.addView(titleStack, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        LinearLayout statusStack = new LinearLayout(this);
+        statusStack.setOrientation(LinearLayout.VERTICAL);
+        statusStack.setPadding(dp(10), 0, 0, 0);
+        assessmentStatusTitleView = new TextView(this);
+        assessmentStatusTitleView.setTextColor(COLOR_TEXT_PRIMARY);
+        assessmentStatusTitleView.setTextSize(18);
+        assessmentStatusTitleView.setTypeface(Typeface.DEFAULT_BOLD);
+        statusStack.addView(assessmentStatusTitleView, matchWrapParams());
+
+        assessmentStatusScoreView = new TextView(this);
+        assessmentStatusScoreView.setTextSize(14);
+        assessmentStatusScoreView.setTypeface(Typeface.DEFAULT_BOLD);
+        assessmentStatusScoreView.setPadding(0, dp(3), 0, 0);
+        statusStack.addView(assessmentStatusScoreView, matchWrapParams());
+
+        assessmentStatusRiskView = new TextView(this);
+        assessmentStatusRiskView.setTextSize(13);
+        assessmentStatusRiskView.setPadding(0, dp(3), 0, 0);
+        statusStack.addView(assessmentStatusRiskView, matchWrapParams());
+        titleRow.addView(statusStack, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
 
         Button resetButton = new Button(this);
         resetButton.setText("↻");
@@ -1366,20 +1328,153 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         titleRow.addView(resetButton, new LinearLayout.LayoutParams(dp(46), dp(42)));
         header.addView(titleRow, matchWrapParams());
 
-        news2CompletionProgressView = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
-        news2CompletionProgressView.setMax(7);
-        news2CompletionProgressView.setProgress(0);
-        news2CompletionProgressView.setProgressTintList(ColorStateList.valueOf(COLOR_PRIMARY));
-        news2CompletionProgressView.setProgressBackgroundTintList(ColorStateList.valueOf(Color.rgb(243, 244, 246)));
+        assessmentStatusProgressView = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        assessmentStatusProgressView.setProgressBackgroundTintList(ColorStateList.valueOf(Color.rgb(243, 244, 246)));
         LinearLayout.LayoutParams progressParams = matchWrapParams();
         progressParams.setMargins(0, dp(12), 0, 0);
-        header.addView(news2CompletionProgressView, progressParams);
+        header.addView(assessmentStatusProgressView, progressParams);
 
-        LinearLayout.LayoutParams params = matchWrapParams();
-        params.setMargins(0, 0, 0, dp(14));
-        container.addView(header, params);
+        assessmentStatusContainer.addView(header, matchWrapParams());
+        updateAssessmentStatusCard();
+        updateAssessmentFormPaddingForFixedStatus();
     }
 
+    private void updateAssessmentFormPaddingForFixedStatus() {
+        if (assessmentStatusContainer == null || formContainer == null || !showingAssessment) {
+            return;
+        }
+        assessmentStatusContainer.post(new Runnable() {
+            @Override
+            public void run() {
+                int measuredHeight = assessmentStatusContainer.getHeight();
+                int fallbackHeight = dp(ASSESSMENT_STATUS_FALLBACK_HEIGHT_DP) + systemBarDimension("status_bar_height");
+                int topPadding = (measuredHeight > 0 ? measuredHeight : fallbackHeight) + dp(12);
+                setAssessmentFormPadding(formContainer, topPadding);
+            }
+        });
+    }
+
+    private void setAssessmentFormPadding(LinearLayout container, int topPadding) {
+        container.setPadding(dp(16), topPadding, dp(16), dp(26) + systemBarDimension("navigation_bar_height"));
+    }
+
+    private void updateAssessmentStatusCard() {
+        if (assessmentStatusTitleView == null || assessmentStatusScoreView == null
+                || assessmentStatusRiskView == null || assessmentStatusProgressView == null || assessment == null) {
+            return;
+        }
+        switch (currentWorkflowStep) {
+            case 0:
+                updatePatientStatusCard();
+                break;
+            case 1:
+                updateNews2StatusCard();
+                break;
+            case 2:
+                updateQsofaStatusCard();
+                break;
+            case 3:
+                updateSofaStatusCard();
+                break;
+            default:
+                updateReviewStatusCard();
+                break;
+        }
+    }
+
+    private void updatePatientStatusCard() {
+        boolean ready = hasText(assessment.patientId) || hasText(assessment.fullName);
+        int color = ready ? News2Scoring.COLOR_SUCCESS : COLOR_TEXT_SECONDARY;
+        setAssessmentStatus(
+                getString(R.string.assessment_status_patient_title),
+                getString(R.string.assessment_status_score_format, ready ? "1/1" : "0/1"),
+                ready ? getString(R.string.assessment_status_patient_ready) : getString(R.string.assessment_status_patient_missing),
+                color,
+                ready ? 1 : 0,
+                1);
+    }
+
+    private void updateNews2StatusCard() {
+        int completed = completedNews2Count();
+        boolean complete = missingNews2Fields().isEmpty();
+        int color = complete ? News2Scoring.riskColor(assessment) : COLOR_TEXT_SECONDARY;
+        String risk = complete ? news2RiskText() : getString(R.string.news2_missing_required_title);
+        setAssessmentStatus(
+                getString(R.string.news2_screen_title) + " (" + completed + "/7)",
+                getString(R.string.assessment_status_score_format, assessment.news2Total + "/21"),
+                risk,
+                color,
+                completed,
+                7);
+    }
+
+    private void updateQsofaStatusCard() {
+        int completed = completedQsofaCount();
+        int color = assessment.qsofaTotal >= 2 ? Color.rgb(220, 38, 38) : News2Scoring.COLOR_SUCCESS;
+        String risk = assessment.qsofaTotal >= 2 ? getString(R.string.qsofa_risk_high) : getString(R.string.qsofa_risk_low);
+        setAssessmentStatus(
+                getString(R.string.assessment_status_qsofa_title, completed, 3),
+                getString(R.string.assessment_status_score_format, assessment.qsofaTotal + "/3"),
+                risk,
+                color,
+                completed,
+                3);
+    }
+
+    private void updateSofaStatusCard() {
+        int completed = completedSofaCount();
+        int color = assessment.sofaTotal >= 9 ? Color.rgb(220, 38, 38) : News2Scoring.COLOR_SUCCESS;
+        setAssessmentStatus(
+                getString(R.string.assessment_status_sofa_title, completed, 6),
+                getString(R.string.assessment_status_score_format, assessment.sofaTotal + "/24"),
+                sofaInterpretationText(),
+                color,
+                completed,
+                6);
+    }
+
+    private void updateReviewStatusCard() {
+        int completed = (missingNews2Fields().isEmpty() ? 1 : 0) + (completedQsofaCount() == 3 ? 1 : 0) + (completedSofaCount() > 0 ? 1 : 0);
+        int color = assessment.sofaTotal >= 2 || assessment.qsofaTotal >= 2 || assessment.news2Total >= 5
+                ? Color.rgb(220, 38, 38) : News2Scoring.COLOR_SUCCESS;
+        setAssessmentStatus(
+                getString(R.string.assessment_status_review_title, completed, 3),
+                getString(R.string.assessment_status_score_format, getString(R.string.assessment_status_review_score, assessment.news2Total, assessment.qsofaTotal, assessment.sofaTotal)),
+                buildSepsisDiagnosis(),
+                color,
+                completed,
+                3);
+    }
+
+    private void setAssessmentStatus(String title, String score, String risk, int color, int progress, int max) {
+        assessmentStatusTitleView.setText(title);
+        assessmentStatusScoreView.setText(score);
+        assessmentStatusScoreView.setTextColor(color);
+        assessmentStatusRiskView.setText(risk);
+        assessmentStatusRiskView.setTextColor(color);
+        assessmentStatusProgressView.setMax(Math.max(1, max));
+        assessmentStatusProgressView.setProgress(Math.max(0, Math.min(progress, max)));
+        assessmentStatusProgressView.setProgressTintList(ColorStateList.valueOf(color));
+    }
+
+    private int completedQsofaCount() {
+        int count = 0;
+        count += hasText(assessment.news2RespirationMeasured) || findCheckedRadioButton(news2RespirationGroup) != null ? 1 : 0;
+        count += hasText(assessment.news2SystolicBpMeasured) || findCheckedRadioButton(news2SystolicBpGroup) != null ? 1 : 0;
+        count += hasText(assessment.news2ConsciousnessMeasured) || findCheckedRadioButton(news2ConsciousnessGroup) != null ? 1 : 0;
+        return count;
+    }
+
+    private int completedSofaCount() {
+        int count = 0;
+        count += hasText(assessment.sofaRespirationMeasured) || findCheckedRadioButton(sofaRespirationGroup) != null ? 1 : 0;
+        count += hasText(assessment.sofaCoagulationMeasured) || findCheckedRadioButton(sofaCoagulationGroup) != null ? 1 : 0;
+        count += hasText(assessment.sofaLiverMeasured) || findCheckedRadioButton(sofaLiverGroup) != null ? 1 : 0;
+        count += hasText(assessment.sofaCardiovascularMeasured) || findCheckedRadioButton(sofaCardiovascularGroup) != null ? 1 : 0;
+        count += hasText(assessment.sofaNeurologicMeasured) || findCheckedRadioButton(sofaNeurologicGroup) != null ? 1 : 0;
+        count += hasText(assessment.sofaRenalMeasured) || findCheckedRadioButton(sofaRenalGroup) != null ? 1 : 0;
+        return count;
+    }
 
     private void addPatientInfoCard(LinearLayout container) {
         CardView cardView = new CardView(this);
@@ -1570,8 +1665,6 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         addLabel(card, getString(R.string.clinical_disclaimer));
         treatmentOutcomeGroup = addRadioGroup(card, getString(R.string.treatment_outcome), new String[]{getString(R.string.outcome_recovered), getString(R.string.outcome_transfer), getString(R.string.outcome_death)}, null);
         treatmentDaysView = addNumberEditText(card, getString(R.string.treatment_days));
-        patientSummaryListView = addTotalText(card, getString(R.string.patient_summary_empty));
-        updatePatientSummaryList();
         cardView.addView(card, matchWrapParams());
         container.addView(cardView, matchWrapParams());
     }
