@@ -76,17 +76,14 @@ public final class News2Scoring {
         if (value == null) {
             return fallback;
         }
-        if (!oxygen) {
-            if (value <= 83) {
-                return 3;
-            }
-            if (value <= 85) {
-                return 2;
-            }
-            if (value <= 87) {
-                return 1;
-            }
-            return 0;
+        if (value <= 83) {
+            return 3;
+        }
+        if (value <= 85) {
+            return 2;
+        }
+        if (value <= 87) {
+            return 1;
         }
         if (value <= 92) {
             return 0;

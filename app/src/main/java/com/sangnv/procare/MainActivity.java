@@ -8,6 +8,7 @@ import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.StateListDrawable;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Build;
 import android.os.Environment;
 import android.graphics.Color;
 import android.text.Editable;
@@ -15,6 +16,7 @@ import android.text.InputType;
 import android.text.TextWatcher;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.WindowManager;
 import android.view.View;
 import android.util.Log;
 import android.widget.Button;
@@ -37,8 +39,13 @@ import androidx.core.content.FileProvider;
 import com.sangnv.procare.Model.ClinicalAssessment;
 import com.sangnv.procare.data.AssessmentRepository;
 import com.sangnv.procare.news2.News2Scoring;
+import com.sangnv.procare.scoring.ClinicalValueParser;
+import com.sangnv.procare.scoring.News2InputValidator;
+import com.sangnv.procare.scoring.QsofaScoring;
+import com.sangnv.procare.scoring.SofaScoring;
 import com.sangnv.procare.ui.PatientListScreen;
 import com.sangnv.procare.ui.ProCareUi;
+import com.sangnv.procare.ui.assessment.News2CriterionViews;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -46,9 +53,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.text.DateFormat;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -64,6 +69,7 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     private static final int COLOR_PRIMARY_DARK = Color.rgb(30, 64, 175);
     private static final int COLOR_FIELD_STROKE = Color.rgb(209, 213, 219);
     private static final int COLOR_FIELD_BACKGROUND = Color.rgb(249, 250, 251);
+    private static final int ASSESSMENT_STATUS_FALLBACK_HEIGHT_DP = 150;
 
 
     private ClinicalAssessment assessment;
@@ -80,6 +86,7 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     private final ExecutorService updateDownloadExecutor = Executors.newSingleThreadExecutor();
     private final AssessmentRepository assessmentRepository = new AssessmentRepository();
     private LinearLayout formContainer;
+    private LinearLayout assessmentStatusContainer;
     private Button floatingAddButton;
     private TextView scrollDateBubble;
     private LinearLayout updateBannerView;
@@ -141,11 +148,12 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     private CheckBox vasopressorView;
 
     private final List<View> workflowStepContainers = new ArrayList<>();
-    private TextView patientSummaryListView;
     private TextView workflowProgressView;
+    private TextView assessmentStatusTitleView;
+    private TextView assessmentStatusScoreView;
+    private TextView assessmentStatusRiskView;
+    private ProgressBar assessmentStatusProgressView;
     private TextView quickSummaryView;
-    private TextView news2CompletionView;
-    private ProgressBar news2CompletionProgressView;
     private TextView news2FooterScoreView;
     private TextView news2FooterRiskView;
     private TextView news2TotalView;
@@ -173,6 +181,7 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
 
         assessment = loadCurrentAssessment();
         formContainer = (LinearLayout) findViewById(R.id.form_container);
+        assessmentStatusContainer = (LinearLayout) findViewById(R.id.assessment_status_container);
         floatingAddButton = (Button) findViewById(R.id.fab_add_assessment);
         scrollDateBubble = (TextView) findViewById(R.id.scroll_date_bubble);
         configureFloatingAddButton();
@@ -188,8 +197,12 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         getWindow().getDecorView().setSystemUiVisibility(
                 View.SYSTEM_UI_FLAG_LAYOUT_STABLE
                         | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                        | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
                         | View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            WindowManager.LayoutParams attributes = getWindow().getAttributes();
+            attributes.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+            getWindow().setAttributes(attributes);
+        }
     }
 
     @Override
@@ -513,6 +526,7 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         long now = System.currentTimeMillis();
         assessment.createdAtMillis = now;
         assessment.modifiedAtMillis = now;
+        currentWorkflowStep = 0;
         initializeAssessmentForm(formContainer);
         recalculateAndSave(false);
     }
@@ -521,6 +535,10 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         showingAssessment = false;
         isFormReady = false;
         formContainer.removeAllViews();
+        if (assessmentStatusContainer != null) {
+            assessmentStatusContainer.setVisibility(View.GONE);
+            assessmentStatusContainer.removeAllViews();
+        }
         if (floatingAddButton != null) {
             floatingAddButton.setVisibility(View.VISIBLE);
         }
@@ -537,6 +555,7 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
             @Override
             public void onOpenAssessment(ClinicalAssessment selectedAssessment) {
                 assessment = cloneAssessment(selectedAssessment);
+                currentWorkflowStep = 0;
                 initializeAssessmentForm(formContainer);
                 recalculateAndSave(false);
             }
@@ -574,6 +593,7 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         if (scrollDateBubble != null) {
             scrollDateBubble.setVisibility(View.GONE);
         }
+        configureFixedAssessmentStatusCard();
         isFormReady = false;
         isBinding = true;
         try {
@@ -588,35 +608,64 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     private void buildAssessmentForm(LinearLayout container) {
         container.removeAllViews();
         workflowStepContainers.clear();
-        container.setPadding(dp(16), dp(14) + systemBarDimension("status_bar_height"), dp(16), dp(26) + systemBarDimension("navigation_bar_height"));
+        setAssessmentFormPadding(container, dp(ASSESSMENT_STATUS_FALLBACK_HEIGHT_DP));
+        updateAssessmentFormPaddingForFixedStatus();
 
-        addNews2TopBar(container);
-        addPatientInfoCard(container);
-        quickSummaryView = addAlertText(container, getString(R.string.quick_summary_empty), "#6B7280");
+        addWorkflowControls(container);
 
-        addSpo2ScaleCard(container);
-        news2RespirationGroup = addNews2CriterionCard(container, getString(R.string.news2_respiration), null,
+        LinearLayout patientStep = addWorkflowStep(container, R.string.workflow_step_patient, R.string.workflow_step_patient_hint);
+        addPatientInfoCard(patientStep);
+
+        LinearLayout news2Step = addWorkflowStep(container, R.string.workflow_step_news2, R.string.workflow_step_news2_hint);
+        quickSummaryView = addAlertText(news2Step, getString(R.string.quick_summary_empty), "#6B7280");
+        addSpo2ScaleCard(news2Step);
+        News2CriterionViews respirationViews = addNews2MeasuredCriterionCard(news2Step, getString(R.string.news2_respiration), "Đơn vị chuẩn: lần/phút", getString(R.string.news2_respiration), true,
                 new String[]{"≤ 8", "9 - 11", "12 - 20", "21 - 24", "≥ 25"}, new int[]{3, 1, 0, 2, 3});
+        news2RespirationMeasuredView = respirationViews.measuredView;
+        news2RespirationGroup = respirationViews.group;
         if (assessment.news2Spo2Scale2) {
-            news2Spo2Group = addNews2CriterionCard(container, getString(R.string.news2_spo2_scale2_title), getString(R.string.news2_spo2_scale2_subtitle),
-                    new String[]{"≤ 83%", "84 - 85%", "86 - 87%", "88 - 92% (hoặc ≥ 93% khí phòng)", "93 - 94% (thở Oxy)", "95 - 96% (thở Oxy)", "≥ 97% (thở Oxy)"}, new int[]{3, 2, 1, 0, 1, 2, 3});
+            News2CriterionViews spo2Views = addNews2MeasuredCriterionCard(news2Step, getString(R.string.news2_spo2_scale2_title), getString(R.string.news2_spo2_scale2_subtitle), getString(R.string.news2_spo2), true,
+                    new String[]{"≤ 83%", "84 - 85%", "86 - 87%", "88 - 92%", "93 - 94%", "95 - 96%", "≥ 97%"}, new int[]{3, 2, 1, 0, 1, 2, 3});
+            news2Spo2MeasuredView = spo2Views.measuredView;
+            news2Spo2Group = spo2Views.group;
         } else {
-            news2Spo2Group = addNews2CriterionCard(container, getString(R.string.news2_spo2_scale1_title), getString(R.string.news2_spo2_scale1_subtitle),
+            News2CriterionViews spo2Views = addNews2MeasuredCriterionCard(news2Step, getString(R.string.news2_spo2_scale1_title), getString(R.string.news2_spo2_scale1_subtitle), getString(R.string.news2_spo2), true,
                     new String[]{"≤ 91%", "92 - 93%", "94 - 95%", "≥ 96%"}, new int[]{3, 2, 1, 0});
+            news2Spo2MeasuredView = spo2Views.measuredView;
+            news2Spo2Group = spo2Views.group;
         }
-        news2OxygenGroup = addNews2CriterionCard(container, getString(R.string.news2_oxygen), null,
+        News2CriterionViews oxygenViews = addNews2MeasuredCriterionCard(news2Step, getString(R.string.news2_oxygen), getString(R.string.news2_oxygen_note), getString(R.string.news2_oxygen), false,
                 new String[]{"Thở khí phòng", "Thở Oxy"}, new int[]{0, 2});
-        news2SystolicBpGroup = addNews2CriterionCard(container, getString(R.string.news2_systolic_bp), null,
+        news2OxygenMeasuredView = oxygenViews.measuredView;
+        news2OxygenGroup = oxygenViews.group;
+        News2CriterionViews sbpViews = addNews2MeasuredCriterionCard(news2Step, getString(R.string.news2_systolic_bp), "Đơn vị chuẩn: mmHg", getString(R.string.news2_systolic_bp), true,
                 new String[]{"≤ 90", "91 - 100", "101 - 110", "111 - 219", "≥ 220"}, new int[]{3, 2, 1, 0, 3});
-        news2HeartRateGroup = addNews2CriterionCard(container, getString(R.string.news2_heart_rate), null,
+        news2SystolicBpMeasuredView = sbpViews.measuredView;
+        news2SystolicBpGroup = sbpViews.group;
+        News2CriterionViews heartRateViews = addNews2MeasuredCriterionCard(news2Step, getString(R.string.news2_heart_rate), "Đơn vị chuẩn: lần/phút", getString(R.string.news2_heart_rate), true,
                 new String[]{"≤ 40", "41 - 50", "51 - 90", "91 - 110", "111 - 130", "≥ 131"}, new int[]{3, 1, 0, 1, 2, 3});
-        news2ConsciousnessGroup = addNews2CriterionCard(container, getString(R.string.news2_consciousness), null,
+        news2HeartRateMeasuredView = heartRateViews.measuredView;
+        news2HeartRateGroup = heartRateViews.group;
+        News2CriterionViews consciousnessViews = addNews2MeasuredCriterionCard(news2Step, getString(R.string.news2_consciousness), getString(R.string.news2_consciousness_hint), getString(R.string.news2_consciousness), false,
                 new String[]{"A - Tỉnh táo (Alert)", "C/V/P/U - Lú lẫn, đáp ứng lời nói/đau hoặc không phản ứng"}, new int[]{0, 3});
-        news2TemperatureGroup = addNews2CriterionCard(container, getString(R.string.news2_temperature), null,
+        news2ConsciousnessMeasuredView = consciousnessViews.measuredView;
+        news2ConsciousnessGroup = consciousnessViews.group;
+        News2CriterionViews temperatureViews = addNews2MeasuredCriterionCard(news2Step, getString(R.string.news2_temperature), "Đơn vị chuẩn: °C", getString(R.string.news2_temperature), false,
                 new String[]{"≤ 35.0", "35.1 - 36.0", "36.1 - 38.0", "38.1 - 39.0", "≥ 39.1"}, new int[]{3, 1, 0, 1, 2});
+        news2TemperatureMeasuredView = temperatureViews.measuredView;
+        news2TemperatureGroup = temperatureViews.group;
+        addNews2ResultCard(news2Step);
 
-        addNews2ResultCard(container);
-        addNews2Footer(container);
+        LinearLayout qsofaStep = addWorkflowStep(container, R.string.workflow_step_qsofa_lactate, R.string.workflow_step_qsofa_lactate_hint);
+        addQsofaLactateCard(qsofaStep);
+
+        LinearLayout sofaStep = addWorkflowStep(container, R.string.workflow_step_sofa, R.string.workflow_step_sofa_hint);
+        addSofaCard(sofaStep);
+
+        LinearLayout saveStep = addWorkflowStep(container, R.string.workflow_step_save, R.string.workflow_step_save_hint);
+        addSaveReviewCard(saveStep);
+        addNews2Footer(saveStep);
+        updateWorkflowStepVisibility();
     }
 
     private void bindAssessmentToViews() {
@@ -627,8 +676,36 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         setEditTextValue(wardView, assessment.ward);
         setEditTextValue(admissionDateTimeView, assessment.admissionDateTime);
         setEditTextValue(suspectedInfectionView, assessment.suspectedInfection);
+        setEditTextValue(news2RespirationMeasuredView, assessment.news2RespirationMeasured);
+        setEditTextValue(news2Spo2MeasuredView, assessment.news2Spo2Measured);
+        setEditTextValue(news2OxygenMeasuredView, assessment.news2OxygenMeasured);
+        setEditTextValue(news2TemperatureMeasuredView, assessment.news2TemperatureMeasured);
+        setEditTextValue(news2SystolicBpMeasuredView, assessment.news2SystolicBpMeasured);
+        setEditTextValue(news2HeartRateMeasuredView, assessment.news2HeartRateMeasured);
+        setEditTextValue(news2ConsciousnessMeasuredView, assessment.news2ConsciousnessMeasured);
+        setEditTextValue(lactateView, assessment.lactate);
+        setEditTextValue(lactateSampleTimeView, assessment.lactateSampleTime);
+        setEditTextValue(sofaRespirationMeasuredView, assessment.sofaRespirationMeasured);
+        setEditTextValue(sofaCoagulationMeasuredView, assessment.sofaCoagulationMeasured);
+        setEditTextValue(sofaLiverMeasuredView, assessment.sofaLiverMeasured);
+        setEditTextValue(sofaCardiovascularMeasuredView, assessment.sofaCardiovascularMeasured);
+        setEditTextValue(sofaNeurologicMeasuredView, assessment.sofaNeurologicMeasured);
+        setEditTextValue(sofaRenalMeasuredView, assessment.sofaRenalMeasured);
+        setEditTextValue(treatmentDaysView, assessment.treatmentDays);
         if (news2Spo2Scale2View != null) {
             news2Spo2Scale2View.setChecked(assessment.news2Spo2Scale2);
+        }
+        if (qsofaRespirationView != null) {
+            qsofaRespirationView.setChecked(assessment.qsofaRespiration);
+        }
+        if (qsofaSystolicBpView != null) {
+            qsofaSystolicBpView.setChecked(assessment.qsofaSystolicBp);
+        }
+        if (qsofaConsciousnessView != null) {
+            qsofaConsciousnessView.setChecked(assessment.qsofaConsciousness);
+        }
+        if (vasopressorView != null) {
+            vasopressorView.setChecked(assessment.vasopressor);
         }
         checkRadioByOption(news2RespirationGroup, assessment.news2RespirationOption, assessment.news2Respiration);
         checkRadioByOption(news2Spo2Group, assessment.news2Spo2Option, assessment.news2Spo2);
@@ -637,6 +714,14 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         checkRadioByOption(news2HeartRateGroup, assessment.news2HeartRateOption, assessment.news2HeartRate);
         checkRadioByOption(news2ConsciousnessGroup, assessment.news2ConsciousnessOption, assessment.news2Consciousness);
         checkRadioByOption(news2TemperatureGroup, assessment.news2TemperatureOption, assessment.news2Temperature);
+        checkRadioByScore(sofaRespirationGroup, assessment.sofaRespiration);
+        checkRadioByScore(sofaCoagulationGroup, assessment.sofaCoagulation);
+        checkRadioByScore(sofaLiverGroup, assessment.sofaLiver);
+        checkRadioByScore(sofaCardiovascularGroup, assessment.sofaCardiovascular);
+        checkRadioByScore(sofaNeurologicGroup, assessment.sofaNeurologic);
+        checkRadioByScore(sofaRenalGroup, assessment.sofaRenal);
+        checkRadioByText(lactateLevelGroup, assessment.lactateLevel);
+        checkRadioByText(treatmentOutcomeGroup, assessment.treatmentOutcome);
         isBinding = false;
     }
 
@@ -646,7 +731,6 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         }
 
         updateAssessmentFromViews();
-        assessment.news2Total = News2Scoring.total(assessment);
         markAssessmentModified();
 
         updateQuickSummaryViews();
@@ -661,6 +745,13 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         assessment.admissionDateTime = editTextValue(admissionDateTimeView);
         assessment.suspectedInfection = editTextValue(suspectedInfectionView);
         assessment.news2Spo2Scale2 = news2Spo2Scale2View != null && news2Spo2Scale2View.isChecked();
+        assessment.news2RespirationMeasured = editTextValue(news2RespirationMeasuredView);
+        assessment.news2Spo2Measured = editTextValue(news2Spo2MeasuredView);
+        assessment.news2OxygenMeasured = editTextValue(news2OxygenMeasuredView);
+        assessment.news2TemperatureMeasured = editTextValue(news2TemperatureMeasuredView);
+        assessment.news2SystolicBpMeasured = editTextValue(news2SystolicBpMeasuredView);
+        assessment.news2HeartRateMeasured = editTextValue(news2HeartRateMeasuredView);
+        assessment.news2ConsciousnessMeasured = editTextValue(news2ConsciousnessMeasuredView);
         assessment.news2Respiration = selectedScore(news2RespirationGroup);
         assessment.news2RespirationOption = selectedOption(news2RespirationGroup);
         assessment.news2Spo2 = selectedScore(news2Spo2Group);
@@ -675,30 +766,68 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         assessment.news2ConsciousnessOption = selectedOption(news2ConsciousnessGroup);
         assessment.news2Temperature = selectedScore(news2TemperatureGroup);
         assessment.news2TemperatureOption = selectedOption(news2TemperatureGroup);
+        applyNews2AutoScores();
+        assessment.news2Total = News2Scoring.total(assessment);
+
+        assessment.qsofaRespiration = qsofaRespirationView != null && qsofaRespirationView.isChecked();
+        assessment.qsofaSystolicBp = qsofaSystolicBpView != null && qsofaSystolicBpView.isChecked();
+        assessment.qsofaConsciousness = qsofaConsciousnessView != null && qsofaConsciousnessView.isChecked();
+        assessment.qsofaTotal = QsofaScoring.total(assessment);
+
+        assessment.lactate = editTextValue(lactateView);
+        assessment.lactateSampleTime = editTextValue(lactateSampleTimeView);
+        assessment.lactateLevel = selectedText(lactateLevelGroup);
+        assessment.vasopressor = vasopressorView != null && vasopressorView.isChecked();
+        assessment.sofaRespirationMeasured = editTextValue(sofaRespirationMeasuredView);
+        assessment.sofaCoagulationMeasured = editTextValue(sofaCoagulationMeasuredView);
+        assessment.sofaLiverMeasured = editTextValue(sofaLiverMeasuredView);
+        assessment.sofaCardiovascularMeasured = editTextValue(sofaCardiovascularMeasuredView);
+        assessment.sofaNeurologicMeasured = editTextValue(sofaNeurologicMeasuredView);
+        assessment.sofaRenalMeasured = editTextValue(sofaRenalMeasuredView);
+        assessment.sofaRespiration = SofaScoring.scoreRespiration(assessment.sofaRespirationMeasured, selectedScore(sofaRespirationGroup));
+        assessment.sofaCoagulation = SofaScoring.scoreCoagulation(assessment.sofaCoagulationMeasured, selectedScore(sofaCoagulationGroup));
+        assessment.sofaLiver = SofaScoring.scoreLiver(assessment.sofaLiverMeasured, selectedScore(sofaLiverGroup));
+        assessment.sofaCardiovascular = SofaScoring.scoreCardiovascular(assessment.sofaCardiovascularMeasured, assessment.vasopressor, selectedScore(sofaCardiovascularGroup));
+        assessment.sofaNeurologic = SofaScoring.scoreNeurologic(assessment.sofaNeurologicMeasured, selectedScore(sofaNeurologicGroup));
+        assessment.sofaRenal = SofaScoring.scoreRenal(assessment.sofaRenalMeasured, selectedScore(sofaRenalGroup));
+        assessment.sofaTotal = SofaScoring.total(assessment);
+        safelyCheckRadioByScore(sofaRespirationGroup, assessment.sofaRespiration);
+        safelyCheckRadioByScore(sofaCoagulationGroup, assessment.sofaCoagulation);
+        safelyCheckRadioByScore(sofaLiverGroup, assessment.sofaLiver);
+        safelyCheckRadioByScore(sofaCardiovascularGroup, assessment.sofaCardiovascular);
+        safelyCheckRadioByScore(sofaNeurologicGroup, assessment.sofaNeurologic);
+        safelyCheckRadioByScore(sofaRenalGroup, assessment.sofaRenal);
+        assessment.sepsisDiagnosis = buildSepsisDiagnosis();
+        assessment.treatmentOutcome = selectedText(treatmentOutcomeGroup);
+        assessment.treatmentDays = editTextValue(treatmentDaysView);
     }
 
     private void applyNews2AutoScores() {
-        assessment.news2Respiration = News2Scoring.scoreRespiration(parseInteger(assessment.news2RespirationMeasured), selectedScore(news2RespirationGroup));
+        assessment.news2Respiration = News2Scoring.scoreRespiration(ClinicalValueParser.parseInteger(assessment.news2RespirationMeasured), selectedScore(news2RespirationGroup));
         assessment.news2RespirationOption = optionByScore(news2RespirationGroup, assessment.news2Respiration);
         safelyCheckRadioByScore(news2RespirationGroup, assessment.news2Respiration);
 
+        assessment.news2Oxygen = News2InputValidator.scoreOxygenText(assessment.news2OxygenMeasured, selectedScore(news2OxygenGroup));
+        assessment.news2OxygenOption = hasText(assessment.news2OxygenMeasured) ? assessment.news2OxygenMeasured : optionByScore(news2OxygenGroup, assessment.news2Oxygen);
+        safelyCheckRadioByScore(news2OxygenGroup, assessment.news2Oxygen);
+
         assessment.news2Spo2 = assessment.news2Spo2Scale2
-                ? News2Scoring.scoreSpo2Scale2(parseInteger(assessment.news2Spo2Measured), assessment.news2Oxygen > 0, selectedScore(news2Spo2Group))
-                : News2Scoring.scoreSpo2Scale1(parseInteger(assessment.news2Spo2Measured), selectedScore(news2Spo2Group));
+                ? News2Scoring.scoreSpo2Scale2(ClinicalValueParser.parseInteger(assessment.news2Spo2Measured), assessment.news2Oxygen > 0, selectedScore(news2Spo2Group))
+                : News2Scoring.scoreSpo2Scale1(ClinicalValueParser.parseInteger(assessment.news2Spo2Measured), selectedScore(news2Spo2Group));
         assessment.news2Spo2Option = assessment.news2Spo2Scale2
                 ? getString(R.string.news2_spo2_scale2_option)
                 : optionByScore(news2Spo2Group, assessment.news2Spo2);
         safelyCheckRadioByScore(news2Spo2Group, assessment.news2Spo2);
 
-        assessment.news2Temperature = News2Scoring.scoreTemperature(parseDouble(assessment.news2TemperatureMeasured), selectedScore(news2TemperatureGroup));
+        assessment.news2Temperature = News2Scoring.scoreTemperature(ClinicalValueParser.parseDouble(assessment.news2TemperatureMeasured), selectedScore(news2TemperatureGroup));
         assessment.news2TemperatureOption = optionByScore(news2TemperatureGroup, assessment.news2Temperature);
         safelyCheckRadioByScore(news2TemperatureGroup, assessment.news2Temperature);
 
-        assessment.news2SystolicBp = News2Scoring.scoreSystolicBp(parseInteger(assessment.news2SystolicBpMeasured), selectedScore(news2SystolicBpGroup));
+        assessment.news2SystolicBp = News2Scoring.scoreSystolicBp(ClinicalValueParser.parseInteger(assessment.news2SystolicBpMeasured), selectedScore(news2SystolicBpGroup));
         assessment.news2SystolicBpOption = optionByScore(news2SystolicBpGroup, assessment.news2SystolicBp);
         safelyCheckRadioByScore(news2SystolicBpGroup, assessment.news2SystolicBp);
 
-        assessment.news2HeartRate = News2Scoring.scoreHeartRate(parseInteger(assessment.news2HeartRateMeasured), selectedScore(news2HeartRateGroup));
+        assessment.news2HeartRate = News2Scoring.scoreHeartRate(ClinicalValueParser.parseInteger(assessment.news2HeartRateMeasured), selectedScore(news2HeartRateGroup));
         assessment.news2HeartRateOption = optionByScore(news2HeartRateGroup, assessment.news2HeartRate);
         safelyCheckRadioByScore(news2HeartRateGroup, assessment.news2HeartRate);
 
@@ -712,50 +841,28 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     private void autoSyncQsofaFromVitals() {
         boolean oldBinding = isBinding;
         isBinding = true;
-        Integer respiration = parseInteger(assessment.news2RespirationMeasured);
-        Integer systolicBp = parseInteger(assessment.news2SystolicBpMeasured);
+        Integer respiration = ClinicalValueParser.parseInteger(assessment.news2RespirationMeasured);
+        Integer systolicBp = ClinicalValueParser.parseInteger(assessment.news2SystolicBpMeasured);
         if (respiration != null) {
-            qsofaRespirationView.setChecked(respiration >= 22);
             assessment.qsofaRespiration = respiration >= 22;
+            if (qsofaRespirationView != null) {
+                qsofaRespirationView.setChecked(assessment.qsofaRespiration);
+            }
         }
         if (systolicBp != null) {
-            qsofaSystolicBpView.setChecked(systolicBp <= 100);
             assessment.qsofaSystolicBp = systolicBp <= 100;
+            if (qsofaSystolicBpView != null) {
+                qsofaSystolicBpView.setChecked(assessment.qsofaSystolicBp);
+            }
         }
         boolean alteredConsciousness = assessment.news2Consciousness == 3;
         if (hasText(assessment.news2ConsciousnessMeasured) || findCheckedRadioButton(news2ConsciousnessGroup) != null) {
-            qsofaConsciousnessView.setChecked(alteredConsciousness);
             assessment.qsofaConsciousness = alteredConsciousness;
+            if (qsofaConsciousnessView != null) {
+                qsofaConsciousnessView.setChecked(alteredConsciousness);
+            }
         }
         isBinding = oldBinding;
-    }
-
-    private int scoreRespiration(Integer value, int fallback) {
-        return News2Scoring.scoreRespiration(value, fallback);
-    }
-
-    private int scoreSpo2Scale1(Integer value, int fallback) {
-        return News2Scoring.scoreSpo2Scale1(value, fallback);
-    }
-
-    private int scoreSpo2Scale2(Integer value, boolean oxygen, int fallback) {
-        return News2Scoring.scoreSpo2Scale2(value, oxygen, fallback);
-    }
-
-    private int scoreTemperature(Double value, int fallback) {
-        return News2Scoring.scoreTemperature(value, fallback);
-    }
-
-    private int scoreSystolicBp(Integer value, int fallback) {
-        return News2Scoring.scoreSystolicBp(value, fallback);
-    }
-
-    private int scoreHeartRate(Integer value, int fallback) {
-        return News2Scoring.scoreHeartRate(value, fallback);
-    }
-
-    private int scoreConsciousness(String value, int fallback) {
-        return News2Scoring.scoreConsciousness(value, fallback);
     }
 
     private String editTextValue(EditText editText) {
@@ -772,67 +879,49 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         }
     }
 
-    private Integer parseInteger(String value) {
-        if (!hasText(value)) {
-            return null;
-        }
-        String digits = value.trim().replaceAll("[^0-9-]", "");
-        if (!hasText(digits)) {
-            return null;
-        }
-        try {
-            return Integer.parseInt(digits);
-        } catch (NumberFormatException exception) {
-            return null;
-        }
-    }
-
-    private Double parseDouble(String value) {
-        if (!hasText(value)) {
-            return null;
-        }
-        String normalized = value.trim().replace(',', '.').replaceAll("[^0-9.-]", "");
-        if (!hasText(normalized)) {
-            return null;
-        }
-        try {
-            return Double.parseDouble(normalized);
-        } catch (NumberFormatException exception) {
-            return null;
-        }
-    }
-
     private boolean hasText(String value) {
         return value != null && !value.trim().isEmpty();
     }
 
     private void updateQuickSummaryViews() {
         int completedCount = completedNews2Count();
-        boolean complete = completedCount == 7;
-        if (news2CompletionView != null) {
-            news2CompletionView.setText(getString(R.string.news2_completed_format, completedCount, 7));
-        }
-        if (news2CompletionProgressView != null) {
-            news2CompletionProgressView.setProgress(completedCount);
-        }
-
+        boolean complete = missingNews2Fields().isEmpty();
+        updateQsofaSofaViews();
         if (!complete) {
-            quickSummaryView.setText(getString(R.string.quick_summary_empty));
-            quickSummaryView.setTextColor(Color.WHITE);
-            quickSummaryView.setBackground(roundedDrawable(Color.rgb(107, 114, 128), dp(18), 0, 0));
-            news2RiskView.setText(getString(R.string.news2_risk_empty));
-            news2RiskView.setTextColor(Color.WHITE);
-            news2RiskView.setBackground(roundedDrawable(Color.rgb(107, 114, 128), dp(18), 0, 0));
-            news2TotalView.setText(getString(R.string.news2_total_pending));
-            news2TotalView.setTextColor(Color.rgb(209, 213, 219));
-            news2ActionView.setText("• " + getString(R.string.news2_action_empty));
-            news2MonitoringView.setText("• " + getString(R.string.news2_monitoring_empty));
-            news2HighestCriterionView.setText("• " + getString(R.string.news2_highest_empty));
-            news2FooterScoreView.setText("-- điểm");
-            news2FooterScoreView.setTextColor(Color.rgb(209, 213, 219));
-            news2FooterRiskView.setText(R.string.news2_evaluating);
-            news2FooterRiskView.setTextColor(Color.rgb(107, 114, 128));
-            news2FooterRiskView.setBackground(roundedDrawable(Color.rgb(243, 244, 246), dp(16), 0, 0));
+            String missingText = getString(R.string.news2_missing_required_format, ClinicalValueParser.joinStrings(missingNews2Fields(), ", "));
+            if (quickSummaryView != null) {
+                quickSummaryView.setText(getString(R.string.news2_missing_required_title) + "\n" + missingText);
+                quickSummaryView.setTextColor(Color.WHITE);
+                quickSummaryView.setBackground(roundedDrawable(Color.rgb(107, 114, 128), dp(18), 0, 0));
+            }
+            if (news2RiskView != null) {
+                news2RiskView.setText(getString(R.string.news2_risk_empty));
+                news2RiskView.setTextColor(Color.WHITE);
+                news2RiskView.setBackground(roundedDrawable(Color.rgb(107, 114, 128), dp(18), 0, 0));
+            }
+            if (news2TotalView != null) {
+                news2TotalView.setText(getString(R.string.news2_total_pending) + "\n" + missingText);
+                news2TotalView.setTextColor(Color.rgb(107, 114, 128));
+            }
+            if (news2ActionView != null) {
+                news2ActionView.setText("• " + getString(R.string.news2_action_empty));
+            }
+            if (news2MonitoringView != null) {
+                news2MonitoringView.setText("• " + getString(R.string.news2_monitoring_empty));
+            }
+            if (news2HighestCriterionView != null) {
+                news2HighestCriterionView.setText("• " + getString(R.string.clinical_disclaimer));
+            }
+            if (news2FooterScoreView != null) {
+                news2FooterScoreView.setText("-- điểm");
+                news2FooterScoreView.setTextColor(Color.rgb(209, 213, 219));
+            }
+            if (news2FooterRiskView != null) {
+                news2FooterRiskView.setText(R.string.news2_evaluating);
+                news2FooterRiskView.setTextColor(Color.rgb(107, 114, 128));
+                news2FooterRiskView.setBackground(roundedDrawable(Color.rgb(243, 244, 246), dp(16), 0, 0));
+            }
+            updateAssessmentStatusCard();
             return;
         }
 
@@ -841,34 +930,75 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         String action = news2ActionText();
         String monitoring = news2MonitoringText();
         String highestCriterion = highestNews2CriterionText();
-        quickSummaryView.setText(getString(R.string.quick_summary_format, assessment.news2Total, risk, action));
-        quickSummaryView.setTextColor(Color.WHITE);
-        quickSummaryView.setBackground(roundedDrawable(color, dp(18), 0, 0));
-        news2RiskView.setText(risk);
-        news2RiskView.setTextColor(Color.WHITE);
-        news2RiskView.setBackground(roundedDrawable(color, dp(18), 0, 0));
-        news2TotalView.setText(getString(R.string.news2_total_format, assessment.news2Total));
-        news2TotalView.setTextColor(color);
-        news2ActionView.setText("• " + action);
-        news2MonitoringView.setText("• " + monitoring);
-        news2HighestCriterionView.setText("• " + highestCriterion);
-        news2FooterScoreView.setText(getString(R.string.news2_footer_score_format, assessment.news2Total));
-        news2FooterScoreView.setTextColor(COLOR_TEXT_PRIMARY);
-        news2FooterRiskView.setText(risk);
-        news2FooterRiskView.setTextColor(Color.WHITE);
-        news2FooterRiskView.setBackground(roundedDrawable(color, dp(16), 0, 0));
+        if (quickSummaryView != null) {
+            quickSummaryView.setText(getString(R.string.quick_summary_format, assessment.news2Total, risk, action));
+            quickSummaryView.setTextColor(Color.WHITE);
+            quickSummaryView.setBackground(roundedDrawable(color, dp(18), 0, 0));
+        }
+        if (news2RiskView != null) {
+            news2RiskView.setText(risk);
+            news2RiskView.setTextColor(Color.WHITE);
+            news2RiskView.setBackground(roundedDrawable(color, dp(18), 0, 0));
+        }
+        if (news2TotalView != null) {
+            news2TotalView.setText(getString(R.string.news2_total_format, assessment.news2Total));
+            news2TotalView.setTextColor(color);
+        }
+        if (news2ActionView != null) {
+            news2ActionView.setText("• " + action);
+        }
+        if (news2MonitoringView != null) {
+            news2MonitoringView.setText("• " + monitoring);
+        }
+        if (news2HighestCriterionView != null) {
+            news2HighestCriterionView.setText("• " + highestCriterion + "\n• " + getString(R.string.clinical_disclaimer));
+        }
+        if (news2FooterScoreView != null) {
+            news2FooterScoreView.setText(getString(R.string.news2_footer_score_format, assessment.news2Total));
+            news2FooterScoreView.setTextColor(COLOR_TEXT_PRIMARY);
+        }
+        if (news2FooterRiskView != null) {
+            news2FooterRiskView.setText(risk);
+            news2FooterRiskView.setTextColor(Color.WHITE);
+            news2FooterRiskView.setBackground(roundedDrawable(color, dp(16), 0, 0));
+        }
+        updateAssessmentStatusCard();
+    }
+
+    private void updateQsofaSofaViews() {
+        if (qsofaTotalView != null) {
+            String qsofaText = getString(R.string.qsofa_total_format, assessment.qsofaTotal) + "\n"
+                    + (assessment.qsofaTotal >= 2 ? getString(R.string.qsofa_risk_high) : getString(R.string.qsofa_risk_low));
+            qsofaTotalView.setText(qsofaText);
+            qsofaTotalView.setTextColor(assessment.qsofaTotal >= 2 ? Color.rgb(220, 38, 38) : COLOR_PRIMARY_DARK);
+        }
+        if (sofaTotalView != null) {
+            sofaTotalView.setText(getString(R.string.sofa_total_format, assessment.sofaTotal) + "\n" + sofaInterpretationText());
+            sofaTotalView.setTextColor(assessment.sofaTotal >= 9 ? Color.rgb(220, 38, 38) : COLOR_PRIMARY_DARK);
+        }
+        if (sepsisDiagnosisView != null) {
+            sepsisDiagnosisView.setText(assessment.sepsisDiagnosis);
+            sepsisDiagnosisView.setTextColor(assessment.sofaTotal >= 2 ? Color.rgb(220, 38, 38) : COLOR_PRIMARY_DARK);
+        }
+    }
+
+    private String sofaInterpretationText() {
+        int riskGroup = SofaScoring.riskGroup(assessment.sofaTotal);
+        if (riskGroup == SofaScoring.RISK_HIGH) {
+            return getString(R.string.sofa_interpretation_high);
+        }
+        if (riskGroup == SofaScoring.RISK_INTERMEDIATE) {
+            return getString(R.string.sofa_interpretation_intermediate);
+        }
+        return getString(R.string.sofa_interpretation_low);
     }
 
     private int completedNews2Count() {
-        int count = 0;
-        count += findCheckedRadioButton(news2RespirationGroup) == null ? 0 : 1;
-        count += findCheckedRadioButton(news2Spo2Group) == null ? 0 : 1;
-        count += findCheckedRadioButton(news2OxygenGroup) == null ? 0 : 1;
-        count += findCheckedRadioButton(news2SystolicBpGroup) == null ? 0 : 1;
-        count += findCheckedRadioButton(news2HeartRateGroup) == null ? 0 : 1;
-        count += findCheckedRadioButton(news2ConsciousnessGroup) == null ? 0 : 1;
-        count += findCheckedRadioButton(news2TemperatureGroup) == null ? 0 : 1;
-        return count;
+        return News2InputValidator.completedRequiredCount(assessment);
+    }
+
+    private List<String> missingNews2Fields() {
+        return News2InputValidator.missingRequiredFields(assessment);
     }
 
     private String news2RiskText() {
@@ -973,26 +1103,13 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     }
 
     private String buildSepsisDiagnosis() {
-        boolean hasSepsis = assessment.sofaTotal >= 2;
-        boolean shock = assessment.vasopressor && lactateAtLeastTwo();
-        if (shock) {
+        if (SofaScoring.hasSepticShock(assessment)) {
             return getString(R.string.diagnosis_shock);
         }
-        if (hasSepsis) {
+        if (SofaScoring.hasSepsisBySofa(assessment)) {
             return getString(R.string.diagnosis_sepsis);
         }
         return getString(R.string.diagnosis_no_sepsis);
-    }
-
-    private boolean lactateAtLeastTwo() {
-        if (assessment.lactateLevel != null && !assessment.lactateLevel.isEmpty()) {
-            return !assessment.lactateLevel.startsWith("<");
-        }
-        try {
-            return Double.parseDouble(assessment.lactate.trim().replace(',', '.')) >= 2.0;
-        } catch (NumberFormatException exception) {
-            return false;
-        }
     }
 
     private void markAssessmentModified() {
@@ -1014,6 +1131,10 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
 
     private ClinicalAssessment loadCurrentAssessment() {
         return assessmentRepository.loadCurrentAssessment();
+    }
+
+    private List<ClinicalAssessment> loadAssessmentHistory() {
+        return assessmentRepository.loadAssessmentHistory();
     }
 
     private ClinicalAssessment cloneAssessment(ClinicalAssessment source) {
@@ -1109,6 +1230,7 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
             nextStepButton.setEnabled(currentWorkflowStep < STEP_COUNT - 1);
             nextStepButton.setText(currentWorkflowStep == STEP_COUNT - 1 ? R.string.workflow_reviewing : R.string.workflow_next);
         }
+        updateAssessmentStatusCard();
     }
 
     private String getWorkflowProgressText() {
@@ -1133,109 +1255,57 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         return getString(R.string.workflow_progress_format, currentWorkflowStep + 1, STEP_COUNT, getString(titleResId));
     }
 
-    private void updatePatientSummaryList() {
-        if (patientSummaryListView == null) {
+    private void configureFixedAssessmentStatusCard() {
+        if (assessmentStatusContainer == null) {
             return;
         }
-        List<ClinicalAssessment> history = loadAssessmentHistory();
-        if (history.isEmpty()) {
-            patientSummaryListView.setText(getString(R.string.patient_summary_empty));
-            return;
-        }
-        StringBuilder builder = new StringBuilder(getString(R.string.patient_summary_title));
-        int start = Math.max(0, history.size() - 10);
-        for (int i = history.size() - 1; i >= start; i--) {
-            ClinicalAssessment item = history.get(i);
-            builder.append("\n\n• ").append(patientDisplayName(item));
-            builder.append("\n  ").append(getString(R.string.patient_summary_scores_format,
-                    item.news2Total,
-                    riskTextForNews2(item),
-                    item.qsofaTotal,
-                    item.sofaTotal));
-            if (hasText(item.sepsisDiagnosis)) {
-                builder.append("\n  ").append(item.sepsisDiagnosis);
-            }
-            if (item.savedAtMillis > 0) {
-                builder.append("\n  ").append(getString(R.string.patient_summary_saved_format,
-                        DateFormat.getDateTimeInstance().format(new Date(item.savedAtMillis))));
-            }
-        }
-        patientSummaryListView.setText(builder.toString());
-    }
+        assessmentStatusContainer.removeAllViews();
+        assessmentStatusContainer.setVisibility(View.VISIBLE);
+        assessmentStatusContainer.setPadding(dp(16), dp(14) + systemBarDimension("status_bar_height"), dp(16), 0);
 
-    private List<ClinicalAssessment> loadAssessmentHistory() {
-        return assessmentRepository.loadAssessmentHistory();
-    }
-
-    private String patientDisplayName(ClinicalAssessment item) {
-        if (hasText(item.fullName) && hasText(item.patientId)) {
-            return getString(R.string.patient_summary_name_with_id, item.fullName.trim(), item.patientId.trim());
-        }
-        if (hasText(item.fullName)) {
-            return item.fullName.trim();
-        }
-        if (hasText(item.patientId)) {
-            return getString(R.string.patient_summary_id_only, item.patientId.trim());
-        }
-        return getString(R.string.patient_summary_unknown);
-    }
-
-    private String riskTextForNews2(ClinicalAssessment item) {
-        if (item.news2Total >= 7) {
-            return getString(R.string.news2_risk_emergency);
-        }
-        if (item.news2Total >= 5) {
-            return getString(R.string.news2_risk_urgent);
-        }
-        if (hasSingleThreeScore(item)) {
-            return getString(R.string.news2_risk_single_three);
-        }
-        if (item.news2Total == 0) {
-            return getString(R.string.news2_risk_low_zero);
-        }
-        return getString(R.string.news2_risk_low);
-    }
-
-    private boolean hasSingleThreeScore(ClinicalAssessment item) {
-        return News2Scoring.hasSingleThreeScore(item);
-    }
-
-
-
-    private void addNews2TopBar(LinearLayout container) {
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.VERTICAL);
         header.setPadding(dp(16), dp(14), dp(16), dp(14));
-        header.setBackground(roundedDrawable(Color.argb(238, 255, 255, 255), dp(22), dp(1), Color.rgb(229, 231, 235)));
+        header.setBackground(roundedDrawable(Color.argb(248, 255, 255, 255), dp(22), dp(1), Color.rgb(229, 231, 235)));
 
         LinearLayout titleRow = new LinearLayout(this);
         titleRow.setOrientation(LinearLayout.HORIZONTAL);
         titleRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
 
-        TextView icon = new TextView(this);
-        icon.setText("♥");
-        icon.setTextSize(22);
-        icon.setTypeface(Typeface.DEFAULT_BOLD);
-        icon.setGravity(android.view.Gravity.CENTER);
-        icon.setTextColor(COLOR_PRIMARY);
-        icon.setBackground(roundedDrawable(Color.rgb(219, 234, 254), dp(12), 0, 0));
-        LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(dp(42), dp(42));
-        titleRow.addView(icon, iconParams);
+        Button backButton = new Button(this);
+        backButton.setText("‹");
+        backButton.setTextSize(26);
+        backButton.setTextColor(COLOR_PRIMARY_DARK);
+        backButton.setContentDescription(getString(R.string.patient_list_back_assessment));
+        backButton.setBackground(roundedDrawable(Color.rgb(239, 246, 255), dp(18), dp(1), Color.rgb(191, 219, 254)));
+        backButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showPatientListScreen();
+            }
+        });
+        titleRow.addView(backButton, new LinearLayout.LayoutParams(dp(46), dp(42)));
 
-        LinearLayout titleStack = new LinearLayout(this);
-        titleStack.setOrientation(LinearLayout.VERTICAL);
-        titleStack.setPadding(dp(10), 0, 0, 0);
-        TextView title = new TextView(this);
-        title.setText(R.string.news2_screen_title);
-        title.setTextColor(COLOR_TEXT_PRIMARY);
-        title.setTextSize(18);
-        title.setTypeface(Typeface.DEFAULT_BOLD);
-        titleStack.addView(title, matchWrapParams());
-        news2CompletionView = new TextView(this);
-        news2CompletionView.setTextColor(Color.rgb(107, 114, 128));
-        news2CompletionView.setTextSize(12);
-        titleStack.addView(news2CompletionView, matchWrapParams());
-        titleRow.addView(titleStack, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        LinearLayout statusStack = new LinearLayout(this);
+        statusStack.setOrientation(LinearLayout.VERTICAL);
+        statusStack.setPadding(dp(10), 0, 0, 0);
+        assessmentStatusTitleView = new TextView(this);
+        assessmentStatusTitleView.setTextColor(COLOR_TEXT_PRIMARY);
+        assessmentStatusTitleView.setTextSize(18);
+        assessmentStatusTitleView.setTypeface(Typeface.DEFAULT_BOLD);
+        statusStack.addView(assessmentStatusTitleView, matchWrapParams());
+
+        assessmentStatusScoreView = new TextView(this);
+        assessmentStatusScoreView.setTextSize(14);
+        assessmentStatusScoreView.setTypeface(Typeface.DEFAULT_BOLD);
+        assessmentStatusScoreView.setPadding(0, dp(3), 0, 0);
+        statusStack.addView(assessmentStatusScoreView, matchWrapParams());
+
+        assessmentStatusRiskView = new TextView(this);
+        assessmentStatusRiskView.setTextSize(13);
+        assessmentStatusRiskView.setPadding(0, dp(3), 0, 0);
+        statusStack.addView(assessmentStatusRiskView, matchWrapParams());
+        titleRow.addView(statusStack, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
 
         Button resetButton = new Button(this);
         resetButton.setText("↻");
@@ -1257,20 +1327,153 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         titleRow.addView(resetButton, new LinearLayout.LayoutParams(dp(46), dp(42)));
         header.addView(titleRow, matchWrapParams());
 
-        news2CompletionProgressView = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
-        news2CompletionProgressView.setMax(7);
-        news2CompletionProgressView.setProgress(0);
-        news2CompletionProgressView.setProgressTintList(ColorStateList.valueOf(COLOR_PRIMARY));
-        news2CompletionProgressView.setProgressBackgroundTintList(ColorStateList.valueOf(Color.rgb(243, 244, 246)));
+        assessmentStatusProgressView = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        assessmentStatusProgressView.setProgressBackgroundTintList(ColorStateList.valueOf(Color.rgb(243, 244, 246)));
         LinearLayout.LayoutParams progressParams = matchWrapParams();
         progressParams.setMargins(0, dp(12), 0, 0);
-        header.addView(news2CompletionProgressView, progressParams);
+        header.addView(assessmentStatusProgressView, progressParams);
 
-        LinearLayout.LayoutParams params = matchWrapParams();
-        params.setMargins(0, 0, 0, dp(14));
-        container.addView(header, params);
+        assessmentStatusContainer.addView(header, matchWrapParams());
+        updateAssessmentStatusCard();
+        updateAssessmentFormPaddingForFixedStatus();
     }
 
+    private void updateAssessmentFormPaddingForFixedStatus() {
+        if (assessmentStatusContainer == null || formContainer == null || !showingAssessment) {
+            return;
+        }
+        assessmentStatusContainer.post(new Runnable() {
+            @Override
+            public void run() {
+                int measuredHeight = assessmentStatusContainer.getHeight();
+                int fallbackHeight = dp(ASSESSMENT_STATUS_FALLBACK_HEIGHT_DP) + systemBarDimension("status_bar_height");
+                int topPadding = (measuredHeight > 0 ? measuredHeight : fallbackHeight) + dp(12);
+                setAssessmentFormPadding(formContainer, topPadding);
+            }
+        });
+    }
+
+    private void setAssessmentFormPadding(LinearLayout container, int topPadding) {
+        container.setPadding(dp(16), topPadding, dp(16), dp(26) + systemBarDimension("navigation_bar_height"));
+    }
+
+    private void updateAssessmentStatusCard() {
+        if (assessmentStatusTitleView == null || assessmentStatusScoreView == null
+                || assessmentStatusRiskView == null || assessmentStatusProgressView == null || assessment == null) {
+            return;
+        }
+        switch (currentWorkflowStep) {
+            case 0:
+                updatePatientStatusCard();
+                break;
+            case 1:
+                updateNews2StatusCard();
+                break;
+            case 2:
+                updateQsofaStatusCard();
+                break;
+            case 3:
+                updateSofaStatusCard();
+                break;
+            default:
+                updateReviewStatusCard();
+                break;
+        }
+    }
+
+    private void updatePatientStatusCard() {
+        boolean ready = hasText(assessment.patientId) || hasText(assessment.fullName);
+        int color = ready ? News2Scoring.COLOR_SUCCESS : COLOR_TEXT_SECONDARY;
+        setAssessmentStatus(
+                getString(R.string.assessment_status_patient_title),
+                getString(R.string.assessment_status_score_format, ready ? "1/1" : "0/1"),
+                ready ? getString(R.string.assessment_status_patient_ready) : getString(R.string.assessment_status_patient_missing),
+                color,
+                ready ? 1 : 0,
+                1);
+    }
+
+    private void updateNews2StatusCard() {
+        int completed = completedNews2Count();
+        boolean complete = missingNews2Fields().isEmpty();
+        int color = complete ? News2Scoring.riskColor(assessment) : COLOR_TEXT_SECONDARY;
+        String risk = complete ? news2RiskText() : getString(R.string.news2_missing_required_title);
+        setAssessmentStatus(
+                getString(R.string.news2_screen_title) + " (" + completed + "/7)",
+                getString(R.string.assessment_status_score_format, assessment.news2Total + "/21"),
+                risk,
+                color,
+                completed,
+                7);
+    }
+
+    private void updateQsofaStatusCard() {
+        int completed = completedQsofaCount();
+        int color = assessment.qsofaTotal >= 2 ? Color.rgb(220, 38, 38) : News2Scoring.COLOR_SUCCESS;
+        String risk = assessment.qsofaTotal >= 2 ? getString(R.string.qsofa_risk_high) : getString(R.string.qsofa_risk_low);
+        setAssessmentStatus(
+                getString(R.string.assessment_status_qsofa_title, completed, 3),
+                getString(R.string.assessment_status_score_format, assessment.qsofaTotal + "/3"),
+                risk,
+                color,
+                completed,
+                3);
+    }
+
+    private void updateSofaStatusCard() {
+        int completed = completedSofaCount();
+        int color = assessment.sofaTotal >= 9 ? Color.rgb(220, 38, 38) : News2Scoring.COLOR_SUCCESS;
+        setAssessmentStatus(
+                getString(R.string.assessment_status_sofa_title, completed, 6),
+                getString(R.string.assessment_status_score_format, assessment.sofaTotal + "/24"),
+                sofaInterpretationText(),
+                color,
+                completed,
+                6);
+    }
+
+    private void updateReviewStatusCard() {
+        int completed = (missingNews2Fields().isEmpty() ? 1 : 0) + (completedQsofaCount() == 3 ? 1 : 0) + (completedSofaCount() > 0 ? 1 : 0);
+        int color = assessment.sofaTotal >= 2 || assessment.qsofaTotal >= 2 || assessment.news2Total >= 5
+                ? Color.rgb(220, 38, 38) : News2Scoring.COLOR_SUCCESS;
+        setAssessmentStatus(
+                getString(R.string.assessment_status_review_title, completed, 3),
+                getString(R.string.assessment_status_score_format, getString(R.string.assessment_status_review_score, assessment.news2Total, assessment.qsofaTotal, assessment.sofaTotal)),
+                buildSepsisDiagnosis(),
+                color,
+                completed,
+                3);
+    }
+
+    private void setAssessmentStatus(String title, String score, String risk, int color, int progress, int max) {
+        assessmentStatusTitleView.setText(title);
+        assessmentStatusScoreView.setText(score);
+        assessmentStatusScoreView.setTextColor(color);
+        assessmentStatusRiskView.setText(risk);
+        assessmentStatusRiskView.setTextColor(color);
+        assessmentStatusProgressView.setMax(Math.max(1, max));
+        assessmentStatusProgressView.setProgress(Math.max(0, Math.min(progress, max)));
+        assessmentStatusProgressView.setProgressTintList(ColorStateList.valueOf(color));
+    }
+
+    private int completedQsofaCount() {
+        int count = 0;
+        count += hasText(assessment.news2RespirationMeasured) || findCheckedRadioButton(news2RespirationGroup) != null ? 1 : 0;
+        count += hasText(assessment.news2SystolicBpMeasured) || findCheckedRadioButton(news2SystolicBpGroup) != null ? 1 : 0;
+        count += hasText(assessment.news2ConsciousnessMeasured) || findCheckedRadioButton(news2ConsciousnessGroup) != null ? 1 : 0;
+        return count;
+    }
+
+    private int completedSofaCount() {
+        int count = 0;
+        count += hasText(assessment.sofaRespirationMeasured) || findCheckedRadioButton(sofaRespirationGroup) != null ? 1 : 0;
+        count += hasText(assessment.sofaCoagulationMeasured) || findCheckedRadioButton(sofaCoagulationGroup) != null ? 1 : 0;
+        count += hasText(assessment.sofaLiverMeasured) || findCheckedRadioButton(sofaLiverGroup) != null ? 1 : 0;
+        count += hasText(assessment.sofaCardiovascularMeasured) || findCheckedRadioButton(sofaCardiovascularGroup) != null ? 1 : 0;
+        count += hasText(assessment.sofaNeurologicMeasured) || findCheckedRadioButton(sofaNeurologicGroup) != null ? 1 : 0;
+        count += hasText(assessment.sofaRenalMeasured) || findCheckedRadioButton(sofaRenalGroup) != null ? 1 : 0;
+        return count;
+    }
 
     private void addPatientInfoCard(LinearLayout container) {
         CardView cardView = new CardView(this);
@@ -1356,6 +1559,113 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         LinearLayout.LayoutParams params = matchWrapParams();
         params.setMargins(0, 0, 0, dp(14));
         container.addView(card, params);
+    }
+
+    private News2CriterionViews addNews2MeasuredCriterionCard(LinearLayout container, String title, String subtitle, String hint, boolean numberOnly, String[] options, int[] scores) {
+        CardView cardView = new CardView(this);
+        cardView.setCardBackgroundColor(COLOR_CARD_BACKGROUND);
+        cardView.setRadius(dp(22));
+        cardView.setCardElevation(dp(1));
+        cardView.setUseCompatPadding(true);
+
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(16), dp(14), dp(16), dp(16));
+
+        TextView titleView = new TextView(this);
+        titleView.setText(title);
+        titleView.setTextColor(COLOR_TEXT_PRIMARY);
+        titleView.setTextSize(16);
+        titleView.setTypeface(Typeface.DEFAULT_BOLD);
+        card.addView(titleView, matchWrapParams());
+        if (subtitle != null && !subtitle.isEmpty()) {
+            TextView subtitleView = new TextView(this);
+            subtitleView.setText(subtitle);
+            subtitleView.setTextColor(Color.rgb(107, 114, 128));
+            subtitleView.setTextSize(12);
+            subtitleView.setPadding(0, dp(3), 0, dp(4));
+            card.addView(subtitleView, matchWrapParams());
+        }
+
+        EditText measuredView = numberOnly ? addNumberEditText(card, hint + " • " + getString(R.string.measured_value)) : addEditText(card, hint + " • " + getString(R.string.measured_value));
+        RadioGroup group = createScoreRadioGroup(options, scores);
+        card.addView(group, matchWrapParams());
+        cardView.addView(card, matchWrapParams());
+        LinearLayout.LayoutParams params = matchWrapParams();
+        params.setMargins(0, 0, 0, dp(10));
+        container.addView(cardView, params);
+        return new News2CriterionViews(measuredView, group);
+    }
+
+    private void addQsofaLactateCard(LinearLayout container) {
+        CardView cardView = new CardView(this);
+        cardView.setCardBackgroundColor(Color.WHITE);
+        cardView.setRadius(dp(22));
+        cardView.setCardElevation(dp(1));
+        cardView.setUseCompatPadding(true);
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(16), dp(14), dp(16), dp(16));
+        addSection(card, getString(R.string.section_qsofa));
+        qsofaRespirationView = addCheckBox(card, getString(R.string.qsofa_respiration));
+        qsofaSystolicBpView = addCheckBox(card, getString(R.string.qsofa_systolic_bp));
+        qsofaConsciousnessView = addCheckBox(card, getString(R.string.qsofa_consciousness));
+        qsofaTotalView = addTotalText(card, getString(R.string.qsofa_total_format, assessment.qsofaTotal));
+        addSection(card, getString(R.string.section_lactate));
+        lactateView = addDecimalEditText(card, getString(R.string.lactate_value));
+        lactateSampleTimeView = addDateTimeEditText(card, getString(R.string.lactate_sample_time));
+        lactateLevelGroup = addRadioGroup(card, getString(R.string.lactate_level), new String[]{"< 2 mmol/L", "≥ 2 mmol/L", "≥ 4 mmol/L"}, null);
+        cardView.addView(card, matchWrapParams());
+        container.addView(cardView, matchWrapParams());
+    }
+
+    private void addSofaCard(LinearLayout container) {
+        CardView cardView = new CardView(this);
+        cardView.setCardBackgroundColor(Color.WHITE);
+        cardView.setRadius(dp(22));
+        cardView.setCardElevation(dp(1));
+        cardView.setUseCompatPadding(true);
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(16), dp(14), dp(16), dp(16));
+        addSection(card, getString(R.string.section_sofa));
+        TextView note = addLabel(card, getString(R.string.sofa_missing_note));
+        note.setTextColor(COLOR_TEXT_SECONDARY);
+        sofaRespirationMeasuredView = addEditText(card, getString(R.string.sofa_respiration) + " • PaO2/FiO2");
+        sofaRespirationGroup = addScoreRadioGroup(card, getString(R.string.sofa_respiration), new String[]{"≥ 400", "< 400", "< 300", "< 200 + hỗ trợ hô hấp", "< 100 + hỗ trợ hô hấp"}, new int[]{0, 1, 2, 3, 4});
+        sofaCoagulationMeasuredView = addDecimalEditText(card, getString(R.string.sofa_coagulation) + " • x10³/µL");
+        sofaCoagulationGroup = addScoreRadioGroup(card, getString(R.string.sofa_coagulation), new String[]{"≥ 150", "< 150", "< 100", "< 50", "< 20"}, new int[]{0, 1, 2, 3, 4});
+        sofaLiverMeasuredView = addEditText(card, getString(R.string.sofa_liver) + " • mg/dL hoặc µmol/L");
+        sofaLiverGroup = addScoreRadioGroup(card, getString(R.string.sofa_liver), new String[]{"< 1.2", "1.2 - 1.9", "2.0 - 5.9", "6.0 - 11.9", "≥ 12.0"}, new int[]{0, 1, 2, 3, 4});
+        sofaCardiovascularMeasuredView = addEditText(card, getString(R.string.sofa_cardiovascular) + " • MAP/thuốc/liều");
+        vasopressorView = addCheckBox(card, getString(R.string.vasopressor));
+        sofaCardiovascularGroup = addScoreRadioGroup(card, getString(R.string.sofa_cardiovascular), new String[]{"MAP ≥ 70, không vận mạch", "MAP < 70", "Dopamine ≤ 5 hoặc Dobutamine", "Dopamine > 5 hoặc Epi/Norepi ≤ 0.1", "Dopamine > 15 hoặc Epi/Norepi > 0.1"}, new int[]{0, 1, 2, 3, 4});
+        sofaNeurologicMeasuredView = addNumberEditText(card, getString(R.string.sofa_neurologic));
+        sofaNeurologicGroup = addScoreRadioGroup(card, getString(R.string.sofa_neurologic), new String[]{"15", "13 - 14", "10 - 12", "6 - 9", "< 6"}, new int[]{0, 1, 2, 3, 4});
+        sofaRenalMeasuredView = addEditText(card, getString(R.string.sofa_renal) + " • mg/dL/µmol/L hoặc nước tiểu mL/ngày");
+        sofaRenalGroup = addScoreRadioGroup(card, getString(R.string.sofa_renal), new String[]{"Cr < 1.2", "Cr 1.2 - 1.9", "Cr 2.0 - 3.4", "Cr 3.5 - 4.9 hoặc nước tiểu < 500", "Cr ≥ 5.0 hoặc nước tiểu < 200"}, new int[]{0, 1, 2, 3, 4});
+        sofaTotalView = addTotalText(card, getString(R.string.sofa_total_format, assessment.sofaTotal));
+        sepsisDiagnosisView = addTotalText(card, buildSepsisDiagnosis());
+        cardView.addView(card, matchWrapParams());
+        container.addView(cardView, matchWrapParams());
+    }
+
+    private void addSaveReviewCard(LinearLayout container) {
+        CardView cardView = new CardView(this);
+        cardView.setCardBackgroundColor(Color.WHITE);
+        cardView.setRadius(dp(22));
+        cardView.setCardElevation(dp(1));
+        cardView.setUseCompatPadding(true);
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(16), dp(14), dp(16), dp(16));
+        addSection(card, getString(R.string.save_review_title));
+        addLabel(card, getString(R.string.save_review_hint));
+        addLabel(card, getString(R.string.clinical_disclaimer));
+        treatmentOutcomeGroup = addRadioGroup(card, getString(R.string.treatment_outcome), new String[]{getString(R.string.outcome_recovered), getString(R.string.outcome_transfer), getString(R.string.outcome_death)}, null);
+        treatmentDaysView = addNumberEditText(card, getString(R.string.treatment_days));
+        cardView.addView(card, matchWrapParams());
+        container.addView(cardView, matchWrapParams());
     }
 
     private RadioGroup addNews2CriterionCard(LinearLayout container, String title, String subtitle, String[] options, int[] scores) {
@@ -1505,14 +1815,11 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         saveButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (completedNews2Count() < 7) {
-                    Toast.makeText(MainActivity.this, R.string.patient_list_complete_before_save, Toast.LENGTH_SHORT).show();
+                updateAssessmentFromViews();
+                if (!missingNews2Fields().isEmpty()) {
+                    Toast.makeText(MainActivity.this, getString(R.string.news2_missing_required_format, ClinicalValueParser.joinStrings(missingNews2Fields(), ", ")), Toast.LENGTH_SHORT).show();
                     return;
                 }
-                updateAssessmentFromViews();
-                assessment.news2Total = assessment.news2Respiration + assessment.news2Spo2 + assessment.news2Oxygen
-                        + assessment.news2Temperature + assessment.news2SystolicBp + assessment.news2HeartRate
-                        + assessment.news2Consciousness;
                 markAssessmentModified();
                 appendAssessmentHistory();
                 saveCurrentAssessment();
@@ -1801,6 +2108,9 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     }
 
     private String optionByScore(RadioGroup group, int score) {
+        if (group == null) {
+            return "";
+        }
         for (int i = 0; i < group.getChildCount(); i++) {
             View child = group.getChildAt(i);
             if (child.getTag() instanceof Integer && ((Integer) child.getTag()) == score && child.getContentDescription() != null) {
@@ -1873,6 +2183,9 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     }
 
     private void checkRadioByText(RadioGroup group, String text) {
+        if (group == null) {
+            return;
+        }
         if (text == null || text.isEmpty()) {
             group.clearCheck();
             return;
@@ -1881,6 +2194,9 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     }
 
     private void checkRadioByTag(RadioGroup group, Object tag) {
+        if (group == null || tag == null) {
+            return;
+        }
         for (int i = 0; i < group.getChildCount(); i++) {
             View child = group.getChildAt(i);
             if (tag.equals(child.getTag())) {
@@ -1889,9 +2205,5 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
             }
         }
         group.clearCheck();
-    }
-
-    private int booleanScore(boolean value) {
-        return value ? 1 : 0;
     }
 }
