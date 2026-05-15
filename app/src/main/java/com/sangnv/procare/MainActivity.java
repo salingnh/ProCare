@@ -23,6 +23,8 @@ import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.CompoundButton;
 import android.widget.EditText;
+import android.widget.HorizontalScrollView;
+import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.ProgressBar;
@@ -148,6 +150,7 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     private CheckBox vasopressorView;
 
     private final List<View> workflowStepContainers = new ArrayList<>();
+    private final List<Button> workflowTabButtons = new ArrayList<>();
     private TextView workflowProgressView;
     private TextView assessmentStatusTitleView;
     private TextView assessmentStatusScoreView;
@@ -165,8 +168,6 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     private TextView sofaTotalView;
     private TextView sepsisDiagnosisView;
     private TextView lastSavedView;
-    private Button previousStepButton;
-    private Button nextStepButton;
     private Button saveAssessmentButton;
 
     @Override
@@ -608,6 +609,7 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     private void buildAssessmentForm(LinearLayout container) {
         container.removeAllViews();
         workflowStepContainers.clear();
+        workflowTabButtons.clear();
         setAssessmentFormPadding(container, dp(ASSESSMENT_STATUS_FALLBACK_HEIGHT_DP));
         updateAssessmentFormPaddingForFixedStatus();
 
@@ -1145,35 +1147,41 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     }
 
     private void addWorkflowControls(LinearLayout container) {
-        workflowProgressView = addAlertText(container, "", "#1565C0");
+        workflowProgressView = addAlertText(container, getString(R.string.workflow_choose_section), "#1565C0");
+
+        HorizontalScrollView scrollTabs = new HorizontalScrollView(this);
+        scrollTabs.setHorizontalScrollBarEnabled(false);
+        scrollTabs.setOverScrollMode(View.OVER_SCROLL_NEVER);
+
         LinearLayout controls = new LinearLayout(this);
         controls.setOrientation(LinearLayout.HORIZONTAL);
         controls.setPadding(0, dp(10), 0, dp(10));
-        previousStepButton = new Button(this);
-        stylePrimaryButton(previousStepButton, false);
-        previousStepButton.setText(R.string.workflow_previous);
-        previousStepButton.setOnClickListener(new View.OnClickListener() {
+
+        addWorkflowTabButton(controls, R.string.workflow_tab_patient, 0);
+        addWorkflowTabButton(controls, R.string.workflow_tab_news2, 1);
+        addWorkflowTabButton(controls, R.string.workflow_tab_qsofa, 2);
+        addWorkflowTabButton(controls, R.string.workflow_tab_sofa, 3);
+        addWorkflowTabButton(controls, R.string.workflow_tab_review, 4);
+
+        scrollTabs.addView(controls, matchWrapParams());
+        container.addView(scrollTabs, matchWrapParams());
+    }
+
+    private void addWorkflowTabButton(LinearLayout controls, int titleResId, int step) {
+        Button tabButton = new Button(this);
+        stylePrimaryButton(tabButton, step == currentWorkflowStep);
+        tabButton.setText(titleResId);
+        tabButton.setMinWidth(dp(104));
+        tabButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                goToWorkflowStep(currentWorkflowStep - 1);
+                goToWorkflowStep(step);
             }
         });
-        nextStepButton = new Button(this);
-        stylePrimaryButton(nextStepButton, true);
-        nextStepButton.setText(R.string.workflow_next);
-        nextStepButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                goToWorkflowStep(currentWorkflowStep + 1);
-            }
-        });
-        LinearLayout.LayoutParams previousParams = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
-        previousParams.setMargins(0, 0, dp(6), 0);
-        LinearLayout.LayoutParams nextParams = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
-        nextParams.setMargins(dp(6), 0, 0, 0);
-        controls.addView(previousStepButton, previousParams);
-        controls.addView(nextStepButton, nextParams);
-        container.addView(controls, matchWrapParams());
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        params.setMargins(0, 0, dp(8), 0);
+        controls.addView(tabButton, params);
+        workflowTabButtons.add(tabButton);
     }
 
     private LinearLayout addWorkflowStep(LinearLayout container, int titleResId, int hintResId) {
@@ -1205,6 +1213,10 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         }
         currentWorkflowStep = step;
         updateWorkflowStepVisibility();
+        ScrollView scrollView = (ScrollView) findViewById(R.id.assessment_scroll);
+        if (scrollView != null) {
+            scrollView.smoothScrollTo(0, 0);
+        }
     }
 
     private void updateWorkflowStepVisibility() {
@@ -1223,36 +1235,30 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         if (workflowProgressView != null) {
             workflowProgressView.setText(getWorkflowProgressText());
         }
-        if (previousStepButton != null) {
-            previousStepButton.setEnabled(currentWorkflowStep > 0);
-        }
-        if (nextStepButton != null) {
-            nextStepButton.setEnabled(currentWorkflowStep < STEP_COUNT - 1);
-            nextStepButton.setText(currentWorkflowStep == STEP_COUNT - 1 ? R.string.workflow_reviewing : R.string.workflow_next);
+        for (int i = 0; i < workflowTabButtons.size(); i++) {
+            Button tabButton = workflowTabButtons.get(i);
+            stylePrimaryButton(tabButton, i == currentWorkflowStep);
         }
         updateAssessmentStatusCard();
     }
 
     private String getWorkflowProgressText() {
-        int titleResId;
-        switch (currentWorkflowStep) {
+        return getString(R.string.workflow_current_section_format, getString(workflowTitleResId(currentWorkflowStep)));
+    }
+
+    private int workflowTitleResId(int step) {
+        switch (step) {
             case 0:
-                titleResId = R.string.workflow_step_patient;
-                break;
+                return R.string.workflow_step_patient;
             case 1:
-                titleResId = R.string.workflow_step_news2;
-                break;
+                return R.string.workflow_step_news2;
             case 2:
-                titleResId = R.string.workflow_step_qsofa_lactate;
-                break;
+                return R.string.workflow_step_qsofa_lactate;
             case 3:
-                titleResId = R.string.workflow_step_sofa;
-                break;
+                return R.string.workflow_step_sofa;
             default:
-                titleResId = R.string.workflow_step_save;
-                break;
+                return R.string.workflow_step_save;
         }
-        return getString(R.string.workflow_progress_format, currentWorkflowStep + 1, STEP_COUNT, getString(titleResId));
     }
 
     private void configureFixedAssessmentStatusCard() {
@@ -1261,21 +1267,23 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         }
         assessmentStatusContainer.removeAllViews();
         assessmentStatusContainer.setVisibility(View.VISIBLE);
-        assessmentStatusContainer.setPadding(dp(16), dp(14) + systemBarDimension("status_bar_height"), dp(16), 0);
+        assessmentStatusContainer.setBackgroundColor(COLOR_SCREEN_BACKGROUND);
+        assessmentStatusContainer.setPadding(dp(16), dp(14) + systemBarDimension("status_bar_height"), dp(16), dp(10));
 
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.VERTICAL);
         header.setPadding(dp(16), dp(14), dp(16), dp(14));
-        header.setBackground(roundedDrawable(Color.argb(248, 255, 255, 255), dp(22), dp(1), Color.rgb(229, 231, 235)));
+        header.setBackground(roundedDrawable(Color.WHITE, dp(22), dp(1), Color.rgb(229, 231, 235)));
 
         LinearLayout titleRow = new LinearLayout(this);
         titleRow.setOrientation(LinearLayout.HORIZONTAL);
         titleRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
 
-        Button backButton = new Button(this);
-        backButton.setText("‹");
-        backButton.setTextSize(26);
-        backButton.setTextColor(COLOR_PRIMARY_DARK);
+        ImageButton backButton = new ImageButton(this);
+        backButton.setImageResource(R.drawable.ic_arrow_back_24);
+        backButton.setImageTintList(ColorStateList.valueOf(COLOR_PRIMARY_DARK));
+        backButton.setScaleType(android.widget.ImageView.ScaleType.CENTER);
+        backButton.setPadding(dp(11), dp(11), dp(11), dp(11));
         backButton.setContentDescription(getString(R.string.patient_list_back_assessment));
         backButton.setBackground(roundedDrawable(Color.rgb(239, 246, 255), dp(18), dp(1), Color.rgb(191, 219, 254)));
         backButton.setOnClickListener(new View.OnClickListener() {
