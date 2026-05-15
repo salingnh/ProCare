@@ -611,7 +611,6 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         setAssessmentFormPadding(container, dp(ASSESSMENT_STATUS_FALLBACK_HEIGHT_DP));
         updateAssessmentFormPaddingForFixedStatus();
 
-        addNews2TopBar(container);
         addWorkflowControls(container);
 
         LinearLayout patientStep = addWorkflowStep(container, R.string.workflow_step_patient, R.string.workflow_step_patient_hint);
