@@ -119,6 +119,17 @@
     <string name="news2_monitoring_hourly">Theo dõi tối thiểu mỗi 01 giờ.</string>
     <string name="news2_monitoring_emergency">Theo dõi liên tục tại khu vực có thiết bị theo dõi phù hợp.</string>
     <string name="news2_highest_prefix">Tiêu chí 3 điểm: </string>
+    <string name="news2_missing_required_title">Chưa đủ dữ liệu để tính NEWS2 hoàn chỉnh.</string>
+    <string name="news2_missing_required_format">Thiếu: %1$s</string>
+    <string name="clinical_disclaimer">Công cụ chỉ hỗ trợ đánh giá nhanh, không thay thế bác sĩ.</string>
+    <string name="qsofa_risk_low">qSOFA 0–1: chưa đủ ngưỡng nguy cơ cao, tiếp tục đánh giá lâm sàng.</string>
+    <string name="qsofa_risk_high">qSOFA ≥ 2: nguy cơ cao, đánh giá sepsis và rối loạn cơ quan.</string>
+    <string name="sofa_interpretation_low">SOFA &lt; 9: có rối loạn chức năng cơ quan mức thấp hơn nhóm điểm cao.</string>
+    <string name="sofa_interpretation_intermediate">SOFA 9–11: nguy cơ trung gian.</string>
+    <string name="sofa_interpretation_high">SOFA &gt; 11: nguy cơ rất cao.</string>
+    <string name="sofa_missing_note">Có thể chọn điểm tạm thời khi chưa có đủ xét nghiệm; ghi rõ kết quả là hỗ trợ sàng lọc.</string>
+    <string name="save_review_title">Tổng hợp &amp; lưu phiếu</string>
+    <string name="save_review_hint">Kiểm tra NEWS2, qSOFA, SOFA và khuyến nghị trước khi lưu bệnh nhân vào danh sách ưu tiên.</string>
 
     <string name="news2_screen_title">Đánh giá NEWS2</string>
     <string name="news2_completed_format">%1$d/%2$d tiêu chí đã chọn</string>
