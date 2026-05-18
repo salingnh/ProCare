@@ -1,0 +1,60 @@
+plugins {
+    id "com.android.application"
+    id "dev.flutter.flutter-gradle-plugin"
+}
+
+def releaseVersionName = (findProperty("releaseVersionName") ?: flutter.versionName ?: "1.0.0").toString()
+def releaseVersionCode = (findProperty("releaseVersionCode") ?: flutter.versionCode ?: "1").toString().toInteger()
+
+def releaseSigningStorePath = System.getenv("SIGNING_KEYSTORE_PATH") ?: findProperty("signingKeystorePath")
+def releaseSigningStorePassword = System.getenv("KEY_STORE_PASSWORD") ?: findProperty("signingStorePassword")
+def releaseSigningKeyAlias = System.getenv("KEY_ALIAS") ?: findProperty("signingKeyAlias")
+def releaseSigningKeyPassword = System.getenv("KEY_PASSWORD") ?: findProperty("signingKeyPassword")
+def hasReleaseSigningConfig = [
+        releaseSigningStorePath,
+        releaseSigningStorePassword,
+        releaseSigningKeyAlias,
+        releaseSigningKeyPassword
+].every { it != null && it.toString().trim() }
+
+android {
+    namespace "com.sangnv.procare"
+    compileSdk flutter.compileSdkVersion
+    ndkVersion flutter.ndkVersion
+
+    defaultConfig {
+        applicationId "com.sangnv.procare"
+        minSdk 23
+        targetSdk flutter.targetSdkVersion
+        versionCode releaseVersionCode
+        versionName releaseVersionName
+    }
+
+    signingConfigs {
+        release {
+            if (hasReleaseSigningConfig) {
+                storeFile file(releaseSigningStorePath)
+                storePassword releaseSigningStorePassword
+                keyAlias releaseSigningKeyAlias
+                keyPassword releaseSigningKeyPassword
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            if (hasReleaseSigningConfig) {
+                signingConfig signingConfigs.release
+            }
+            minifyEnabled false
+        }
+    }
+}
+
+flutter {
+    source "../.."
+}
+
+dependencies {
+    implementation "androidx.core:core:1.13.1"
+}

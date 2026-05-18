@@ -1,0 +1,14 @@
+version:
+  revision: unknown
+  channel: stable
+
+project_type: app
+
+migration:
+  platforms:
+    - platform: android
+      create_revision: unknown
+      base_revision: unknown
+
+  unmanaged_files:
+    - "app/"

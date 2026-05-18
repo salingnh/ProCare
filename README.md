@@ -2,7 +2,20 @@
 Tác giả: Sang Nguyễn
 Email: sangnvnkl@gmail.com
 
-Ứng dụng NEWS2-L: Đánh giá tình trạng sức khỏe cho bệnh nhân
+Ứng dụng NEWS2-L: Đánh giá tình trạng sức khỏe cho bệnh nhân.
+
+## Kiến trúc hiện tại
+
+Ứng dụng đang được rewrite sang Flutter/Dart để dùng chung codebase cho Android trước và mở rộng iOS sau. Đường build chính là Flutter ở root repo:
+
+```bash
+flutter pub get
+flutter analyze
+flutter test
+flutter build apk --release
+```
+
+Thư mục Android Java cũ vẫn còn trong repo để đối chiếu trong giai đoạn chuyển đổi, nhưng workflow release mới build APK từ Flutter project.
 
 ## Ký APK release trên GitHub Actions
 

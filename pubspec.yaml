@@ -1,0 +1,30 @@
+name: news2_l
+description: NEWS2-L clinical assessment app.
+publish_to: "none"
+
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  archive: ^3.6.1
+  http: ^1.2.2
+  package_info_plus: ^8.0.2
+  path: ^1.9.0
+  path_provider: ^2.1.4
+  pdf: ^3.11.1
+  share_plus: ^10.0.2
+  sqflite: ^2.3.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/fonts/NotoSans.ttf
