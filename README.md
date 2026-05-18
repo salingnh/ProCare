@@ -1,8 +1,8 @@
-# ProCare
+# NEWS2-L
 Tác giả: Sang Nguyễn
 Email: sangnvnkl@gmail.com
 
-Ứng dụng ProCare: Đánh giá tình trạng sức khỏe cho bệnh nhân
+Ứng dụng NEWS2-L: Đánh giá tình trạng sức khỏe cho bệnh nhân
 
 ## Ký APK release trên GitHub Actions
 

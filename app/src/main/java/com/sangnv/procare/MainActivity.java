@@ -1,6 +1,7 @@
 package com.sangnv.procare;
 
 import android.content.ActivityNotFoundException;
+import android.content.ClipData;
 import android.content.Intent;
 import android.content.res.ColorStateList;
 import android.graphics.Typeface;
@@ -45,6 +46,7 @@ import com.sangnv.procare.scoring.ClinicalValueParser;
 import com.sangnv.procare.scoring.News2InputValidator;
 import com.sangnv.procare.scoring.QsofaScoring;
 import com.sangnv.procare.scoring.SofaScoring;
+import com.sangnv.procare.export.CrfExporter;
 import com.sangnv.procare.ui.PatientListScreen;
 import com.sangnv.procare.ui.ProCareUi;
 import com.sangnv.procare.ui.assessment.News2CriterionViews;
@@ -55,8 +57,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -98,11 +103,12 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     private TextView updateProgressTextView;
 
     private EditText patientIdView;
-    private EditText admissionDateTimeView;
+    private EditText admissionDateView;
+    private EditText admissionTimeView;
     private EditText fullNameView;
     private EditText ageView;
-    private EditText suspectedInfectionView;
-    private EditText wardView;
+    private EditText admissionReasonView;
+    private EditText infectionOrganView;
     private EditText otherComorbidityView;
     private EditText news2RespirationMeasuredView;
     private EditText news2Spo2MeasuredView;
@@ -151,12 +157,10 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
 
     private final List<View> workflowStepContainers = new ArrayList<>();
     private final List<Button> workflowTabButtons = new ArrayList<>();
-    private TextView workflowProgressView;
     private TextView assessmentStatusTitleView;
     private TextView assessmentStatusScoreView;
     private TextView assessmentStatusRiskView;
     private ProgressBar assessmentStatusProgressView;
-    private TextView quickSummaryView;
     private TextView news2FooterScoreView;
     private TextView news2FooterRiskView;
     private TextView news2TotalView;
@@ -347,7 +351,7 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
             connection = (HttpURLConnection) url.openConnection();
             connection.setConnectTimeout(15000);
             connection.setReadTimeout(30000);
-            connection.setRequestProperty("User-Agent", "ProCare-Android");
+            connection.setRequestProperty("User-Agent", "NEWS2-L-Android");
             connection.connect();
 
             int responseCode = connection.getResponseCode();
@@ -360,7 +364,7 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
             if (downloadsDir == null) {
                 downloadsDir = getFilesDir();
             }
-            File apkFile = new File(downloadsDir, "ProCare-v" + updateInfo.version + ".apk");
+            File apkFile = new File(downloadsDir, "NEWS2-L-v" + updateInfo.version + ".apk");
             inputStream = connection.getInputStream();
             outputStream = new FileOutputStream(apkFile);
             byte[] buffer = new byte[8192];
@@ -578,6 +582,16 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
                 patientSortMode = sortMode;
                 showPatientListScreen();
             }
+
+            @Override
+            public void onExportPdf(ClinicalAssessment selectedAssessment) {
+                exportAssessment(selectedAssessment, CrfExporter.Format.PDF, false);
+            }
+
+            @Override
+            public void onExportDocx(ClinicalAssessment selectedAssessment) {
+                exportAssessment(selectedAssessment, CrfExporter.Format.DOCX, false);
+            }
         }, COLOR_PRIMARY, COLOR_PRIMARY_DARK, COLOR_TEXT_PRIMARY, COLOR_TEXT_SECONDARY)
                 .render(formContainer, loadAssessmentHistory(), gridPatientView, patientSearchQuery, patientSortMode);
         if (availableUpdate != null) {
@@ -619,7 +633,6 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         addPatientInfoCard(patientStep);
 
         LinearLayout news2Step = addWorkflowStep(container, R.string.workflow_step_news2, R.string.workflow_step_news2_hint);
-        quickSummaryView = addAlertText(news2Step, getString(R.string.quick_summary_empty), "#6B7280");
         addSpo2ScaleCard(news2Step);
         News2CriterionViews respirationViews = addNews2MeasuredCriterionCard(news2Step, getString(R.string.news2_respiration), "Đơn vị chuẩn: lần/phút", getString(R.string.news2_respiration), true,
                 new String[]{"≤ 8", "9 - 11", "12 - 20", "21 - 24", "≥ 25"}, new int[]{3, 1, 0, 2, 3});
@@ -675,9 +688,11 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         setEditTextValue(patientIdView, assessment.patientId);
         setEditTextValue(fullNameView, assessment.fullName);
         setEditTextValue(ageView, assessment.age);
-        setEditTextValue(wardView, assessment.ward);
-        setEditTextValue(admissionDateTimeView, assessment.admissionDateTime);
-        setEditTextValue(suspectedInfectionView, assessment.suspectedInfection);
+        ensureAdmissionDateTimeDefaults();
+        setEditTextValue(admissionDateView, assessment.admissionDate);
+        setEditTextValue(admissionTimeView, assessment.admissionTime);
+        setEditTextValue(admissionReasonView, hasText(assessment.admissionReason) ? assessment.admissionReason : assessment.suspectedInfection);
+        setEditTextValue(infectionOrganView, hasText(assessment.infectionOrgan) ? assessment.infectionOrgan : assessment.suspectedInfection);
         setEditTextValue(news2RespirationMeasuredView, assessment.news2RespirationMeasured);
         setEditTextValue(news2Spo2MeasuredView, assessment.news2Spo2Measured);
         setEditTextValue(news2OxygenMeasuredView, assessment.news2OxygenMeasured);
@@ -743,9 +758,12 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         assessment.patientId = editTextValue(patientIdView);
         assessment.fullName = editTextValue(fullNameView);
         assessment.age = editTextValue(ageView);
-        assessment.ward = editTextValue(wardView);
-        assessment.admissionDateTime = editTextValue(admissionDateTimeView);
-        assessment.suspectedInfection = editTextValue(suspectedInfectionView);
+        assessment.admissionDate = editTextValue(admissionDateView);
+        assessment.admissionTime = editTextValue(admissionTimeView);
+        assessment.admissionDateTime = buildAdmissionDateTime();
+        assessment.admissionReason = editTextValue(admissionReasonView);
+        assessment.infectionOrgan = editTextValue(infectionOrganView);
+        assessment.suspectedInfection = assessment.infectionOrgan;
         assessment.news2Spo2Scale2 = news2Spo2Scale2View != null && news2Spo2Scale2View.isChecked();
         assessment.news2RespirationMeasured = editTextValue(news2RespirationMeasuredView);
         assessment.news2Spo2Measured = editTextValue(news2Spo2MeasuredView);
@@ -885,17 +903,45 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         return value != null && !value.trim().isEmpty();
     }
 
+    private void ensureAdmissionDateTimeDefaults() {
+        if (!hasText(assessment.admissionDate) && !hasText(assessment.admissionTime) && hasText(assessment.admissionDateTime)) {
+            String[] parts = assessment.admissionDateTime.trim().split("\\s+", 2);
+            assessment.admissionDate = parts[0];
+            if (parts.length > 1) {
+                assessment.admissionTime = parts[1];
+            }
+        }
+        Date now = new Date();
+        if (!hasText(assessment.admissionDate)) {
+            assessment.admissionDate = new SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(now);
+        }
+        if (!hasText(assessment.admissionTime)) {
+            assessment.admissionTime = new SimpleDateFormat("HH:mm", Locale.getDefault()).format(now);
+        }
+        assessment.admissionDateTime = buildAdmissionDateTime(assessment.admissionDate, assessment.admissionTime);
+    }
+
+    private String buildAdmissionDateTime() {
+        return buildAdmissionDateTime(editTextValue(admissionDateView), editTextValue(admissionTimeView));
+    }
+
+    private String buildAdmissionDateTime(String date, String time) {
+        String safeDate = date == null ? "" : date.trim();
+        String safeTime = time == null ? "" : time.trim();
+        if (safeDate.isEmpty()) {
+            return safeTime;
+        }
+        if (safeTime.isEmpty()) {
+            return safeDate;
+        }
+        return safeDate + " " + safeTime;
+    }
+
     private void updateQuickSummaryViews() {
-        int completedCount = completedNews2Count();
         boolean complete = missingNews2Fields().isEmpty();
         updateQsofaSofaViews();
         if (!complete) {
             String missingText = getString(R.string.news2_missing_required_format, ClinicalValueParser.joinStrings(missingNews2Fields(), ", "));
-            if (quickSummaryView != null) {
-                quickSummaryView.setText(getString(R.string.news2_missing_required_title) + "\n" + missingText);
-                quickSummaryView.setTextColor(Color.WHITE);
-                quickSummaryView.setBackground(roundedDrawable(Color.rgb(107, 114, 128), dp(18), 0, 0));
-            }
             if (news2RiskView != null) {
                 news2RiskView.setText(getString(R.string.news2_risk_empty));
                 news2RiskView.setTextColor(Color.WHITE);
@@ -932,11 +978,6 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         String action = news2ActionText();
         String monitoring = news2MonitoringText();
         String highestCriterion = highestNews2CriterionText();
-        if (quickSummaryView != null) {
-            quickSummaryView.setText(getString(R.string.quick_summary_format, assessment.news2Total, risk, action));
-            quickSummaryView.setTextColor(Color.WHITE);
-            quickSummaryView.setBackground(roundedDrawable(color, dp(18), 0, 0));
-        }
         if (news2RiskView != null) {
             news2RiskView.setText(risk);
             news2RiskView.setTextColor(Color.WHITE);
@@ -1131,6 +1172,38 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         assessmentRepository.appendAssessmentHistory(assessment);
     }
 
+    private void exportAssessment(ClinicalAssessment source, CrfExporter.Format format, boolean refreshCurrentForm) {
+        try {
+            ClinicalAssessment exportSource = source == null ? new ClinicalAssessment() : source;
+            if (refreshCurrentForm) {
+                updateAssessmentFromViews();
+                markAssessmentModified();
+                saveCurrentAssessment();
+                exportSource = assessment;
+            }
+            File file = CrfExporter.export(this, exportSource, format);
+            shareExportedFile(file, format);
+        } catch (IOException exception) {
+            Log.e(TAG, "Unable to export CRF.", exception);
+            Toast.makeText(this, R.string.export_failed, Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void shareExportedFile(File file, CrfExporter.Format format) {
+        Uri fileUri = FileProvider.getUriForFile(this, BuildConfig.APPLICATION_ID + ".fileprovider", file);
+        Intent intent = new Intent(Intent.ACTION_SEND);
+        intent.setType(format.mimeType);
+        intent.putExtra(Intent.EXTRA_STREAM, fileUri);
+        intent.setClipData(ClipData.newUri(getContentResolver(), file.getName(), fileUri));
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        Intent chooser = Intent.createChooser(intent, getString(R.string.export_share_title));
+        try {
+            startActivity(chooser);
+        } catch (ActivityNotFoundException exception) {
+            Toast.makeText(this, R.string.export_open_failed, Toast.LENGTH_SHORT).show();
+        }
+    }
+
     private ClinicalAssessment loadCurrentAssessment() {
         return assessmentRepository.loadCurrentAssessment();
     }
@@ -1147,8 +1220,6 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
     }
 
     private void addWorkflowControls(LinearLayout container) {
-        workflowProgressView = addAlertText(container, getString(R.string.workflow_choose_section), "#1565C0");
-
         HorizontalScrollView scrollTabs = new HorizontalScrollView(this);
         scrollTabs.setHorizontalScrollBarEnabled(false);
         scrollTabs.setOverScrollMode(View.OVER_SCROLL_NEVER);
@@ -1232,33 +1303,11 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
                 stepView.setVisibility(View.GONE);
             }
         }
-        if (workflowProgressView != null) {
-            workflowProgressView.setText(getWorkflowProgressText());
-        }
         for (int i = 0; i < workflowTabButtons.size(); i++) {
             Button tabButton = workflowTabButtons.get(i);
             stylePrimaryButton(tabButton, i == currentWorkflowStep);
         }
         updateAssessmentStatusCard();
-    }
-
-    private String getWorkflowProgressText() {
-        return getString(R.string.workflow_current_section_format, getString(workflowTitleResId(currentWorkflowStep)));
-    }
-
-    private int workflowTitleResId(int step) {
-        switch (step) {
-            case 0:
-                return R.string.workflow_step_patient;
-            case 1:
-                return R.string.workflow_step_news2;
-            case 2:
-                return R.string.workflow_step_qsofa_lactate;
-            case 3:
-                return R.string.workflow_step_sofa;
-            default:
-                return R.string.workflow_step_save;
-        }
     }
 
     private void configureFixedAssessmentStatusCard() {
@@ -1512,9 +1561,19 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         patientIdView = addEditText(card, getString(R.string.patient_id));
         fullNameView = addEditText(card, getString(R.string.full_name));
         ageView = addNumberEditText(card, getString(R.string.age));
-        wardView = addEditText(card, getString(R.string.ward));
-        admissionDateTimeView = addDateTimeEditText(card, getString(R.string.admission_datetime));
-        suspectedInfectionView = addEditText(card, getString(R.string.suspected_infection));
+        LinearLayout admissionRow = new LinearLayout(this);
+        admissionRow.setOrientation(LinearLayout.HORIZONTAL);
+        admissionDateView = addDateEditText(admissionRow, getString(R.string.admission_date));
+        admissionTimeView = addTimeEditText(admissionRow, getString(R.string.admission_time));
+        LinearLayout.LayoutParams dateParams = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
+        dateParams.setMargins(0, dp(6), dp(5), dp(10));
+        admissionDateView.setLayoutParams(dateParams);
+        LinearLayout.LayoutParams timeParams = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
+        timeParams.setMargins(dp(5), dp(6), 0, dp(10));
+        admissionTimeView.setLayoutParams(timeParams);
+        card.addView(admissionRow, matchWrapParams());
+        admissionReasonView = addMultilineEditText(card, getString(R.string.admission_reason), 3);
+        infectionOrganView = addEditText(card, getString(R.string.infection_organ));
 
         cardView.addView(card, matchWrapParams());
         LinearLayout.LayoutParams params = matchWrapParams();
@@ -1842,6 +1901,35 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         actions.addView(backButton, backParams);
         actions.addView(saveButton, saveParams);
         container.addView(actions, matchWrapParams());
+
+        LinearLayout exportActions = new LinearLayout(this);
+        exportActions.setOrientation(LinearLayout.HORIZONTAL);
+        exportActions.setPadding(0, dp(10), 0, 0);
+        Button pdfButton = new Button(this);
+        pdfButton.setText(R.string.export_pdf);
+        stylePrimaryButton(pdfButton, false);
+        pdfButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                exportAssessment(assessment, CrfExporter.Format.PDF, true);
+            }
+        });
+        Button docxButton = new Button(this);
+        docxButton.setText(R.string.export_docx);
+        stylePrimaryButton(docxButton, false);
+        docxButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                exportAssessment(assessment, CrfExporter.Format.DOCX, true);
+            }
+        });
+        LinearLayout.LayoutParams pdfParams = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
+        pdfParams.setMargins(0, 0, dp(6), 0);
+        LinearLayout.LayoutParams docxParams = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
+        docxParams.setMargins(dp(6), 0, 0, 0);
+        exportActions.addView(pdfButton, pdfParams);
+        exportActions.addView(docxButton, docxParams);
+        container.addView(exportActions, matchWrapParams());
     }
 
     private void addNews2HeaderCard(LinearLayout container) {
@@ -1942,6 +2030,29 @@ public class MainActivity extends AppCompatActivity implements GitHubReleaseChec
         EditText editText = addEditText(container, hint);
         editText.setSingleLine(true);
         editText.setInputType(InputType.TYPE_CLASS_DATETIME | InputType.TYPE_DATETIME_VARIATION_NORMAL);
+        return editText;
+    }
+
+    private EditText addDateEditText(LinearLayout container, String hint) {
+        EditText editText = addEditText(container, hint);
+        editText.setSingleLine(true);
+        editText.setInputType(InputType.TYPE_CLASS_DATETIME | InputType.TYPE_DATETIME_VARIATION_DATE);
+        return editText;
+    }
+
+    private EditText addTimeEditText(LinearLayout container, String hint) {
+        EditText editText = addEditText(container, hint);
+        editText.setSingleLine(true);
+        editText.setInputType(InputType.TYPE_CLASS_DATETIME | InputType.TYPE_DATETIME_VARIATION_TIME);
+        return editText;
+    }
+
+    private EditText addMultilineEditText(LinearLayout container, String hint, int minLines) {
+        EditText editText = addEditText(container, hint);
+        editText.setSingleLine(false);
+        editText.setMinLines(minLines);
+        editText.setGravity(android.view.Gravity.TOP | android.view.Gravity.START);
+        editText.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
         return editText;
     }
 

@@ -3,10 +3,14 @@ package com.sangnv.procare.Model;
 public class ClinicalAssessment {
     public String patientId = "";
     public String admissionDateTime = "";
+    public String admissionDate = "";
+    public String admissionTime = "";
     public String fullName = "";
     public String age = "";
     public String gender = "";
     public String suspectedInfection = "";
+    public String admissionReason = "";
+    public String infectionOrgan = "";
     public String ward = "";
     public boolean diabetes;
     public boolean chronicKidneyDisease;

@@ -40,6 +40,10 @@ public final class PatientListScreen {
         void onViewModeChanged(boolean gridMode);
 
         void onSortModeChanged(int sortMode);
+
+        void onExportPdf(ClinicalAssessment assessment);
+
+        void onExportDocx(ClinicalAssessment assessment);
     }
 
     private final Context context;
@@ -146,6 +150,20 @@ public final class PatientListScreen {
         return icon;
     }
 
+    private TextView exportButton(String text) {
+        TextView button = new TextView(context);
+        button.setText(text);
+        button.setTextColor(colorPrimaryDark);
+        button.setTextSize(12);
+        button.setTypeface(Typeface.DEFAULT_BOLD);
+        button.setGravity(Gravity.CENTER);
+        button.setPadding(dp(8), dp(7), dp(8), dp(7));
+        button.setBackground(ProCareUi.roundedDrawable(Color.rgb(239, 246, 255), dp(12), dp(1), Color.rgb(191, 219, 254)));
+        button.setClickable(true);
+        button.setFocusable(true);
+        return button;
+    }
+
     private List<ClinicalAssessment> visibleAssessments(List<ClinicalAssessment> history, String searchQuery, int sortMode) {
         List<ClinicalAssessment> visible = new ArrayList<>();
         String normalizedQuery = searchQuery == null ? "" : searchQuery.trim().toLowerCase(Locale.getDefault());
@@ -166,8 +184,9 @@ public final class PatientListScreen {
     }
 
     private String searchableText(ClinicalAssessment item) {
-        return (safe(item.fullName) + " " + safe(item.patientId) + " " + safe(item.ward) + " "
-                + safe(item.suspectedInfection)).toLowerCase(Locale.getDefault());
+        return (safe(item.fullName) + " " + safe(item.patientId) + " " + safe(item.admissionDateTime) + " "
+                + safe(item.admissionReason) + " " + safe(item.infectionOrgan) + " " + safe(item.suspectedInfection))
+                .toLowerCase(Locale.getDefault());
     }
 
     private void addContent(LinearLayout container, List<ClinicalAssessment> history, boolean gridMode) {
@@ -256,17 +275,47 @@ public final class PatientListScreen {
         score.setBackground(ProCareUi.roundedDrawable(Color.rgb(243, 244, 246), dp(12), 0, Color.TRANSPARENT));
         card.addView(score, wrapParams());
 
+        LinearLayout exportActions = new LinearLayout(context);
+        exportActions.setOrientation(LinearLayout.HORIZONTAL);
+        exportActions.setPadding(0, dp(10), 0, 0);
+        TextView pdfButton = exportButton("PDF");
+        pdfButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                listener.onExportPdf(item);
+            }
+        });
+        TextView docxButton = exportButton("DOCX");
+        docxButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                listener.onExportDocx(item);
+            }
+        });
+        LinearLayout.LayoutParams pdfParams = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
+        pdfParams.setMargins(0, 0, dp(5), 0);
+        LinearLayout.LayoutParams docxParams = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
+        docxParams.setMargins(dp(5), 0, 0, 0);
+        exportActions.addView(pdfButton, pdfParams);
+        exportActions.addView(docxButton, docxParams);
+        card.addView(exportActions, matchWrapParams());
+
         cardView.addView(card, matchWrapParams());
         return cardView;
     }
 
     private String summaryText(ClinicalAssessment item, boolean compact) {
         StringBuilder builder = new StringBuilder();
-        if (hasText(item.ward)) {
-            builder.append(item.ward.trim()).append('\n');
+        if (hasText(item.admissionDateTime)) {
+            builder.append(item.admissionDateTime.trim()).append('\n');
         }
-        if (hasText(item.suspectedInfection)) {
-            builder.append(item.suspectedInfection.trim()).append('\n');
+        String admissionReason = hasText(item.admissionReason) ? item.admissionReason : "";
+        String infectionOrgan = hasText(item.infectionOrgan) ? item.infectionOrgan : item.suspectedInfection;
+        if (hasText(admissionReason)) {
+            builder.append(admissionReason.trim()).append('\n');
+        }
+        if (hasText(infectionOrgan)) {
+            builder.append(infectionOrgan.trim()).append('\n');
         }
         builder.append(context.getString(R.string.patient_summary_saved_format,
                 DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(new Date(modifiedTime(item)))));

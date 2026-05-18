@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">ProCare</string>
+    <string name="app_name">NEWS2-L</string>
     <string name="navigation_drawer_open">Open navigation drawer</string>
     <string name="navigation_drawer_close">Close navigation drawer</string>
     <string name="nav_header_title">Android Studio</string>
@@ -29,13 +29,16 @@
     <string name="section_patient_info">I. Thông tin hành chính &amp; bệnh nền</string>
     <string name="patient_id">Mã bệnh nhân (ID)</string>
     <string name="admission_datetime">Ngày giờ vào viện</string>
+    <string name="admission_date">Ngày nhập viện (dd/MM/yyyy)</string>
+    <string name="admission_time">Giờ nhập viện (HH:mm)</string>
     <string name="full_name">Họ và tên</string>
     <string name="age">Tuổi</string>
     <string name="gender">Giới tính</string>
     <string name="male">Nam</string>
     <string name="female">Nữ</string>
-    <string name="suspected_infection">Lý do vào viện / nghi ngờ nhiễm trùng cơ quan nào</string>
-    <string name="ward">Khoa/Phòng đang nằm</string>
+    <string name="admission_reason">Lý do nhập viện</string>
+    <string name="infection_organ">Cơ quan nhiễm trùng</string>
+    <string name="suspected_infection">Cơ quan nhiễm trùng</string>
     <string name="comorbidities">Bệnh lý nền</string>
     <string name="diabetes">Đái tháo đường</string>
     <string name="chronic_kidney_disease">Suy thận mạn tính</string>
@@ -91,11 +94,9 @@
     <string name="no">Không</string>
 
     <string name="update_available_title">Có phiên bản mới</string>
-    <string name="update_available_message">Đã có ProCare phiên bản %1$s mới hơn phiên bản đang dùng (%2$s). Vui lòng tải về và cài đặt bản mới nhất.</string>
+    <string name="update_available_message">Đã có NEWS2-L phiên bản %1$s mới hơn phiên bản đang dùng (%2$s). Vui lòng tải về và cài đặt bản mới nhất.</string>
     <string name="update_download_action">Tải về</string>
     <string name="update_later_action">Để sau</string>
-    <string name="quick_summary_empty">Nhập sinh hiệu để tổng hợp nhanh NEWS2</string>
-    <string name="quick_summary_format">NEWS2 %1$d • %2$s\n%3$s</string>
     <string name="news2_quick_hint">Nhập chỉ số thực đo, ứng dụng tự chọn điểm NEWS2 và tự gợi ý qSOFA khi đủ dữ liệu.</string>
     <string name="news2_spo2_scale2">Bệnh nhân có suy hô hấp do tăng CO₂ máu (SpO₂ Thang 2)</string>
     <string name="news2_spo2_scale2_option">Tự tính theo SpO2 Scale 2</string>
@@ -149,8 +150,8 @@
     <string name="save_assessment_missing">Cần nhập mã bệnh nhân hoặc họ tên và ít nhất một sinh hiệu NEWS2 trước khi lưu.</string>
 
     <string name="update_banner_title">Có phiên bản mới</string>
-    <string name="update_banner_message">ProCare %1$s đã sẵn sàng. Nhấn vào đây để tải và cài đặt.</string>
-    <string name="update_downloading_message">Đang tải ProCare %1$s…</string>
+    <string name="update_banner_message">NEWS2-L %1$s đã sẵn sàng. Nhấn vào đây để tải và cài đặt.</string>
+    <string name="update_downloading_message">Đang tải NEWS2-L %1$s…</string>
     <string name="update_download_starting">Đang bắt đầu tải…</string>
     <string name="update_download_progress">Đang tải: %1$d%%</string>
     <string name="update_download_complete">Tải xong. Đang mở màn hình cài đặt…</string>
@@ -160,16 +161,13 @@
     <string name="workflow_previous">Quay lại</string>
     <string name="workflow_next">Tiếp tục</string>
     <string name="workflow_reviewing">Đang ở bước cuối</string>
-    <string name="workflow_progress_format">Mục đang mở</string>
-    <string name="workflow_choose_section">Chọn nhanh mục cần nhập; có thể mở trực tiếp SOFA mà không cần đi qua các mục trước.</string>
-    <string name="workflow_current_section_format">Mục đang mở: %1$s</string>
     <string name="workflow_tab_patient">Bệnh nhân</string>
     <string name="workflow_tab_news2">NEWS2</string>
     <string name="workflow_tab_qsofa">qSOFA</string>
     <string name="workflow_tab_sofa">SOFA</string>
     <string name="workflow_tab_review">Lưu</string>
     <string name="workflow_step_patient">Nhận diện bệnh nhân</string>
-    <string name="workflow_step_patient_hint">Chỉ nhập thông tin cần cho phân loại và tìm lại hồ sơ: ID/họ tên, khoa, lý do nghi nhiễm và bệnh nền quan trọng.</string>
+    <string name="workflow_step_patient_hint">Chỉ nhập thông tin cần cho phân loại và tìm lại hồ sơ: ID/họ tên, ngày giờ nhập viện, lý do nhập viện, cơ quan nhiễm trùng và bệnh nền quan trọng.</string>
     <string name="workflow_step_news2">Sàng lọc sinh hiệu NEWS2</string>
     <string name="workflow_step_news2_hint">Chọn nhanh từng tiêu chí NEWS2; màu xanh/vàng/cam/đỏ tương ứng 0/1/2/3 điểm và kết quả hiển thị ngay bên dưới.</string>
     <string name="workflow_step_qsofa_lactate">qSOFA &amp; Lactate</string>
@@ -187,7 +185,7 @@
     <string name="assessment_status_review_title">Tổng hợp đánh giá (%1$d/%2$d)</string>
     <string name="assessment_status_review_score">NEWS2 %1$d/21 • qSOFA %2$d/3 • SOFA %3$d/24</string>
 
-    <string name="patient_list_eyebrow">PROCARE NEWS2</string>
+    <string name="patient_list_eyebrow">NEWS2-L</string>
     <string name="patient_list_title">Danh sách bệnh nhân</string>
     <string name="patient_list_subtitle">Theo dõi nhanh các phiếu NEWS2 đã lưu và tạo đánh giá mới cho bệnh nhân tại giường.</string>
     <string name="patient_list_add_new">+ Thêm đánh giá mới</string>
@@ -205,6 +203,11 @@
     <string name="patient_list_back">Danh sách</string>
     <string name="patient_list_back_assessment">Quay về danh sách bệnh nhân</string>
     <string name="patient_list_save_patient">Lưu bệnh nhân</string>
+    <string name="export_pdf">Xuất PDF</string>
+    <string name="export_docx">Xuất DOCX</string>
+    <string name="export_share_title">Chia sẻ phiếu CRF</string>
+    <string name="export_failed">Không xuất được file. Vui lòng thử lại.</string>
+    <string name="export_open_failed">Không mở được màn hình chia sẻ file.</string>
     <string name="patient_list_complete_before_save">Vui lòng chọn đủ 7 tiêu chí NEWS2 trước khi lưu.</string>
     <string name="patient_list_saved">Đã lưu bệnh nhân vào danh sách.</string>
     <string name="patient_info_quick_title">Thông tin bệnh nhân</string>

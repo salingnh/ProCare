@@ -82,7 +82,7 @@ public class GitHubReleaseChecker {
             connection.setReadTimeout(READ_TIMEOUT_MS);
             connection.setRequestMethod("GET");
             connection.setRequestProperty("Accept", "application/vnd.github+json");
-            connection.setRequestProperty("User-Agent", "ProCare-Android");
+            connection.setRequestProperty("User-Agent", "NEWS2-L-Android");
 
             int responseCode = connection.getResponseCode();
             if (responseCode < HttpURLConnection.HTTP_OK || responseCode >= HttpURLConnection.HTTP_MULT_CHOICE) {

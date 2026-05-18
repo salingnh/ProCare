@@ -142,7 +142,7 @@ jobs:
 
           RELEASE_TAG="${{ steps.release.outputs.release_tag }}"
           APK_SOURCE=$(find "$APK_OUTPUT_DIR" -name '*.apk' -print -quit)
-          APK_NAME="ProCare-${RELEASE_TAG}-signed.apk"
+          APK_NAME="NEWS2-L-${RELEASE_TAG}-signed.apk"
           APK_PATH="$RELEASE_DIR/$APK_NAME"
 
           cp "$APK_SOURCE" "$APK_PATH"
@@ -175,7 +175,7 @@ jobs:
             gh release upload "$RELEASE_TAG" "$APK_PATH" --clobber
           else
             gh release create "$RELEASE_TAG" "$APK_PATH" \
-              --title "ProCare $RELEASE_TAG" \
+              --title "NEWS2-L $RELEASE_TAG" \
               --generate-notes \
               $PRERELEASE_FLAG
           fi
