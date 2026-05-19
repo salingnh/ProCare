@@ -46,7 +46,6 @@ android {
             if (hasReleaseSigningConfig) {
                 signingConfig signingConfigs.release
             }
-            minifyEnabled false
         }
     }
 }
