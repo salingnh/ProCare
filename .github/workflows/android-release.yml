@@ -50,6 +50,9 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
@@ -68,6 +71,9 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
+          cache-key: flutter-${{ runner.os }}-${{ runner.arch }}-stable-${{ env.FLUTTER_VERSION }}
+          pub-cache: true
+          pub-cache-key: flutter-pub-${{ runner.os }}-${{ runner.arch }}-stable-${{ env.FLUTTER_VERSION }}
 
       - name: Flutter doctor
         run: flutter doctor -v
