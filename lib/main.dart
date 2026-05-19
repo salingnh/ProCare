@@ -57,6 +57,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _saving = false;
   bool _exporting = false;
   bool _downloadingUpdate = false;
+  bool _includePrereleaseUpdates = false;
   double _downloadProgress = 0;
   UpdateInfo? _availableUpdate;
 
@@ -64,7 +65,6 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _load();
-    _checkUpdate();
   }
 
   Future<void> _load() async {
@@ -83,15 +83,19 @@ class _HomeScreenState extends State<HomeScreen> {
     final draft = await _repository.loadCurrentAssessment();
     recalculateClinicalAssessment(draft);
     final history = await _repository.loadAssessmentHistory();
+    final includePrereleaseUpdates =
+        await _repository.loadIncludePrereleaseUpdates();
     if (!mounted) {
       return;
     }
     setState(() {
       _assessment = _hasAnyClinicalData(draft) ? draft : _newAssessment();
       _history = history;
+      _includePrereleaseUpdates = includePrereleaseUpdates;
       _loading = false;
       _formVersion++;
     });
+    _checkUpdate();
   }
 
   Future<void> _refreshHistory() async {
@@ -109,11 +113,55 @@ class _HomeScreenState extends State<HomeScreen> {
     if (kIsWeb) {
       return;
     }
-    final update = await _updateService.checkForUpdate();
+    final update = await _updateService.checkForUpdate(
+      includePrerelease: _includePrereleaseUpdates,
+    );
     if (!mounted || update == null) {
       return;
     }
     setState(() => _availableUpdate = update);
+  }
+
+  Future<void> _setIncludePrereleaseUpdates(bool enabled) async {
+    setState(() {
+      _includePrereleaseUpdates = enabled;
+      _availableUpdate = null;
+    });
+    await _repository.saveIncludePrereleaseUpdates(enabled);
+    await _checkUpdate();
+  }
+
+  void _showUpdateSettings() {
+    var includePrereleaseUpdates = _includePrereleaseUpdates;
+    showDialog<void>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Cài đặt app'),
+              content: SwitchListTile(
+                value: includePrereleaseUpdates,
+                onChanged: (value) {
+                  setDialogState(() => includePrereleaseUpdates = value);
+                  _setIncludePrereleaseUpdates(value);
+                },
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Cài bản prerelease'),
+                subtitle:
+                    const Text('Mặc định tắt, chỉ bật khi cần thử nghiệm'),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Đóng'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> _downloadUpdate() async {
@@ -241,6 +289,11 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: _saving ? null : _savePatient,
             icon: const Icon(Icons.save),
           ),
+          IconButton(
+            tooltip: 'Cài đặt app',
+            onPressed: _showUpdateSettings,
+            icon: const Icon(Icons.settings),
+          ),
         ],
       ),
       body: _loading
@@ -297,7 +350,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    'Có bản cập nhật NEWS2-L ${update.version}',
+                    'Có bản cập nhật NEWS2-L ${update.version}'
+                    '${update.prerelease ? ' (thử nghiệm)' : ''}',
                     style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                   if (_downloadingUpdate)

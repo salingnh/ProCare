@@ -11,33 +11,37 @@ class UpdateInfo {
   final String version;
   final String downloadUrl;
   final String releaseUrl;
+  final bool prerelease;
 
   const UpdateInfo({
     required this.version,
     required this.downloadUrl,
     required this.releaseUrl,
+    required this.prerelease,
   });
 }
 
 class UpdateService {
   static const _channel = MethodChannel('news2_l/android_update');
   static const _releaseApis = [
-    'https://api.github.com/repos/sangnvnkl/ProCare/releases/latest',
-    'https://api.github.com/repos/sangnv/ProCare/releases/latest',
+    'https://api.github.com/repos/sangnvnkl/ProCare/releases',
+    'https://api.github.com/repos/sangnv/ProCare/releases',
   ];
 
   const UpdateService();
 
-  Future<UpdateInfo?> checkForUpdate() async {
+  Future<UpdateInfo?> checkForUpdate({bool includePrerelease = false}) async {
     final packageInfo = await PackageInfo.fromPlatform();
     UpdateInfo? newest;
     for (final api in _releaseApis) {
-      final update = await _fetchLatest(api);
-      if (update == null) {
-        continue;
-      }
-      if (newest == null || _isNewerVersion(update.version, newest.version)) {
-        newest = update;
+      final updates = await _fetchReleases(
+        api,
+        includePrerelease: includePrerelease,
+      );
+      for (final update in updates) {
+        if (newest == null || _isNewerVersion(update.version, newest.version)) {
+          newest = update;
+        }
       }
     }
     if (newest == null) {
@@ -46,7 +50,8 @@ class UpdateService {
     return _isNewerVersion(newest.version, packageInfo.version) ? newest : null;
   }
 
-  Future<File> downloadApk(UpdateInfo update, void Function(double) onProgress) async {
+  Future<File> downloadApk(
+      UpdateInfo update, void Function(double) onProgress) async {
     final client = http.Client();
     try {
       final request = http.Request('GET', Uri.parse(update.downloadUrl));
@@ -80,43 +85,71 @@ class UpdateService {
     if (!Platform.isAndroid) {
       throw UnsupportedError('Self-update is only supported on Android.');
     }
-    await _channel.invokeMethod<void>('openApkInstaller', {'path': apkFile.path});
+    await _channel
+        .invokeMethod<void>('openApkInstaller', {'path': apkFile.path});
   }
 
-  Future<UpdateInfo?> _fetchLatest(String apiUrl) async {
+  Future<List<UpdateInfo>> _fetchReleases(
+    String apiUrl, {
+    required bool includePrerelease,
+  }) async {
     try {
-      final response = await http
-          .get(
-            Uri.parse(apiUrl),
-            headers: const {
-              'Accept': 'application/vnd.github+json',
-              'User-Agent': 'NEWS2-L-Flutter',
-            },
-          )
-          .timeout(const Duration(seconds: 10));
+      final response = await http.get(
+        Uri.parse('$apiUrl?per_page=30'),
+        headers: const {
+          'Accept': 'application/vnd.github+json',
+          'User-Agent': 'NEWS2-L-Flutter',
+        },
+      ).timeout(const Duration(seconds: 10));
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        return null;
+        return const [];
       }
-      final json = jsonDecode(response.body) as Map<String, dynamic>;
-      final version = _extractVersion(
-        (json['tag_name'] ?? json['name'] ?? '').toString(),
-      );
-      if (version.isEmpty) {
-        return null;
+      final releases = jsonDecode(response.body);
+      if (releases is! List) {
+        return const [];
       }
-      final releaseUrl = (json['html_url'] ?? '').toString();
-      final downloadUrl = _findApkAssetUrl(json['assets']);
-      if (downloadUrl == null) {
-        return null;
+      final updates = <UpdateInfo>[];
+      for (final release in releases) {
+        if (release is! Map<String, dynamic>) {
+          continue;
+        }
+        final draft = release['draft'] == true;
+        final prerelease = release['prerelease'] == true;
+        if (draft || (prerelease && !includePrerelease)) {
+          continue;
+        }
+        final update = _parseRelease(release, prerelease: prerelease);
+        if (update != null) {
+          updates.add(update);
+        }
       }
-      return UpdateInfo(
-        version: version,
-        downloadUrl: downloadUrl,
-        releaseUrl: releaseUrl,
-      );
+      return updates;
     } catch (_) {
+      return const [];
+    }
+  }
+
+  UpdateInfo? _parseRelease(
+    Map<String, dynamic> json, {
+    required bool prerelease,
+  }) {
+    final version = _extractVersion(
+      (json['tag_name'] ?? json['name'] ?? '').toString(),
+    );
+    if (version.isEmpty) {
       return null;
     }
+    final releaseUrl = (json['html_url'] ?? '').toString();
+    final downloadUrl = _findApkAssetUrl(json['assets']);
+    if (downloadUrl == null) {
+      return null;
+    }
+    return UpdateInfo(
+      version: version,
+      downloadUrl: downloadUrl,
+      releaseUrl: releaseUrl,
+      prerelease: prerelease,
+    );
   }
 
   String? _findApkAssetUrl(Object? assets) {
@@ -128,7 +161,8 @@ class UpdateService {
         continue;
       }
       final name = (asset['name'] ?? '').toString().toLowerCase();
-      final contentType = (asset['content_type'] ?? '').toString().toLowerCase();
+      final contentType =
+          (asset['content_type'] ?? '').toString().toLowerCase();
       if (name.endsWith('.apk') ||
           contentType == 'application/vnd.android.package-archive') {
         final downloadUrl = (asset['browser_download_url'] ?? '').toString();

@@ -8,12 +8,12 @@ on:
     inputs:
       tag_name:
         description: 'Release tag to create or update, for example v1.0.0. If empty, uses manual-<run_number>.'
-        required: false
+        required: true
         type: string
       prerelease:
         description: 'Mark the GitHub Release as a pre-release.'
         required: false
-        default: false
+        default: true
         type: boolean
 
 permissions:
@@ -192,12 +192,15 @@ jobs:
         run: |
           set -euo pipefail
 
+          IS_PRERELEASE="false"
           PRERELEASE_FLAG=""
           if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" && "${{ inputs.prerelease }}" == "true" ]]; then
+            IS_PRERELEASE="true"
             PRERELEASE_FLAG="--prerelease"
           fi
 
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release edit "$RELEASE_TAG" --prerelease="$IS_PRERELEASE"
             gh release upload "$RELEASE_TAG" "$APK_PATH" --clobber
           else
             gh release create "$RELEASE_TAG" "$APK_PATH" \
