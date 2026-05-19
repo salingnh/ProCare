@@ -231,7 +231,9 @@ class SofaScoring {
   }
 
   static bool hasSepticShock(ClinicalAssessment assessment) {
-    return assessment.vasopressor && lactateAtLeastTwo(assessment);
+    return assessment.vasopressor &&
+        mapAtLeastSixtyFive(assessment) &&
+        lactateAtLeastTwo(assessment);
   }
 
   static bool lactateAtLeastTwo(ClinicalAssessment assessment) {
@@ -240,6 +242,15 @@ class SofaScoring {
     }
     final lactate = ClinicalValueParser.parseDouble(assessment.lactate);
     return lactate != null && lactate >= 2.0;
+  }
+
+  static bool mapAtLeastSixtyFive(ClinicalAssessment assessment) {
+    final value = assessment.sofaCardiovascularMeasured.trim();
+    if (!ClinicalValueParser.hasText(value)) {
+      return false;
+    }
+    final map = ClinicalValueParser.parseDouble(value);
+    return map != null && map >= 65.0;
   }
 
   static int scoreRespiration(String value, int fallback) {

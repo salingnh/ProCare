@@ -4,6 +4,11 @@ Email: sangnvnkl@gmail.com
 
 Ứng dụng NEWS2-L: Đánh giá tình trạng sức khỏe cho bệnh nhân.
 
+## Tài liệu lâm sàng
+
+Xem tài liệu chi tiết về NEWS2, qSOFA, SOFA, quan hệ dữ kiện và quy tắc cảnh báo
+khi thiếu chỉ số tại [docs/clinical-documentation.md](docs/clinical-documentation.md).
+
 ## Kiến trúc hiện tại
 
 Ứng dụng hiện dùng Flutter/Dart làm codebase chính. Thư mục `android/`

@@ -109,6 +109,7 @@ void main() {
     );
 
     assessment.vasopressor = true;
+    assessment.sofaCardiovascularMeasured = 'MAP 65';
     assessment.lactateLevel = '≥ 2 mmol/L';
     recalculateClinicalAssessment(assessment);
     expect(assessment.sepsisDiagnosis, 'Sốc nhiễm khuẩn');
@@ -179,6 +180,7 @@ void main() {
     final assessment = ClinicalAssessment(
       lactate: '4.2',
       vasopressor: true,
+      sofaCardiovascularMeasured: 'MAP 66',
       sofaNeurologicMeasured: '13',
     );
 
@@ -186,6 +188,28 @@ void main() {
 
     expect(assessment.sofaNeurologic, 1);
     expect(assessment.sepsisDiagnosis, 'Sốc nhiễm khuẩn');
+  });
+
+  test('septic shock requires vasopressor, MAP at least 65, and lactate >= 2',
+      () {
+    final assessment = ClinicalAssessment(
+      lactate: '2.1',
+      vasopressor: true,
+      sofaCardiovascularMeasured: 'MAP 64',
+    );
+    recalculateClinicalAssessment(assessment);
+    expect(SofaScoring.hasSepticShock(assessment), isFalse);
+    expect(assessment.sepsisDiagnosis, isNot('Sốc nhiễm khuẩn'));
+
+    assessment.sofaCardiovascularMeasured = 'MAP 65';
+    recalculateClinicalAssessment(assessment);
+    expect(SofaScoring.hasSepticShock(assessment), isTrue);
+    expect(assessment.sepsisDiagnosis, 'Sốc nhiễm khuẩn');
+
+    assessment.lactate = '1.9';
+    assessment.lactateLevel = '';
+    recalculateClinicalAssessment(assessment);
+    expect(SofaScoring.hasSepticShock(assessment), isFalse);
   });
 
   test('NEWS2 scores reset when measured inputs are cleared', () {
@@ -219,7 +243,7 @@ void main() {
     final assessment = ClinicalAssessment(
       lactate: '4.2',
       vasopressor: true,
-      sofaCardiovascularMeasured: 'noradrenaline 0.2',
+      sofaCardiovascularMeasured: 'MAP 70 noradrenaline 0.2',
       sofaNeurologicMeasured: '9',
       sofaRenalMeasured: '5.0',
     );

@@ -151,6 +151,7 @@ CREATE TABLE clinical_assessments (
       }
       saved.modifiedAtMillis = now;
       saved.savedAtMillis = now;
+      _copyTimestamps(saved, assessment);
       final id = _webNextId++;
       _webHistory.insert(0, SavedAssessment(id: id, assessment: saved));
       return id;
@@ -174,9 +175,69 @@ CREATE TABLE clinical_assessments (
     });
   }
 
+  Future<int> saveAssessmentHistory(
+    ClinicalAssessment assessment, {
+    int? id,
+  }) async {
+    if (id == null) {
+      return appendAssessmentHistory(assessment);
+    }
+    if (kIsWeb) {
+      final index = _webHistory.indexWhere((saved) => saved.id == id);
+      if (index < 0) {
+        return appendAssessmentHistory(assessment);
+      }
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final saved = assessment.clone();
+      if (saved.createdAtMillis <= 0) {
+        saved.createdAtMillis =
+            _webHistory[index].assessment.createdAtMillis > 0
+                ? _webHistory[index].assessment.createdAtMillis
+                : now;
+      }
+      saved.modifiedAtMillis = now;
+      saved.savedAtMillis = now;
+      _copyTimestamps(saved, assessment);
+      _webHistory[index] = SavedAssessment(id: id, assessment: saved);
+      return id;
+    }
+    final db = await _db;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (assessment.createdAtMillis <= 0) {
+      final rows = await db.query(
+        'clinical_assessments',
+        columns: ['created_at_millis'],
+        where: 'id = ?',
+        whereArgs: [id],
+        limit: 1,
+      );
+      assessment.createdAtMillis =
+          rows.isNotEmpty ? rows.first['created_at_millis'] as int : now;
+    }
+    assessment.modifiedAtMillis = now;
+    assessment.savedAtMillis = now;
+    final updated = await db.update(
+      'clinical_assessments',
+      {
+        'patient_id': assessment.patientId.trim(),
+        'full_name': assessment.fullName.trim(),
+        'saved_at_millis': assessment.savedAtMillis,
+        'modified_at_millis': assessment.modifiedAtMillis,
+        'created_at_millis': assessment.createdAtMillis,
+        'payload': jsonEncode(assessment.toJson()),
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    if (updated == 0) {
+      return appendAssessmentHistory(assessment);
+    }
+    return id;
+  }
+
   Future<List<SavedAssessment>> loadAssessmentHistory({
     String query = '',
-    PatientSortMode sortMode = PatientSortMode.newest,
+    PatientSortMode sortMode = PatientSortMode.updatedAt,
   }) async {
     if (kIsWeb) {
       final normalizedQuery = query.trim().toLowerCase();
@@ -200,17 +261,13 @@ CREATE TABLE clinical_assessments (
           PatientSortMode.name => _compareTextThenNewest(
               left.fullName,
               right.fullName,
-              left.savedAtMillis,
-              right.savedAtMillis,
+              left.modifiedAtMillis,
+              right.modifiedAtMillis,
             ),
-          PatientSortMode.patientId => _compareTextThenNewest(
-              left.patientId,
-              right.patientId,
-              left.savedAtMillis,
-              right.savedAtMillis,
-            ),
-          PatientSortMode.newest =>
-            right.savedAtMillis.compareTo(left.savedAtMillis),
+          PatientSortMode.createdAt =>
+            right.createdAtMillis.compareTo(left.createdAtMillis),
+          PatientSortMode.updatedAt =>
+            right.modifiedAtMillis.compareTo(left.modifiedAtMillis),
         };
       });
       return rows;
@@ -223,10 +280,9 @@ CREATE TABLE clinical_assessments (
         trimmedQuery.isEmpty ? null : ['%$trimmedQuery%', '%$trimmedQuery%'];
     final orderBy = switch (sortMode) {
       PatientSortMode.name =>
-        'full_name COLLATE NOCASE ASC, saved_at_millis DESC',
-      PatientSortMode.patientId =>
-        'patient_id COLLATE NOCASE ASC, saved_at_millis DESC',
-      PatientSortMode.newest => 'saved_at_millis DESC',
+        'full_name COLLATE NOCASE ASC, modified_at_millis DESC',
+      PatientSortMode.createdAt => 'created_at_millis DESC',
+      PatientSortMode.updatedAt => 'modified_at_millis DESC',
     };
     final rows = await db.query(
       'clinical_assessments',
@@ -270,10 +326,19 @@ CREATE TABLE clinical_assessments (
     }
     return rightSavedAt.compareTo(leftSavedAt);
   }
+
+  static void _copyTimestamps(
+    ClinicalAssessment source,
+    ClinicalAssessment target,
+  ) {
+    target.createdAtMillis = source.createdAtMillis;
+    target.modifiedAtMillis = source.modifiedAtMillis;
+    target.savedAtMillis = source.savedAtMillis;
+  }
 }
 
 enum PatientSortMode {
-  newest,
   name,
-  patientId,
+  createdAt,
+  updatedAt,
 }
