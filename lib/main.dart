@@ -7,12 +7,14 @@ import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'src/data/assessment_repository.dart';
+import 'src/domain/assessment_display.dart';
 import 'src/domain/clinical_assessment.dart';
 import 'src/domain/clinical_value_parser.dart';
 import 'src/domain/scale_guidance_config.dart';
 import 'src/domain/scoring.dart';
 import 'src/export/crf_exporter.dart';
 import 'src/services/update_service.dart';
+import 'src/ui/clinical_components.dart' as clinical_ui;
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -133,10 +135,18 @@ enum _HomeMode {
   form,
 }
 
-enum _PatientExpandedScale {
-  news2,
-  qsofa,
-  sofa,
+enum _PatientFilter {
+  all,
+  incomplete,
+  highRisk,
+  septicShock,
+}
+
+enum _SaveState {
+  clean,
+  dirty,
+  saving,
+  error,
 }
 
 class _HomeScreenState extends State<HomeScreen> {
@@ -157,16 +167,25 @@ class _HomeScreenState extends State<HomeScreen> {
   final _exporter = const CrfExporter();
   final _updateService = const UpdateService();
   ScrollController? _patientScrollController;
+  final ScrollController _formScrollController = ScrollController();
 
   ClinicalAssessment _assessment = _newAssessment();
   List<SavedAssessment> _history = [];
-  final Map<int, _PatientExpandedScale> _expandedPatientScales = {};
+  final Map<String, GlobalKey> _sectionKeys = {};
+  final Map<String, GlobalKey> _fieldKeys = {};
+  final Map<String, FocusNode> _fieldFocusNodes = {};
+  final Set<String> _expandedSections = {};
   PatientSortMode _sortMode = PatientSortMode.updatedAt;
+  _PatientFilter _patientFilter = _PatientFilter.all;
   String _searchQuery = '';
   int? _openedSavedAssessmentId;
   _HomeMode _homeMode = _HomeMode.list;
   ClinicalAssessment? _formBaseline;
   int _formVersion = 0;
+  _SaveState _saveState = _SaveState.clean;
+  Timer? _autoSaveTimer;
+  int _lastSavedAtMillis = 0;
+  String? _saveError;
   bool _loading = true;
   bool _saving = false;
   bool _formDirty = false;
@@ -194,8 +213,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    _autoSaveTimer?.cancel();
     _patientScrollBubbleTimer?.cancel();
     _patientScrollController?.dispose();
+    _formScrollController.dispose();
+    for (final node in _fieldFocusNodes.values) {
+      node.dispose();
+    }
     super.dispose();
   }
 
@@ -210,6 +234,9 @@ class _HomeScreenState extends State<HomeScreen> {
         _history = [];
         _homeMode = _HomeMode.list;
         _formDirty = false;
+        _saveState = _SaveState.clean;
+        _lastSavedAtMillis = 0;
+        _saveError = null;
         _loading = false;
         _formVersion++;
       });
@@ -235,6 +262,9 @@ class _HomeScreenState extends State<HomeScreen> {
       _formBaseline = activeAssessment.clone();
       _homeMode = _HomeMode.list;
       _formDirty = false;
+      _saveState = _SaveState.clean;
+      _lastSavedAtMillis = activeAssessment.savedAtMillis;
+      _saveError = null;
       _includePrereleaseUpdates = includePrereleaseUpdates;
       _loading = false;
       _formVersion++;
@@ -250,12 +280,8 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) {
       return;
     }
-    final visibleIds = history.map((saved) => saved.id).toSet();
     setState(() {
       _history = history;
-      _expandedPatientScales.removeWhere(
-        (id, _) => !visibleIds.contains(id),
-      );
     });
   }
 
@@ -347,13 +373,28 @@ class _HomeScreenState extends State<HomeScreen> {
       _assessment.admissionDateTime = _buildAdmissionDateTime(_assessment);
       _assessment.modifiedAtMillis = DateTime.now().millisecondsSinceEpoch;
       _formDirty = true;
+      _saveState = _SaveState.dirty;
+      _saveError = null;
       recalculateClinicalAssessment(_assessment);
     });
     _repository.saveCurrentAssessment(_assessment);
+    _scheduleAutoSave();
   }
 
   Future<void> _savePatient() async {
     if (_saving) {
+      return;
+    }
+    _autoSaveTimer?.cancel();
+    if (!_hasMeaningfulHistoryData(_assessment)) {
+      await _repository.saveCurrentAssessment(_assessment);
+      if (mounted) {
+        setState(() {
+          _formDirty = false;
+          _saveState = _SaveState.clean;
+        });
+        _showMessage('Chưa có dữ liệu để lưu phiếu.');
+      }
       return;
     }
     setState(() => _saving = true);
@@ -373,6 +414,9 @@ class _HomeScreenState extends State<HomeScreen> {
         _openedSavedAssessmentId = savedId;
         _formBaseline = _assessment.clone();
         _formDirty = false;
+        _saveState = _SaveState.clean;
+        _lastSavedAtMillis = _assessment.savedAtMillis;
+        _saveError = null;
         _homeMode = _HomeMode.list;
       });
       _showMessage(
@@ -380,6 +424,60 @@ class _HomeScreenState extends State<HomeScreen> {
             ? 'Đã cập nhật bệnh nhân.'
             : 'Đã lưu bệnh nhân.',
       );
+    } finally {
+      if (mounted) {
+        setState(() => _saving = false);
+      }
+    }
+  }
+
+  void _scheduleAutoSave() {
+    _autoSaveTimer?.cancel();
+    _autoSaveTimer = Timer(
+      const Duration(milliseconds: 800),
+      () => _autoSaveAssessment(),
+    );
+  }
+
+  Future<void> _autoSaveAssessment() async {
+    if (_saving || _homeMode != _HomeMode.form || !_formDirty) {
+      return;
+    }
+    if (!_hasMeaningfulHistoryData(_assessment)) {
+      await _repository.saveCurrentAssessment(_assessment);
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _saveState = _SaveState.saving;
+      _saveError = null;
+    });
+    try {
+      recalculateClinicalAssessment(_assessment);
+      final savedId = await _repository.saveAssessmentHistory(
+        _assessment,
+        id: _openedSavedAssessmentId,
+      );
+      await _repository.saveCurrentAssessment(_assessment);
+      await _refreshHistory();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _openedSavedAssessmentId = savedId;
+        _formBaseline = _assessment.clone();
+        _formDirty = false;
+        _saveState = _SaveState.clean;
+        _lastSavedAtMillis = _assessment.savedAtMillis;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _saveState = _SaveState.error;
+        _saveError = error.toString();
+      });
     } finally {
       if (mounted) {
         setState(() => _saving = false);
@@ -399,10 +497,12 @@ class _HomeScreenState extends State<HomeScreen> {
       final assessment = source.clone();
       recalculateClinicalAssessment(assessment);
       final file = await _exporter.export(assessment, format);
-      await Share.shareXFiles(
-        [XFile(file.path, mimeType: format.mimeType)],
-        subject: 'NEWS2-L CRF',
-        text: file.uri.pathSegments.last,
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(file.path, mimeType: format.mimeType)],
+          subject: 'NEWS2-L CRF',
+          text: file.uri.pathSegments.last,
+        ),
       );
     } catch (_) {
       if (mounted) {
@@ -423,7 +523,13 @@ class _HomeScreenState extends State<HomeScreen> {
       _openedSavedAssessmentId = saved.id;
       _formBaseline = assessment.clone();
       _formDirty = false;
+      _saveState = _SaveState.clean;
+      _lastSavedAtMillis = assessment.savedAtMillis;
+      _saveError = null;
       _homeMode = _HomeMode.form;
+      _expandedSections
+        ..clear()
+        ..add(_defaultOpenSection(assessment));
       _formVersion++;
     });
     _repository.saveCurrentAssessment(assessment);
@@ -436,7 +542,13 @@ class _HomeScreenState extends State<HomeScreen> {
       _openedSavedAssessmentId = null;
       _formBaseline = assessment.clone();
       _formDirty = false;
+      _saveState = _SaveState.clean;
+      _lastSavedAtMillis = 0;
+      _saveError = null;
       _homeMode = _HomeMode.form;
+      _expandedSections
+        ..clear()
+        ..add(_defaultOpenSection(assessment));
       _formVersion++;
     });
     _repository.saveCurrentAssessment(assessment);
@@ -446,7 +558,16 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_homeMode != _HomeMode.form) {
       return;
     }
-    if (_formDirty) {
+    _autoSaveTimer?.cancel();
+    if (_formDirty && _saveState != _SaveState.error) {
+      await _autoSaveAssessment();
+    }
+    if (_saveState == _SaveState.error) {
+      final leave = await _confirmLeaveAfterSaveError();
+      if (!leave || !mounted) {
+        return;
+      }
+    } else if (_formDirty) {
       final discardChanges = await _confirmDiscardChanges();
       if (!discardChanges || !mounted) {
         return;
@@ -462,11 +583,39 @@ class _HomeScreenState extends State<HomeScreen> {
         _formVersion++;
       }
       _formDirty = false;
+      _saveState = _SaveState.clean;
       _homeMode = _HomeMode.list;
     });
     if (baseline != null) {
       await _repository.saveCurrentAssessment(baseline);
     }
+  }
+
+  Future<bool> _confirmLeaveAfterSaveError() async {
+    final leave = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Lỗi lưu phiếu'),
+          content: Text(
+            _saveError == null
+                ? 'Phiếu chưa được lưu thành công. Bạn vẫn muốn rời màn hình?'
+                : 'Phiếu chưa được lưu thành công. Chi tiết: $_saveError',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Ở lại'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Rời màn hình'),
+            ),
+          ],
+        );
+      },
+    );
+    return leave ?? false;
   }
 
   Future<bool> _confirmDiscardChanges() async {
@@ -531,7 +680,7 @@ class _HomeScreenState extends State<HomeScreen> {
             : Column(
                 children: [
                   if (_availableUpdate != null) _buildUpdateBanner(),
-                  if (isForm) _scoreSummary(_assessment),
+                  if (isForm) _clinicalDashboard(_assessment),
                   Expanded(
                     child: isForm
                         ? KeyedSubtree(
@@ -603,6 +752,10 @@ class _HomeScreenState extends State<HomeScreen> {
     if (width >= 520) {
       return [
         Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: Center(child: _saveStatusIndicator()),
+        ),
+        Padding(
           padding: const EdgeInsets.only(right: 4),
           child: FilledButton.icon(
             onPressed: _saving ? null : _savePatient,
@@ -615,6 +768,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ];
     }
     return [
+      Center(child: _saveStatusIndicator(compact: true)),
       IconButton.filledTonal(
         tooltip: 'Lưu bệnh nhân',
         onPressed: _saving ? null : _savePatient,
@@ -623,6 +777,27 @@ class _HomeScreenState extends State<HomeScreen> {
       _formExportMenu(),
       const SizedBox(width: 4),
     ];
+  }
+
+  Widget _saveStatusIndicator({bool compact = false}) {
+    final label = switch (_saveState) {
+      _SaveState.clean => _lastSavedAtMillis > 0
+          ? 'Đã lưu ${_formatClock(_lastSavedAtMillis)}'
+          : 'Đã lưu nháp',
+      _SaveState.dirty => 'Chưa lưu',
+      _SaveState.saving => 'Đang lưu...',
+      _SaveState.error => 'Lỗi lưu',
+    };
+    final status = switch (_saveState) {
+      _SaveState.clean => ClinicalStatus.normal,
+      _SaveState.dirty => ClinicalStatus.watch,
+      _SaveState.saving => ClinicalStatus.watch,
+      _SaveState.error => ClinicalStatus.danger,
+    };
+    return Padding(
+      padding: EdgeInsets.only(right: compact ? 4 : 0),
+      child: clinical_ui.SaveStatusIndicator(label: label, status: status),
+    );
   }
 
   Widget _formExportMenu() {
@@ -702,27 +877,32 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (context, constraints) {
         final twoColumns = constraints.maxWidth >= 720;
         return ListView(
+          controller: _formScrollController,
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
           children: [
             _section(
               'Thông tin bệnh nhân',
+              sectionId: AssessmentSections.patient,
+              progress: _patientProgress(assessment),
               twoColumns: twoColumns,
               children: [
                 _field('Mã bệnh nhân', assessment.patientId, (value) {
                   assessment.patientId = value;
-                }),
+                }, fieldId: AssessmentFields.patientId),
                 _field('Họ và tên', assessment.fullName, (value) {
                   assessment.fullName = value;
-                }),
+                }, fieldId: AssessmentFields.fullName),
                 _field('Ngày nhập viện', assessment.admissionDate, (value) {
                   assessment.admissionDate = value;
                 },
+                    fieldId: AssessmentFields.admissionDate,
                     hint: 'yyyy-MM-dd',
                     keyboardType: TextInputType.datetime,
                     inputFormatters: _dateInputFormatters),
                 _field('Giờ nhập viện', assessment.admissionTime, (value) {
                   assessment.admissionTime = value;
                 },
+                    fieldId: AssessmentFields.admissionTime,
                     hint: 'HH:mm',
                     keyboardType: TextInputType.datetime,
                     inputFormatters: _timeInputFormatters),
@@ -747,7 +927,9 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
             _section(
-              '1. NEWS2 và qSOFA - sàng lọc sinh hiệu ban đầu',
+              '2. Sinh hiệu NEWS2',
+              sectionId: AssessmentSections.news2,
+              progress: AssessmentDisplay.news2Progress(assessment),
               twoColumns: twoColumns,
               children: [
                 _field(
@@ -755,12 +937,34 @@ class _HomeScreenState extends State<HomeScreen> {
                     (value) {
                   assessment.news2RespirationMeasured = value;
                 },
+                    fieldId: AssessmentFields.respiration,
+                    scoreText: _scoreText(
+                      assessment.news2RespirationMeasured,
+                      'Điểm NEWS2: ${assessment.news2Respiration}',
+                    ),
+                    warningText: _rangeWarning(
+                      assessment.news2RespirationMeasured,
+                      min: 4,
+                      max: 40,
+                      label: 'Nhịp thở',
+                    ),
                     keyboardType: TextInputType.number,
                     inputFormatters: _integerInputFormatters),
                 _field('Huyết áp tâm thu (mmHg)',
                     assessment.news2SystolicBpMeasured, (value) {
                   assessment.news2SystolicBpMeasured = value;
                 },
+                    fieldId: AssessmentFields.systolicBp,
+                    scoreText: _scoreText(
+                      assessment.news2SystolicBpMeasured,
+                      'Điểm NEWS2: ${assessment.news2SystolicBp}',
+                    ),
+                    warningText: _rangeWarning(
+                      assessment.news2SystolicBpMeasured,
+                      min: 60,
+                      max: 240,
+                      label: 'Huyết áp tâm thu',
+                    ),
                     keyboardType: TextInputType.number,
                     inputFormatters: _integerInputFormatters),
                 DropdownButtonFormField<String>(
@@ -801,6 +1005,17 @@ class _HomeScreenState extends State<HomeScreen> {
                 _field('SpO2 (%)', assessment.news2Spo2Measured, (value) {
                   assessment.news2Spo2Measured = value;
                 },
+                    fieldId: AssessmentFields.spo2,
+                    scoreText: _scoreText(
+                      assessment.news2Spo2Measured,
+                      'Điểm NEWS2: ${assessment.news2Spo2}',
+                    ),
+                    warningText: _rangeWarning(
+                      assessment.news2Spo2Measured,
+                      min: 50,
+                      max: 100,
+                      label: 'SpO2',
+                    ),
                     keyboardType: TextInputType.number,
                     inputFormatters: _integerInputFormatters),
                 _toggleTile(
@@ -819,6 +1034,17 @@ class _HomeScreenState extends State<HomeScreen> {
                     (value) {
                   assessment.news2TemperatureMeasured = value;
                 },
+                    fieldId: AssessmentFields.temperature,
+                    scoreText: _scoreText(
+                      assessment.news2TemperatureMeasured,
+                      'Điểm NEWS2: ${assessment.news2Temperature}',
+                    ),
+                    warningText: _rangeWarning(
+                      assessment.news2TemperatureMeasured,
+                      min: 30,
+                      max: 43,
+                      label: 'Nhiệt độ',
+                    ),
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
                     inputFormatters: _decimalInputFormatters),
@@ -826,6 +1052,17 @@ class _HomeScreenState extends State<HomeScreen> {
                     (value) {
                   assessment.news2HeartRateMeasured = value;
                 },
+                    fieldId: AssessmentFields.heartRate,
+                    scoreText: _scoreText(
+                      assessment.news2HeartRateMeasured,
+                      'Điểm NEWS2: ${assessment.news2HeartRate}',
+                    ),
+                    warningText: _rangeWarning(
+                      assessment.news2HeartRateMeasured,
+                      min: 30,
+                      max: 220,
+                      label: 'Nhịp tim',
+                    ),
                     keyboardType: TextInputType.number,
                     inputFormatters: _integerInputFormatters),
                 _fullWidth(
@@ -892,7 +1129,9 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
             _section(
-              '2. Lactate và huyết động - phát hiện sốc nhiễm khuẩn',
+              '3. Lactate & huyết động',
+              sectionId: AssessmentSections.lactate,
+              progress: AssessmentDisplay.lactateProgress(assessment),
               twoColumns: twoColumns,
               children: [
                 _field('Lactate tĩnh mạch (mmol/L)', assessment.lactate,
@@ -900,6 +1139,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   assessment.lactate = value;
                   assessment.lactateLevel = _lactateLevel(value);
                 },
+                    fieldId: AssessmentFields.lactate,
+                    warningText: _lactateWarning(assessment.lactate),
                     hint: 'VD: 2.1',
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
@@ -909,13 +1150,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     (value) {
                   assessment.lactateSampleTime = value;
                 },
+                    fieldId: AssessmentFields.lactateSampleTime,
                     hint: 'HH:mm',
                     keyboardType: TextInputType.datetime,
                     inputFormatters: _timeInputFormatters),
                 _readOnlyLine(
                   'Phân mức Lactate',
                   assessment.lactateLevel.isEmpty
-                      ? 'Chưa có'
+                      ? 'Chưa nhập lactate'
                       : assessment.lactateLevel,
                   tone: ClinicalValueParser.hasText(assessment.lactate)
                       ? null
@@ -924,7 +1166,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 _field('Tim mạch - MAP/Vận mạch (mmHg; thuốc/liều)',
                     assessment.sofaCardiovascularMeasured, (value) {
                   assessment.sofaCardiovascularMeasured = value;
-                }, hint: 'VD: MAP 65 hoặc norepi 0.2'),
+                },
+                    fieldId: AssessmentFields.cardiovascular,
+                    scoreText: _scoreText(
+                      assessment.sofaCardiovascularMeasured,
+                      'Điểm SOFA tim mạch: ${assessment.sofaCardiovascular}',
+                    ),
+                    hint: 'VD: MAP 65 hoặc norepi 0.2'),
                 _toggleTile(
                   'Có dùng vận mạch',
                   assessment.vasopressor,
@@ -933,7 +1181,9 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
             _section(
-              '3. SOFA - xác định rối loạn cơ quan trong 24 giờ',
+              '4. SOFA 24 giờ',
+              sectionId: AssessmentSections.sofa,
+              progress: AssessmentDisplay.sofaProgress(assessment),
               twoColumns: twoColumns,
               children: [
                 _fullWidth(
@@ -941,7 +1191,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     'Ngưỡng Sepsis-3',
                     _sofaComplete(assessment)
                         ? sofaThresholdText(assessment)
-                        : 'Cần nhập đủ 6 hệ cơ quan để hoàn tất SOFA',
+                        : _missingSentence(
+                            AssessmentDisplay.sofaProgress(assessment),
+                          ),
                     tone: _sofaThresholdTone(assessment),
                   ),
                 ),
@@ -956,11 +1208,22 @@ class _HomeScreenState extends State<HomeScreen> {
                 _field('Hô hấp - PaO2/FiO2 (mmHg)',
                     assessment.sofaRespirationMeasured, (value) {
                   assessment.sofaRespirationMeasured = value;
-                }, hint: 'VD: 180 hoặc 180 thở máy'),
+                },
+                    fieldId: AssessmentFields.sofaRespiration,
+                    scoreText: _scoreText(
+                      assessment.sofaRespirationMeasured,
+                      'Điểm SOFA hô hấp: ${assessment.sofaRespiration}',
+                    ),
+                    hint: 'VD: 180 hoặc 180 thở máy'),
                 _field('Đông máu - Tiểu cầu (10³/µL)',
                     assessment.sofaCoagulationMeasured, (value) {
                   assessment.sofaCoagulationMeasured = value;
                 },
+                    fieldId: AssessmentFields.sofaCoagulation,
+                    scoreText: _scoreText(
+                      assessment.sofaCoagulationMeasured,
+                      'Điểm SOFA đông máu: ${assessment.sofaCoagulation}',
+                    ),
                     hint: 'VD: 120',
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
@@ -968,18 +1231,59 @@ class _HomeScreenState extends State<HomeScreen> {
                 _field('Gan - Bilirubin (mg/dL hoặc µmol/L)',
                     assessment.sofaLiverMeasured, (value) {
                   assessment.sofaLiverMeasured = value;
-                }, hint: 'VD: 2.0 mg/dL hoặc 34 µmol/L'),
+                },
+                    fieldId: AssessmentFields.sofaLiver,
+                    scoreText: _scoreText(
+                      assessment.sofaLiverMeasured,
+                      'Điểm SOFA gan: ${assessment.sofaLiver}',
+                    ),
+                    hint: 'VD: 2.0 mg/dL hoặc 34 µmol/L'),
+                _unitSwitcher(
+                  label: 'Đơn vị bilirubin',
+                  value: assessment.sofaLiverMeasured,
+                  units: const ['mg/dL', 'µmol/L'],
+                  onChanged: (value) {
+                    assessment.sofaLiverMeasured = _replaceTrailingUnit(
+                        assessment.sofaLiverMeasured, value);
+                  },
+                ),
                 _field(
                     'Thần kinh - GCS (điểm)', assessment.sofaNeurologicMeasured,
                     (value) {
                   assessment.sofaNeurologicMeasured = value;
                 },
+                    fieldId: AssessmentFields.sofaNeurologic,
+                    scoreText: _scoreText(
+                      assessment.sofaNeurologicMeasured,
+                      'Điểm SOFA thần kinh: ${assessment.sofaNeurologic}',
+                    ),
+                    warningText: _rangeWarning(
+                      assessment.sofaNeurologicMeasured,
+                      min: 3,
+                      max: 15,
+                      label: 'GCS',
+                    ),
                     keyboardType: TextInputType.number,
                     inputFormatters: _integerInputFormatters),
                 _field('Thận - Creatinin/nước tiểu (mg/dL, µmol/L, mL/ngày)',
                     assessment.sofaRenalMeasured, (value) {
                   assessment.sofaRenalMeasured = value;
-                }, hint: 'VD: creatinin 2.0 mg/dL, nước tiểu 400 mL'),
+                },
+                    fieldId: AssessmentFields.sofaRenal,
+                    scoreText: _scoreText(
+                      assessment.sofaRenalMeasured,
+                      'Điểm SOFA thận: ${assessment.sofaRenal}',
+                    ),
+                    hint: 'VD: creatinin 2.0 mg/dL, nước tiểu 400 mL'),
+                _unitSwitcher(
+                  label: 'Đơn vị creatinine',
+                  value: assessment.sofaRenalMeasured,
+                  units: const ['mg/dL', 'µmol/L'],
+                  onChanged: (value) {
+                    assessment.sofaRenalMeasured = _replaceTrailingUnit(
+                        assessment.sofaRenalMeasured, value);
+                  },
+                ),
                 _fullWidth(
                   _miniScores([
                     _ScoreItem(
@@ -1027,7 +1331,9 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
             _section(
-              'Kết cục',
+              '5. Chẩn đoán & kết cục',
+              sectionId: AssessmentSections.diagnosis,
+              progress: _diagnosisProgress(assessment),
               twoColumns: twoColumns,
               children: [
                 _fullWidth(_sepsisDiagnosisOptions(assessment)),
@@ -1066,8 +1372,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildPatientList() {
-    final theme = Theme.of(context);
-    final patients = List<SavedAssessment>.of(_history);
+    final patients = _filteredPatients(_history);
     return Column(
       children: [
         Padding(
@@ -1096,14 +1401,33 @@ class _HomeScreenState extends State<HomeScreen> {
                       alignment: Alignment.centerLeft,
                       child: sortControl,
                     ),
+                    const SizedBox(height: 10),
+                    _patientFilterChips(),
+                    const SizedBox(height: 10),
+                    _patientSummaryStrip(_history),
                   ],
                 );
               }
-              return Row(
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Expanded(child: searchField),
-                  const SizedBox(width: 12),
-                  sortControl,
+                  Row(
+                    children: [
+                      Expanded(child: searchField),
+                      const SizedBox(width: 12),
+                      sortControl,
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    runSpacing: 8,
+                    children: [
+                      _patientFilterChips(),
+                      _patientSummaryStrip(_history),
+                    ],
+                  ),
                 ],
               );
             },
@@ -1111,7 +1435,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         Expanded(
           child: patients.isEmpty
-              ? const Center(child: Text('Chưa có bệnh nhân đã lưu.'))
+              ? _emptyPatientState()
               : LayoutBuilder(
                   builder: (context, constraints) {
                     return Stack(
@@ -1195,108 +1519,168 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _patientCard(SavedAssessment saved) {
+  List<SavedAssessment> _filteredPatients(List<SavedAssessment> source) {
+    return source.where((saved) {
+      final assessment = saved.assessment;
+      return switch (_patientFilter) {
+        _PatientFilter.all => true,
+        _PatientFilter.incomplete =>
+          AssessmentDisplay.isIncompletePatient(assessment),
+        _PatientFilter.highRisk =>
+          AssessmentDisplay.isHighRiskPatient(assessment),
+        _PatientFilter.septicShock =>
+          AssessmentDisplay.isSepticShockPatient(assessment),
+      };
+    }).toList();
+  }
+
+  Widget _patientFilterChips() {
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: [
+        _patientFilterChip(_PatientFilter.all, 'Tất cả'),
+        _patientFilterChip(_PatientFilter.incomplete, 'Chưa đủ dữ liệu'),
+        _patientFilterChip(_PatientFilter.highRisk, 'Nguy cơ cao'),
+        _patientFilterChip(_PatientFilter.septicShock, 'Sốc NK'),
+      ],
+    );
+  }
+
+  Widget _patientFilterChip(_PatientFilter filter, String label) {
+    return FilterChip(
+      selected: _patientFilter == filter,
+      label: Text(label),
+      onSelected: (_) {
+        setState(() {
+          _patientFilter = filter;
+          _patientScrollBubbleLabel = '';
+          _showPatientScrollBubble = false;
+        });
+        if (_patientScrollControllerOrCreate.hasClients) {
+          _patientScrollControllerOrCreate.jumpTo(0);
+        }
+      },
+    );
+  }
+
+  Widget _patientSummaryStrip(List<SavedAssessment> patients) {
+    final total = patients.length;
+    final incomplete = patients
+        .where(
+            (saved) => AssessmentDisplay.isIncompletePatient(saved.assessment))
+        .length;
+    final highRisk = patients
+        .where((saved) => AssessmentDisplay.isHighRiskPatient(saved.assessment))
+        .length;
+    final shock = patients
+        .where(
+            (saved) => AssessmentDisplay.isSepticShockPatient(saved.assessment))
+        .length;
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: [
+        _summaryBadge('Tổng', total, ClinicalStatus.normal),
+        _summaryBadge('Chưa đủ', incomplete, ClinicalStatus.missing),
+        _summaryBadge('Nguy cơ cao', highRisk, ClinicalStatus.warning),
+        _summaryBadge('Sốc NK', shock, ClinicalStatus.danger),
+      ],
+    );
+  }
+
+  Widget _summaryBadge(String label, int count, ClinicalStatus status) {
+    return clinical_ui.StatusBadge(
+      status: status,
+      label: '$label: $count',
+      dense: true,
+    );
+  }
+
+  Widget _emptyPatientState() {
     final theme = Theme.of(context);
-    final assessment = saved.assessment;
-    final expandedScale = _expandedPatientScales[saved.id];
-    final hasScores = _patientHasAnyCompleteScale(assessment);
-    final hasClinicalConclusion = _patientHasClinicalConclusion(assessment);
-    final hasTreatmentConclusion =
-        assessment.treatmentOutcome.trim().isNotEmpty;
-    final cardTone = _highestTone([
-      _news2Tone(assessment),
-      _qsofaTone(assessment),
-      _sofaTone(assessment),
-      _diagnosisTone(assessment),
-    ]);
-    return Card.outlined(
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: cardTone.border,
-          width: cardTone.severity > 0 ? 1.2 : 1,
-        ),
-      ),
+    return Center(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 12, 10),
+        padding: const EdgeInsets.all(24),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () => _openSaved(saved),
-                    child: Padding(
-                      padding: const EdgeInsets.only(right: 4),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            assessment.fullName.isEmpty
-                                ? 'Chưa nhập họ tên'
-                                : assessment.fullName,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _patientIdentityLine(assessment),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            _patientAdmissionLine(assessment),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                _patientActionMenu(assessment),
-              ],
+            Icon(
+              Icons.assignment_outlined,
+              size: 42,
+              color: theme.colorScheme.primary,
             ),
-            if (hasScores) ...[
-              const SizedBox(height: 6),
-              _patientScoreSummary(saved, expandedScale),
-            ],
-            if (hasClinicalConclusion) ...[
-              const SizedBox(height: 10),
-              _patientClinicalConclusion(assessment),
-            ],
-            if (hasTreatmentConclusion) ...[
-              const SizedBox(height: 10),
-              _patientTreatmentConclusion(assessment),
-            ],
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerRight,
-              child: Text(
-                _patientSortTimestampText(assessment),
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
+            const SizedBox(height: 12),
+            Text(
+              _history.isEmpty
+                  ? 'Chưa có phiếu theo dõi'
+                  : 'Không có phiếu phù hợp bộ lọc',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w900,
               ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _history.isEmpty
+                  ? 'Tạo phiếu đầu tiên để ghi nhận NEWS2, lactate và SOFA.'
+                  : 'Thử đổi bộ lọc hoặc từ khóa tìm kiếm.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: _startNew,
+              icon: const Icon(Icons.add),
+              label: const Text('Tạo phiếu mới'),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _patientCard(SavedAssessment saved) {
+    final assessment = saved.assessment;
+    final badges = <Widget>[
+      _scoreBadge(AssessmentDisplay.news2ScoreDisplay(assessment)),
+      _scoreBadge(AssessmentDisplay.qsofaScoreDisplay(assessment)),
+      _scoreBadge(AssessmentDisplay.sofaScoreDisplay(assessment)),
+      if (ClinicalValueParser.hasText(assessment.lactate))
+        clinical_ui.StatusBadge(
+          status: SofaScoring.lactateAtLeastTwo(assessment)
+              ? ClinicalStatus.warning
+              : ClinicalStatus.normal,
+          label: 'Lactate: ${assessment.lactate.trim()}',
+          dense: true,
+        ),
+      if (AssessmentDisplay.isSepticShockPatient(assessment))
+        const clinical_ui.StatusBadge(
+          status: ClinicalStatus.danger,
+          label: 'Sốc NK',
+          dense: true,
+        ),
+    ];
+    return clinical_ui.PatientCard(
+      name: assessment.fullName.trim().isEmpty
+          ? 'Chưa nhập tên bệnh nhân'
+          : assessment.fullName.trim(),
+      identityLine: _patientIdentityLine(assessment),
+      admissionLine: _patientAdmissionLine(assessment),
+      updatedText: _patientSortTimestampText(assessment),
+      badges: badges,
+      actionMenu: _patientActionMenu(assessment),
+      onTap: () => _openSaved(saved),
+    );
+  }
+
+  Widget _scoreBadge(ScoreDisplay display) {
+    final value = display.scoreText == '-' ? '' : ' ${display.scoreText}';
+    return clinical_ui.StatusBadge(
+      status: display.status,
+      label: '${display.title}:$value ${display.statusLabel}',
+      dense: true,
     );
   }
 
@@ -1331,398 +1715,11 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _patientScoreSummary(
-    SavedAssessment saved,
-    _PatientExpandedScale? expandedScale,
-  ) {
-    final assessment = saved.assessment;
-    final validExpandedScale =
-        _patientScaleComplete(assessment, expandedScale) ? expandedScale : null;
-    final chips = <Widget>[
-      if (_news2Complete(assessment))
-        _patientScaleChip(
-          saved.id,
-          _PatientExpandedScale.news2,
-          'NEWS2',
-          '${assessment.news2Total}',
-          _patientNews2Summary(assessment),
-          _news2Tone(assessment),
-          validExpandedScale == _PatientExpandedScale.news2,
-        ),
-      if (_qsofaComplete(assessment))
-        _patientScaleChip(
-          saved.id,
-          _PatientExpandedScale.qsofa,
-          'qSOFA',
-          '${assessment.qsofaTotal}/3',
-          _patientQsofaSummary(assessment),
-          _qsofaTone(assessment),
-          validExpandedScale == _PatientExpandedScale.qsofa,
-        ),
-      if (_sofaComplete(assessment))
-        _patientScaleChip(
-          saved.id,
-          _PatientExpandedScale.sofa,
-          'SOFA',
-          '${assessment.sofaTotal}',
-          _patientSofaSummary(assessment),
-          _sofaTone(assessment),
-          validExpandedScale == _PatientExpandedScale.sofa,
-        ),
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (chips.isNotEmpty)
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: chips,
-          ),
-        if (validExpandedScale != null) ...[
-          const SizedBox(height: 10),
-          _patientScaleDetail(assessment, validExpandedScale),
-        ],
-      ],
-    );
-  }
-
-  bool _patientHasAnyCompleteScale(ClinicalAssessment assessment) {
-    return _news2Complete(assessment) ||
-        _qsofaComplete(assessment) ||
-        _sofaComplete(assessment);
-  }
-
-  bool _patientScaleComplete(
-    ClinicalAssessment assessment,
-    _PatientExpandedScale? scale,
-  ) {
-    return switch (scale) {
-      _PatientExpandedScale.news2 => _news2Complete(assessment),
-      _PatientExpandedScale.qsofa => _qsofaComplete(assessment),
-      _PatientExpandedScale.sofa => _sofaComplete(assessment),
-      null => false,
-    };
-  }
-
-  Widget _patientScaleChip(
-    int savedId,
-    _PatientExpandedScale scale,
-    String label,
-    String value,
-    String summary,
-    _RiskTone tone,
-    bool selected,
-  ) {
-    final theme = Theme.of(context);
-    return ActionChip(
-      avatar: Icon(tone.icon, size: 16, color: tone.foreground),
-      label: Text('$label $value · $summary'),
-      tooltip: selected ? 'Ẩn chi tiết $label' : 'Xem chi tiết $label',
-      onPressed: () => _togglePatientScale(savedId, scale),
-      backgroundColor:
-          selected ? tone.background : theme.colorScheme.surfaceContainerHigh,
-      side: BorderSide(
-          color: selected ? tone.border : theme.colorScheme.outlineVariant),
-      visualDensity: VisualDensity.compact,
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      labelStyle: theme.textTheme.labelSmall?.copyWith(
-        color: selected ? tone.foreground : theme.colorScheme.onSurfaceVariant,
-        fontWeight: FontWeight.w800,
-      ),
-    );
-  }
-
-  void _togglePatientScale(int savedId, _PatientExpandedScale scale) {
-    setState(() {
-      if (_expandedPatientScales[savedId] == scale) {
-        _expandedPatientScales.remove(savedId);
-      } else {
-        _expandedPatientScales[savedId] = scale;
-      }
-    });
-  }
-
-  Widget _patientTreatmentConclusion(ClinicalAssessment assessment) {
-    final theme = Theme.of(context);
-    final outcome = assessment.treatmentOutcome.trim();
-    if (outcome.isEmpty) {
-      return const SizedBox.shrink();
-    }
-    return Text(
-      'Kết luận điều trị: $outcome',
-      maxLines: 2,
-      overflow: TextOverflow.ellipsis,
-      style: theme.textTheme.bodySmall?.copyWith(
-        color: theme.colorScheme.onSurface,
-        fontWeight: FontWeight.w700,
-      ),
-    );
-  }
-
-  bool _patientHasClinicalConclusion(ClinicalAssessment assessment) {
-    return SofaScoring.hasSepticShock(assessment) ||
-        (_sofaComplete(assessment) && SofaScoring.hasSepsisBySofa(assessment));
-  }
-
-  Widget _patientClinicalConclusion(ClinicalAssessment assessment) {
-    final theme = Theme.of(context);
-    final tone = _diagnosisTone(assessment);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: tone.background,
-        border: Border.all(color: tone.border),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        children: [
-          Icon(tone.icon, size: 16, color: tone.foreground),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              _diagnosisText(assessment),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: tone.foreground,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _patientScaleDetail(
-    ClinicalAssessment assessment,
-    _PatientExpandedScale scale,
-  ) {
-    final tone = switch (scale) {
-      _PatientExpandedScale.news2 => _news2Tone(assessment),
-      _PatientExpandedScale.qsofa => _qsofaTone(assessment),
-      _PatientExpandedScale.sofa => _sofaTone(assessment),
-    };
-    final title = switch (scale) {
-      _PatientExpandedScale.news2 => 'Chi tiết NEWS2',
-      _PatientExpandedScale.qsofa => 'Chi tiết qSOFA',
-      _PatientExpandedScale.sofa => 'Chi tiết SOFA',
-    };
-    final rows = switch (scale) {
-      _PatientExpandedScale.news2 => _news2DetailRows(assessment),
-      _PatientExpandedScale.qsofa => _qsofaDetailRows(assessment),
-      _PatientExpandedScale.sofa => _sofaDetailRows(assessment),
-    };
-    final theme = Theme.of(context);
-    return Card.filled(
-      color: tone.background,
-      margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: tone.border),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: tone.foreground,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 8),
-            for (final row in rows) _patientScaleDetailRow(row, tone),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _patientScaleDetailRow(
-    _ScaleDetailItem item,
-    _RiskTone tone,
-  ) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item.label,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: tone.foreground,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 1),
-                Text(
-                  item.measured,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: tone.foreground,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            '${item.score}đ',
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: tone.foreground,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  List<_ScaleDetailItem> _news2DetailRows(ClinicalAssessment assessment) {
-    return [
-      _ScaleDetailItem(
-        'Nhịp thở',
-        '${_displayValue(assessment.news2RespirationMeasured)} lần/phút',
-        assessment.news2Respiration,
-      ),
-      _ScaleDetailItem(
-        'SpO2',
-        '${_displayValue(assessment.news2Spo2Measured)} %${assessment.news2Spo2Scale2 ? ' · thang 2' : ''}',
-        assessment.news2Spo2,
-      ),
-      _ScaleDetailItem(
-        'Oxy',
-        'Thở oxy: ${_displayValue(assessment.news2OxygenMeasured)}',
-        assessment.news2Oxygen,
-      ),
-      _ScaleDetailItem(
-        'Nhiệt độ',
-        '${_displayValue(assessment.news2TemperatureMeasured)} °C',
-        assessment.news2Temperature,
-      ),
-      _ScaleDetailItem(
-        'Huyết áp tâm thu',
-        '${_displayValue(assessment.news2SystolicBpMeasured)} mmHg',
-        assessment.news2SystolicBp,
-      ),
-      _ScaleDetailItem(
-        'Nhịp tim',
-        '${_displayValue(assessment.news2HeartRateMeasured)} lần/phút',
-        assessment.news2HeartRate,
-      ),
-      _ScaleDetailItem(
-        'Tri giác',
-        'AVPU ${_displayValue(assessment.news2ConsciousnessMeasured)}',
-        assessment.news2Consciousness,
-      ),
-    ];
-  }
-
-  List<_ScaleDetailItem> _qsofaDetailRows(ClinicalAssessment assessment) {
-    return [
-      _ScaleDetailItem(
-        'Nhịp thở >= 22 lần/phút',
-        '${_displayValue(assessment.news2RespirationMeasured)} lần/phút · ${assessment.qsofaRespiration ? 'Đạt' : 'Không đạt'}',
-        assessment.qsofaRespiration ? 1 : 0,
-      ),
-      _ScaleDetailItem(
-        'Huyết áp tâm thu <= 100 mmHg',
-        '${_displayValue(assessment.news2SystolicBpMeasured)} mmHg · ${assessment.qsofaSystolicBp ? 'Đạt' : 'Không đạt'}',
-        assessment.qsofaSystolicBp ? 1 : 0,
-      ),
-      _ScaleDetailItem(
-        'Rối loạn ý thức',
-        'AVPU ${_displayValue(assessment.news2ConsciousnessMeasured)} · ${assessment.qsofaConsciousness ? 'Đạt' : 'Không đạt'}',
-        assessment.qsofaConsciousness ? 1 : 0,
-      ),
-    ];
-  }
-
-  List<_ScaleDetailItem> _sofaDetailRows(ClinicalAssessment assessment) {
-    return [
-      _ScaleDetailItem(
-        'Hô hấp',
-        'PaO2/FiO2 ${_displayValue(assessment.sofaRespirationMeasured)} mmHg',
-        assessment.sofaRespiration,
-      ),
-      _ScaleDetailItem(
-        'Đông máu',
-        'Tiểu cầu ${_displayValue(assessment.sofaCoagulationMeasured)} 10³/µL',
-        assessment.sofaCoagulation,
-      ),
-      _ScaleDetailItem(
-        'Gan',
-        'Bilirubin ${_displayValue(assessment.sofaLiverMeasured)} mg/dL hoặc µmol/L',
-        assessment.sofaLiver,
-      ),
-      _ScaleDetailItem(
-        'Tim mạch',
-        _sofaCardiovascularDetail(assessment),
-        assessment.sofaCardiovascular,
-      ),
-      _ScaleDetailItem(
-        'Thần kinh',
-        'GCS ${_displayValue(assessment.sofaNeurologicMeasured)} điểm',
-        assessment.sofaNeurologic,
-      ),
-      _ScaleDetailItem(
-        'Thận',
-        'Creatinin/nước tiểu ${_displayValue(assessment.sofaRenalMeasured)} mg/dL, µmol/L hoặc mL/ngày',
-        assessment.sofaRenal,
-      ),
-    ];
-  }
-
-  String _sofaCardiovascularDetail(ClinicalAssessment assessment) {
-    final measured = assessment.sofaCardiovascularMeasured.trim();
-    if (measured.isNotEmpty && assessment.vasopressor) {
-      return '$measured · Có vận mạch';
-    }
-    if (assessment.vasopressor) {
-      return 'Có vận mạch';
-    }
-    return 'MAP/Vận mạch ${_displayValue(measured)} mmHg; thuốc/liều';
-  }
-
-  String _displayValue(String value) {
-    final trimmed = value.trim();
-    return trimmed.isEmpty ? '...' : trimmed;
-  }
-
-  String _patientNews2Summary(ClinicalAssessment assessment) {
-    return 'Nguy cơ ${ScaleGuidanceConfig.news2(assessment).risk.toLowerCase()}';
-  }
-
-  String _patientQsofaSummary(ClinicalAssessment assessment) {
-    return assessment.qsofaTotal >= 2 ? 'Cảnh báo' : 'Chưa cảnh báo';
-  }
-
-  String _patientSofaSummary(ClinicalAssessment assessment) {
-    if (SofaScoring.hasSepticShock(assessment)) {
-      return 'Sốc nhiễm khuẩn';
-    }
-    if (SofaScoring.hasSepsisBySofa(assessment)) {
-      return 'Rối loạn cơ quan';
-    }
-    return 'Chưa đạt Sepsis-3';
-  }
-
   String _patientAdmissionLine(ClinicalAssessment assessment) {
     final date = _compactDateText(assessment.admissionDate.trim());
     final time = assessment.admissionTime.trim();
     if (date.isEmpty && time.isEmpty) {
-      return 'Nhập viện: ...';
+      return 'Chưa nhập thời gian nhập viện';
     }
     if (date.isEmpty) {
       return 'Nhập viện: $time';
@@ -1735,7 +1732,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   String _patientIdentityLine(ClinicalAssessment assessment) {
     final patientId = assessment.patientId.trim().isEmpty
-        ? '...'
+        ? 'Chưa nhập mã BN'
         : assessment.patientId.trim();
     final age = assessment.age.trim();
     if (age.isEmpty) {
@@ -1753,21 +1750,21 @@ class _HomeScreenState extends State<HomeScreen> {
 
   String _formatRelativeTime(int millis) {
     if (millis <= 0) {
-      return '...';
+      return 'Chưa cập nhật';
     }
     final value = DateTime.fromMillisecondsSinceEpoch(millis);
     final diff = DateTime.now().difference(value);
     if (diff.isNegative || diff.inSeconds < 60) {
-      return 'now';
+      return 'Vừa cập nhật';
     }
     if (diff.inMinutes < 60) {
-      return '${diff.inMinutes}m';
+      return '${diff.inMinutes} phút trước';
     }
     if (diff.inHours < 24) {
-      return '${diff.inHours}h';
+      return '${diff.inHours} giờ trước';
     }
     if (diff.inDays < 30) {
-      return '${diff.inDays}d';
+      return '${diff.inDays} ngày trước';
     }
     return '${_two(value.day)}/${_two(value.month)}/${value.year}';
   }
@@ -1981,12 +1978,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return tones.success;
   }
 
-  _RiskTone _highestTone(Iterable<_RiskTone> tones) {
-    return tones.reduce(
-      (current, next) => next.severity > current.severity ? next : current,
-    );
-  }
-
   bool _news2Complete(ClinicalAssessment assessment) {
     return ClinicalValueParser.hasText(assessment.news2RespirationMeasured) &&
         ClinicalValueParser.hasText(assessment.news2Spo2Measured) &&
@@ -2029,20 +2020,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ClinicalValueParser.hasText(assessment.sofaRenalMeasured);
   }
 
-  String _diagnosisText(ClinicalAssessment assessment) {
-    final requirement = _diagnosisRequirementText(assessment);
-    if (requirement != null) {
-      return requirement;
-    }
-    if (SofaScoring.hasSepticShock(assessment)) {
-      return 'Sốc nhiễm khuẩn';
-    }
-    if (!_sofaComplete(assessment)) {
-      return 'Cần nhập đủ 6 hệ cơ quan để hoàn tất SOFA';
-    }
-    return assessment.sepsisDiagnosis;
-  }
-
   String? _diagnosisRequirementText(ClinicalAssessment assessment) {
     if (_shockInputsIncomplete(assessment)) {
       return 'Cần nhập MAP và lactate để đánh giá sốc nhiễm khuẩn';
@@ -2077,8 +2054,15 @@ class _HomeScreenState extends State<HomeScreen> {
     return 'Điểm: SOFA ${assessment.sofaTotal}\nNguy cơ: ${guidance.risk}\nPhản ứng: ${guidance.response}';
   }
 
-  Widget _scoreSummary(ClinicalAssessment assessment) {
+  Widget _clinicalDashboard(ClinicalAssessment assessment) {
     final theme = Theme.of(context);
+    final displays = [
+      AssessmentDisplay.news2ScoreDisplay(assessment),
+      AssessmentDisplay.qsofaScoreDisplay(assessment),
+      AssessmentDisplay.sofaScoreDisplay(assessment),
+      AssessmentDisplay.diagnosisScoreDisplay(assessment),
+    ];
+    final missingItems = AssessmentDisplay.allMissingItems(assessment);
     return Material(
       color: theme.colorScheme.surface,
       elevation: 1,
@@ -2088,152 +2072,98 @@ class _HomeScreenState extends State<HomeScreen> {
             bottom: BorderSide(color: theme.colorScheme.outlineVariant),
           ),
         ),
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-        child: Row(
-          children: [
-            Expanded(
-              child: _scoreTile(
-                'NEWS2',
-                _news2Complete(assessment) ? '${assessment.news2Total}' : '...',
-                _news2Complete(assessment)
-                    ? News2Scoring.riskLabel(assessment)
-                    : 'Chưa đủ dữ kiện',
-                _news2Tone(assessment),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _scoreTile(
-                'qSOFA',
-                _qsofaComplete(assessment) ? '${assessment.qsofaTotal}' : '...',
-                _qsofaComplete(assessment) ? '/ 3' : 'Cần nhập RR/HA/tri giác',
-                _qsofaTone(assessment),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _scoreTile(
-                'SOFA',
-                _sofaComplete(assessment) ? '${assessment.sofaTotal}' : '...',
-                _sofaComplete(assessment)
-                    ? sofaThresholdText(assessment)
-                    : 'Chưa đủ 6 hệ cơ quan',
-                _sofaTone(assessment),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _scoreTile(
-    String label,
-    String value,
-    String subtitle,
-    _RiskTone tone,
-  ) {
-    final theme = Theme.of(context);
-    return Card.filled(
-      color: tone.background,
-      margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: tone.border),
-      ),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  label,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: tone.foreground,
-                    fontWeight: FontWeight.w700,
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 760;
+            final cards = [
+              for (final display in displays)
+                SizedBox(
+                  width: compact ? 180 : (constraints.maxWidth - 36) / 4,
+                  child: clinical_ui.ClinicalSummaryCard(
+                    display: display,
+                    onTap: () => _scrollToSection(_sectionForDisplay(display)),
                   ),
                 ),
-                Row(
-                  children: [
-                    Icon(tone.icon, size: 16, color: tone.foreground),
-                    const SizedBox(width: 5),
-                    Text(
-                      value,
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        color: tone.foreground,
-                        fontWeight: FontWeight.w800,
-                        height: 1.05,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: tone.foreground,
-                        ),
-                      ),
-                    ),
-                  ],
+            ];
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (var i = 0; i < cards.length; i++) ...[
+                        cards[i],
+                        if (i < cards.length - 1) const SizedBox(width: 12),
+                      ],
+                    ],
+                  ),
                 ),
+                if (missingItems.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  clinical_ui.MissingDataPanel(
+                    items: missingItems,
+                    onItemTap: _jumpToMissingItem,
+                  ),
+                ],
               ],
-            ),
-          ),
-        ],
+            );
+          },
+        ),
       ),
     );
   }
 
   Widget _section(
     String title, {
+    required String sectionId,
+    required SectionProgress progress,
     required List<Widget> children,
     required bool twoColumns,
   }) {
-    final theme = Theme.of(context);
-    return Card.outlined(
-      margin: const EdgeInsets.only(bottom: 12),
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            const spacing = 12.0;
-            final availableWidth = constraints.maxWidth;
-            final itemWidth =
-                twoColumns ? (availableWidth - spacing) / 2 : availableWidth;
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: theme.colorScheme.onSurface,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: spacing,
-                  runSpacing: spacing,
-                  children: [
-                    for (final child in children)
-                      SizedBox(
-                        width: child is _FullWidth || !twoColumns
-                            ? availableWidth
-                            : itemWidth,
-                        child: child is _FullWidth ? child.child : child,
-                      ),
-                  ],
-                ),
-              ],
-            );
-          },
-        ),
+    final expanded = _expandedSections.contains(sectionId);
+    return KeyedSubtree(
+      key: _sectionKey(sectionId),
+      child: clinical_ui.FormSectionAccordion(
+        key: ValueKey('$sectionId-$expanded-$_formVersion'),
+        title: title,
+        progress: progress,
+        initiallyExpanded: expanded,
+        onExpansionChanged: (value) {
+          setState(() {
+            if (value) {
+              _expandedSections.add(sectionId);
+            } else {
+              _expandedSections.remove(sectionId);
+            }
+          });
+        },
+        children: [
+          LayoutBuilder(
+            builder: (context, constraints) {
+              const spacing = 12.0;
+              final availableWidth = constraints.maxWidth;
+              final itemWidth =
+                  twoColumns ? (availableWidth - spacing) / 2 : availableWidth;
+              return Wrap(
+                spacing: spacing,
+                runSpacing: spacing,
+                children: [
+                  for (final child in children)
+                    SizedBox(
+                      width: child is _FullWidth || !twoColumns
+                          ? availableWidth
+                          : itemWidth,
+                      child: child is _FullWidth ? child.child : child,
+                    ),
+                ],
+              );
+            },
+          ),
+        ],
       ),
     );
   }
@@ -2271,23 +2201,70 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget _unitSwitcher({
+    required String label,
+    required String value,
+    required List<String> units,
+    required ValueChanged<String> onChanged,
+  }) {
+    final selected = _selectedUnit(value, units);
+    return DropdownButtonFormField<String>(
+      initialValue: selected,
+      isExpanded: true,
+      decoration: InputDecoration(
+        labelText: label,
+        helperText: 'Đơn vị sẽ được lưu kèm giá trị nhập',
+      ),
+      items: [
+        for (final unit in units)
+          DropdownMenuItem(
+            value: unit,
+            child: Text(unit),
+          ),
+      ],
+      onChanged: (unit) {
+        if (unit == null) {
+          return;
+        }
+        _mutate((_) => onChanged(unit));
+      },
+    );
+  }
+
   Widget _field(
     String label,
     String value,
     void Function(String value) onChanged, {
+    String? fieldId,
+    String? unit,
+    String? helperText,
+    String? warningText,
+    String? scoreText,
     TextInputType? keyboardType,
     List<TextInputFormatter>? inputFormatters,
     int maxLines = 1,
     String? hint,
   }) {
-    return TextFormField(
-      initialValue: value,
+    final field = clinical_ui.MedicalInputField(
+      label: label,
+      value: value,
+      unit: unit,
+      helperText: helperText,
+      warningText: warningText,
+      scoreText: scoreText,
+      hintText: hint,
       keyboardType: keyboardType,
       inputFormatters: inputFormatters,
       maxLines: maxLines,
-      style: const TextStyle(fontSize: 14),
-      decoration: InputDecoration(labelText: label, hintText: hint),
+      focusNode: fieldId == null ? null : _focusNode(fieldId),
       onChanged: (newValue) => _mutate((_) => onChanged(newValue)),
+    );
+    if (fieldId == null) {
+      return field;
+    }
+    return KeyedSubtree(
+      key: _fieldKey(fieldId),
+      child: field,
     );
   }
 
@@ -2418,7 +2395,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    value.isEmpty ? 'Chưa có' : value,
+                    value.isEmpty ? 'Chưa nhập dữ liệu' : value,
                     maxLines: maxLines,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.bodyMedium?.copyWith(
@@ -2500,7 +2477,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(width: 8),
             Text(
-              completed ? (checked ? '1' : '0') : '...',
+              completed ? (checked ? '1' : '0') : '-',
               style: theme.textTheme.labelMedium?.copyWith(
                 color: tone.foreground,
                 fontWeight: FontWeight.w800,
@@ -2527,7 +2504,7 @@ class _HomeScreenState extends State<HomeScreen> {
             label: Text(
               score.completed
                   ? '${score.label} ${score.score}'
-                  : '${score.label} ...',
+                  : '${score.label} -',
             ),
             backgroundColor: tone.background,
             side: BorderSide(color: tone.border),
@@ -2541,6 +2518,195 @@ class _HomeScreenState extends State<HomeScreen> {
         },
       ).toList(),
     );
+  }
+
+  GlobalKey _sectionKey(String sectionId) {
+    return _sectionKeys.putIfAbsent(sectionId, GlobalKey.new);
+  }
+
+  GlobalKey _fieldKey(String fieldId) {
+    return _fieldKeys.putIfAbsent(fieldId, GlobalKey.new);
+  }
+
+  FocusNode _focusNode(String fieldId) {
+    return _fieldFocusNodes.putIfAbsent(fieldId, FocusNode.new);
+  }
+
+  String _sectionForDisplay(ScoreDisplay display) {
+    return switch (display.title) {
+      'NEWS2' || 'qSOFA' => AssessmentSections.news2,
+      'SOFA' => AssessmentSections.sofa,
+      _ => AssessmentSections.diagnosis,
+    };
+  }
+
+  void _jumpToMissingItem(MissingDataItem item) {
+    setState(() {
+      _expandedSections.add(item.sectionId);
+      _formVersion++;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final fieldContext = _fieldKeys[item.fieldId]?.currentContext;
+      if (fieldContext != null) {
+        Scrollable.ensureVisible(
+          fieldContext,
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.easeOutCubic,
+          alignment: 0.18,
+        );
+        _fieldFocusNodes[item.fieldId]?.requestFocus();
+        return;
+      }
+      _scrollToSection(item.sectionId);
+    });
+  }
+
+  void _scrollToSection(String sectionId) {
+    setState(() {
+      _expandedSections.add(sectionId);
+      _formVersion++;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final sectionContext = _sectionKeys[sectionId]?.currentContext;
+      if (sectionContext != null) {
+        Scrollable.ensureVisible(
+          sectionContext,
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.easeOutCubic,
+          alignment: 0.08,
+        );
+      }
+    });
+  }
+
+  SectionProgress _patientProgress(ClinicalAssessment assessment) {
+    final missing = <String>[
+      if (!ClinicalValueParser.hasText(assessment.patientId)) 'Mã bệnh nhân',
+      if (!ClinicalValueParser.hasText(assessment.fullName)) 'Họ và tên',
+      if (!ClinicalValueParser.hasText(assessment.admissionDate))
+        'Ngày nhập viện',
+      if (!ClinicalValueParser.hasText(assessment.admissionTime))
+        'Giờ nhập viện',
+    ];
+    return SectionProgress(
+      sectionId: AssessmentSections.patient,
+      completedCount: 4 - missing.length,
+      totalCount: 4,
+      missingLabels: missing,
+    );
+  }
+
+  SectionProgress _diagnosisProgress(ClinicalAssessment assessment) {
+    final missing = [
+      ...AssessmentDisplay.sofaMissingItems(assessment),
+      ...AssessmentDisplay.shockMissingItems(assessment),
+    ].map((item) => item.label).toList();
+    return SectionProgress(
+      sectionId: AssessmentSections.diagnosis,
+      completedCount: missing.isEmpty ? 1 : 0,
+      totalCount: 1,
+      missingLabels: missing,
+    );
+  }
+
+  String _defaultOpenSection(ClinicalAssessment assessment) {
+    final sections = [
+      _patientProgress(assessment),
+      AssessmentDisplay.news2Progress(assessment),
+      AssessmentDisplay.lactateProgress(assessment),
+      AssessmentDisplay.sofaProgress(assessment),
+      _diagnosisProgress(assessment),
+    ];
+    return sections
+        .firstWhere(
+          (section) => !section.complete,
+          orElse: () => sections.first,
+        )
+        .sectionId;
+  }
+
+  String? _scoreText(String value, String text) {
+    return ClinicalValueParser.hasText(value) ? text : null;
+  }
+
+  String _missingSentence(SectionProgress progress) {
+    if (progress.missingLabels.isEmpty) {
+      return 'Đã đủ dữ liệu';
+    }
+    return 'Còn thiếu: ${progress.missingLabels.join(', ')}';
+  }
+
+  String? _rangeWarning(
+    String value, {
+    required double min,
+    required double max,
+    required String label,
+  }) {
+    final number = ClinicalValueParser.parseDouble(value);
+    if (number == null) {
+      return null;
+    }
+    if (number < min || number > max) {
+      return '$label ngoài khoảng thường gặp, vui lòng kiểm tra lại';
+    }
+    return null;
+  }
+
+  String? _lactateWarning(String value) {
+    final lactate = ClinicalValueParser.parseDouble(value);
+    if (lactate == null) {
+      return null;
+    }
+    if (lactate >= 4) {
+      return 'Lactate cao, cần đánh giá tưới máu và sốc nhiễm khuẩn';
+    }
+    if (lactate >= 2) {
+      return 'Lactate tăng, cần theo dõi sát';
+    }
+    return null;
+  }
+
+  String? _selectedUnit(String value, List<String> units) {
+    final lower = value.toLowerCase();
+    for (final unit in units) {
+      if (lower.contains(unit.toLowerCase())) {
+        return unit;
+      }
+      if (unit == 'µmol/L' && lower.contains('umol')) {
+        return unit;
+      }
+    }
+    return units.first;
+  }
+
+  String _replaceTrailingUnit(String value, String unit) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      return '';
+    }
+    final withoutUnit = trimmed
+        .replaceAll(
+            RegExp(r'\s*(mg/dl|µmol/l|umol/l)\s*$', caseSensitive: false), '')
+        .trim();
+    return '$withoutUnit $unit';
+  }
+
+  String _formatClock(int millis) {
+    if (millis <= 0) {
+      return '--:--';
+    }
+    final value = DateTime.fromMillisecondsSinceEpoch(millis);
+    return '${_two(value.hour)}:${_two(value.minute)}';
+  }
+
+  bool _hasMeaningfulHistoryData(ClinicalAssessment assessment) {
+    return _hasAnyClinicalData(assessment) ||
+        ClinicalValueParser.hasText(assessment.news2RespirationMeasured) ||
+        ClinicalValueParser.hasText(assessment.news2SystolicBpMeasured) ||
+        ClinicalValueParser.hasText(assessment.news2HeartRateMeasured) ||
+        ClinicalValueParser.hasText(assessment.lactate) ||
+        ClinicalValueParser.hasText(assessment.sofaNeurologicMeasured) ||
+        ClinicalValueParser.hasText(assessment.treatmentOutcome);
   }
 
   static ClinicalAssessment _newAssessment() {
@@ -2617,18 +2783,6 @@ class _ScoreItem {
     this.score, {
     required this.completed,
   });
-}
-
-class _ScaleDetailItem {
-  final String label;
-  final String measured;
-  final int score;
-
-  const _ScaleDetailItem(
-    this.label,
-    this.measured,
-    this.score,
-  );
 }
 
 class _ClinicalTones extends ThemeExtension<_ClinicalTones> {
