@@ -1629,12 +1629,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: _startNew,
-              icon: const Icon(Icons.add),
-              label: const Text('Tạo phiếu mới'),
-            ),
           ],
         ),
       ),
