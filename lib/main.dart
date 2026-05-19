@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'src/data/assessment_repository.dart';
@@ -67,6 +68,18 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _load() async {
+    if (kIsWeb) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _assessment = _newAssessment();
+        _history = [];
+        _loading = false;
+        _formVersion++;
+      });
+      return;
+    }
     final draft = await _repository.loadCurrentAssessment();
     recalculateClinicalAssessment(draft);
     final history = await _repository.loadAssessmentHistory();
@@ -93,6 +106,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _checkUpdate() async {
+    if (kIsWeb) {
+      return;
+    }
     final update = await _updateService.checkForUpdate();
     if (!mounted || update == null) {
       return;
@@ -205,7 +221,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -338,7 +355,8 @@ class _HomeScreenState extends State<HomeScreen> {
         _section(
           '1. NEWS2 - sàng lọc sinh hiệu ban đầu',
           [
-            _field('Nhịp thở (lần/phút)', assessment.news2RespirationMeasured, (value) {
+            _field('Nhịp thở (lần/phút)', assessment.news2RespirationMeasured,
+                (value) {
               assessment.news2RespirationMeasured = value;
             }, keyboardType: TextInputType.number),
             SwitchListTile(
@@ -358,13 +376,19 @@ class _HomeScreenState extends State<HomeScreen> {
               title: const Text('Đang thở oxy'),
               contentPadding: EdgeInsets.zero,
             ),
-            _field('Nhiệt độ (°C)', assessment.news2TemperatureMeasured, (value) {
+            _field('Nhiệt độ (°C)', assessment.news2TemperatureMeasured,
+                (value) {
               assessment.news2TemperatureMeasured = value;
-            }, keyboardType: const TextInputType.numberWithOptions(decimal: true)),
-            _field('Huyết áp tâm thu (mmHg)', assessment.news2SystolicBpMeasured, (value) {
+            },
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true)),
+            _field(
+                'Huyết áp tâm thu (mmHg)', assessment.news2SystolicBpMeasured,
+                (value) {
               assessment.news2SystolicBpMeasured = value;
             }, keyboardType: TextInputType.number),
-            _field('Nhịp tim (lần/phút)', assessment.news2HeartRateMeasured, (value) {
+            _field('Nhịp tim (lần/phút)', assessment.news2HeartRateMeasured,
+                (value) {
               assessment.news2HeartRateMeasured = value;
             }, keyboardType: TextInputType.number),
             DropdownButtonFormField<String>(
@@ -375,7 +399,8 @@ class _HomeScreenState extends State<HomeScreen> {
               items: const [
                 DropdownMenuItem(value: 'A', child: Text('A - Tỉnh táo')),
                 DropdownMenuItem(value: 'C', child: Text('C - Lú lẫn mới')),
-                DropdownMenuItem(value: 'V', child: Text('V - Đáp ứng lời nói')),
+                DropdownMenuItem(
+                    value: 'V', child: Text('V - Đáp ứng lời nói')),
                 DropdownMenuItem(value: 'P', child: Text('P - Đáp ứng đau')),
                 DropdownMenuItem(value: 'U', child: Text('U - Không đáp ứng')),
               ],
@@ -402,27 +427,36 @@ class _HomeScreenState extends State<HomeScreen> {
             _field('Lactate tĩnh mạch (mmol/L)', assessment.lactate, (value) {
               assessment.lactate = value;
               assessment.lactateLevel = _lactateLevel(value);
-            }, keyboardType: const TextInputType.numberWithOptions(decimal: true)),
+            },
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true)),
             _field('Thời gian lấy mẫu', assessment.lactateSampleTime, (value) {
               assessment.lactateSampleTime = value;
             }, hint: 'HH:mm hoặc ghi chú'),
-            _readOnlyLine('Phân mức Lactate', assessment.lactateLevel.isEmpty ? 'Chưa có' : assessment.lactateLevel),
+            _readOnlyLine(
+                'Phân mức Lactate',
+                assessment.lactateLevel.isEmpty
+                    ? 'Chưa có'
+                    : assessment.lactateLevel),
           ],
         ),
         _section(
           '3. SOFA - xác định rối loạn cơ quan trong 24 giờ',
           [
             _readOnlyLine('Ngưỡng Sepsis-3', sofaThresholdText(assessment)),
-            _field('Hô hấp - PaO2/FiO2', assessment.sofaRespirationMeasured, (value) {
+            _field('Hô hấp - PaO2/FiO2', assessment.sofaRespirationMeasured,
+                (value) {
               assessment.sofaRespirationMeasured = value;
             }),
-            _field('Đông máu - Tiểu cầu', assessment.sofaCoagulationMeasured, (value) {
+            _field('Đông máu - Tiểu cầu', assessment.sofaCoagulationMeasured,
+                (value) {
               assessment.sofaCoagulationMeasured = value;
             }),
             _field('Gan - Bilirubin', assessment.sofaLiverMeasured, (value) {
               assessment.sofaLiverMeasured = value;
             }),
-            _field('Tim mạch - MAP/Vận mạch', assessment.sofaCardiovascularMeasured, (value) {
+            _field('Tim mạch - MAP/Vận mạch',
+                assessment.sofaCardiovascularMeasured, (value) {
               assessment.sofaCardiovascularMeasured = value;
             }),
             SwitchListTile(
@@ -431,10 +465,12 @@ class _HomeScreenState extends State<HomeScreen> {
               title: const Text('Có dùng vận mạch'),
               contentPadding: EdgeInsets.zero,
             ),
-            _field('Thần kinh - GCS', assessment.sofaNeurologicMeasured, (value) {
+            _field('Thần kinh - GCS', assessment.sofaNeurologicMeasured,
+                (value) {
               assessment.sofaNeurologicMeasured = value;
             }, keyboardType: TextInputType.number),
-            _field('Thận - Creatinin/nước tiểu', assessment.sofaRenalMeasured, (value) {
+            _field('Thận - Creatinin/nước tiểu', assessment.sofaRenalMeasured,
+                (value) {
               assessment.sofaRenalMeasured = value;
             }),
             _miniScores([
@@ -457,11 +493,17 @@ class _HomeScreenState extends State<HomeScreen> {
                   : assessment.treatmentOutcome,
               decoration: const InputDecoration(labelText: 'Kết quả điều trị'),
               items: const [
-                DropdownMenuItem(value: 'Khỏi / Đỡ ra viện', child: Text('Khỏi / Đỡ ra viện')),
-                DropdownMenuItem(value: 'Chuyển viện', child: Text('Chuyển viện')),
-                DropdownMenuItem(value: 'Nặng xin về / Tử vong', child: Text('Nặng xin về / Tử vong')),
+                DropdownMenuItem(
+                    value: 'Khỏi / Đỡ ra viện',
+                    child: Text('Khỏi / Đỡ ra viện')),
+                DropdownMenuItem(
+                    value: 'Chuyển viện', child: Text('Chuyển viện')),
+                DropdownMenuItem(
+                    value: 'Nặng xin về / Tử vong',
+                    child: Text('Nặng xin về / Tử vong')),
               ],
-              onChanged: (value) => _mutate((a) => a.treatmentOutcome = value ?? ''),
+              onChanged: (value) =>
+                  _mutate((a) => a.treatmentOutcome = value ?? ''),
             ),
             _field('Số ngày điều trị', assessment.treatmentDays, (value) {
               assessment.treatmentDays = value;
@@ -529,9 +571,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   _refreshHistory();
                 },
                 items: const [
-                  DropdownMenuItem(value: PatientSortMode.newest, child: Text('Mới nhất')),
-                  DropdownMenuItem(value: PatientSortMode.name, child: Text('Tên')),
-                  DropdownMenuItem(value: PatientSortMode.patientId, child: Text('Mã BN')),
+                  DropdownMenuItem(
+                      value: PatientSortMode.newest, child: Text('Mới nhất')),
+                  DropdownMenuItem(
+                      value: PatientSortMode.name, child: Text('Tên')),
+                  DropdownMenuItem(
+                      value: PatientSortMode.patientId, child: Text('Mã BN')),
                 ],
               ),
             ],
@@ -570,11 +615,13 @@ class _HomeScreenState extends State<HomeScreen> {
                                 spacing: 8,
                                 children: [
                                   OutlinedButton(
-                                    onPressed: () => _exportAssessment(assessment, CrfExportFormat.pdf),
+                                    onPressed: () => _exportAssessment(
+                                        assessment, CrfExportFormat.pdf),
                                     child: const Text('PDF'),
                                   ),
                                   OutlinedButton(
-                                    onPressed: () => _exportAssessment(assessment, CrfExportFormat.docx),
+                                    onPressed: () => _exportAssessment(
+                                        assessment, CrfExportFormat.docx),
                                     child: const Text('DOCX'),
                                   ),
                                 ],
@@ -598,9 +645,14 @@ class _HomeScreenState extends State<HomeScreen> {
         padding: const EdgeInsets.all(12),
         child: Row(
           children: [
-            Expanded(child: _scoreTile('NEWS2', '${assessment.news2Total}', News2Scoring.riskLabel(assessment))),
-            Expanded(child: _scoreTile('qSOFA', '${assessment.qsofaTotal}', '/ 3')),
-            Expanded(child: _scoreTile('SOFA', '${assessment.sofaTotal}', sofaThresholdText(assessment))),
+            Expanded(
+                child: _scoreTile('NEWS2', '${assessment.news2Total}',
+                    News2Scoring.riskLabel(assessment))),
+            Expanded(
+                child: _scoreTile('qSOFA', '${assessment.qsofaTotal}', '/ 3')),
+            Expanded(
+                child: _scoreTile('SOFA', '${assessment.sofaTotal}',
+                    sofaThresholdText(assessment))),
           ],
         ),
       ),
@@ -694,7 +746,8 @@ class _HomeScreenState extends State<HomeScreen> {
       contentPadding: EdgeInsets.zero,
       controlAffinity: ListTileControlAffinity.leading,
       title: Text(label),
-      subtitle: completed ? null : const Text('Chưa có dữ liệu NEWS2 tương ứng'),
+      subtitle:
+          completed ? null : const Text('Chưa có dữ liệu NEWS2 tương ứng'),
     );
   }
 

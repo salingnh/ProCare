@@ -20,3 +20,4 @@
 android/local.properties
 android/.gradle/
 android/app/build/
+.artifacts/

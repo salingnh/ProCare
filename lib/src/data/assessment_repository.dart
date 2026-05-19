@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
@@ -19,6 +20,9 @@ class AssessmentRepository {
   static const _databaseName = 'news2_l.db';
   static const _databaseVersion = 1;
   static const _draftKey = 'current_assessment';
+  static ClinicalAssessment? _webDraft;
+  static final List<SavedAssessment> _webHistory = [];
+  static int _webNextId = 1;
 
   Database? _database;
 
@@ -62,6 +66,9 @@ CREATE TABLE clinical_assessments (
   }
 
   Future<ClinicalAssessment> loadCurrentAssessment() async {
+    if (kIsWeb) {
+      return _webDraft?.clone() ?? ClinicalAssessment();
+    }
     final db = await _db;
     final rows = await db.query(
       'app_state',
@@ -83,6 +90,10 @@ CREATE TABLE clinical_assessments (
   }
 
   Future<void> saveCurrentAssessment(ClinicalAssessment assessment) async {
+    if (kIsWeb) {
+      _webDraft = assessment.clone();
+      return;
+    }
     final db = await _db;
     await db.insert(
       'app_state',
@@ -95,6 +106,19 @@ CREATE TABLE clinical_assessments (
   }
 
   Future<int> appendAssessmentHistory(ClinicalAssessment assessment) async {
+    if (kIsWeb) {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final saved = assessment.clone();
+      if (saved.createdAtMillis <= 0) {
+        saved.createdAtMillis =
+            saved.savedAtMillis > 0 ? saved.savedAtMillis : now;
+      }
+      saved.modifiedAtMillis = now;
+      saved.savedAtMillis = now;
+      final id = _webNextId++;
+      _webHistory.insert(0, SavedAssessment(id: id, assessment: saved));
+      return id;
+    }
     final db = await _db;
     final now = DateTime.now().millisecondsSinceEpoch;
     if (assessment.createdAtMillis <= 0) {
@@ -118,16 +142,52 @@ CREATE TABLE clinical_assessments (
     String query = '',
     PatientSortMode sortMode = PatientSortMode.newest,
   }) async {
+    if (kIsWeb) {
+      final normalizedQuery = query.trim().toLowerCase();
+      final rows = _webHistory.where((saved) {
+        if (normalizedQuery.isEmpty) {
+          return true;
+        }
+        final assessment = saved.assessment;
+        return assessment.patientId.toLowerCase().contains(normalizedQuery) ||
+            assessment.fullName.toLowerCase().contains(normalizedQuery);
+      }).map((saved) {
+        return SavedAssessment(
+          id: saved.id,
+          assessment: saved.assessment.clone(),
+        );
+      }).toList();
+      rows.sort((a, b) {
+        final left = a.assessment;
+        final right = b.assessment;
+        return switch (sortMode) {
+          PatientSortMode.name => _compareTextThenNewest(
+              left.fullName,
+              right.fullName,
+              left.savedAtMillis,
+              right.savedAtMillis,
+            ),
+          PatientSortMode.patientId => _compareTextThenNewest(
+              left.patientId,
+              right.patientId,
+              left.savedAtMillis,
+              right.savedAtMillis,
+            ),
+          PatientSortMode.newest =>
+            right.savedAtMillis.compareTo(left.savedAtMillis),
+        };
+      });
+      return rows;
+    }
     final db = await _db;
     final trimmedQuery = query.trim();
-    final where = trimmedQuery.isEmpty
-        ? null
-        : '(patient_id LIKE ? OR full_name LIKE ?)';
-    final whereArgs = trimmedQuery.isEmpty
-        ? null
-        : ['%$trimmedQuery%', '%$trimmedQuery%'];
+    final where =
+        trimmedQuery.isEmpty ? null : '(patient_id LIKE ? OR full_name LIKE ?)';
+    final whereArgs =
+        trimmedQuery.isEmpty ? null : ['%$trimmedQuery%', '%$trimmedQuery%'];
     final orderBy = switch (sortMode) {
-      PatientSortMode.name => 'full_name COLLATE NOCASE ASC, saved_at_millis DESC',
+      PatientSortMode.name =>
+        'full_name COLLATE NOCASE ASC, saved_at_millis DESC',
       PatientSortMode.patientId =>
         'patient_id COLLATE NOCASE ASC, saved_at_millis DESC',
       PatientSortMode.newest => 'saved_at_millis DESC',
@@ -149,12 +209,30 @@ CREATE TABLE clinical_assessments (
   }
 
   Future<void> deleteAssessment(int id) async {
+    if (kIsWeb) {
+      _webHistory.removeWhere((saved) => saved.id == id);
+      return;
+    }
     final db = await _db;
     await db.delete(
       'clinical_assessments',
       where: 'id = ?',
       whereArgs: [id],
     );
+  }
+
+  static int _compareTextThenNewest(
+    String leftText,
+    String rightText,
+    int leftSavedAt,
+    int rightSavedAt,
+  ) {
+    final textResult =
+        leftText.toLowerCase().compareTo(rightText.toLowerCase());
+    if (textResult != 0) {
+      return textResult;
+    }
+    return rightSavedAt.compareTo(leftSavedAt);
   }
 }
 
