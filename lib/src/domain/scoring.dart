@@ -368,8 +368,8 @@ class SofaScoring {
   }
 
   static int scoreRenal(String value, int fallback) {
-    var creatinine = ClinicalValueParser.parseDouble(value);
     final urineOutput = _extractUrineOutput(value);
+    var creatinine = _extractCreatinine(value);
     var creatinineScore = fallback;
     if (creatinine != null) {
       final lower = value.toLowerCase();
@@ -399,6 +399,42 @@ class SofaScoring {
     return creatinineScore > urineScore ? creatinineScore : urineScore;
   }
 
+  static double? _extractCreatinine(String value) {
+    if (!ClinicalValueParser.hasText(value)) {
+      return null;
+    }
+    final lower = value.toLowerCase();
+    final hasCreatinineHint = lower.contains('creatinin') ||
+        lower.contains('creatinine') ||
+        lower.contains('mg/dl') ||
+        lower.contains('umol') ||
+        lower.contains('µmol');
+    final hasUrineHint = lower.contains('ml') ||
+        lower.contains('nước tiểu') ||
+        lower.contains('nuoc tieu');
+    if (!hasCreatinineHint && hasUrineHint) {
+      return null;
+    }
+
+    final labeledMatch = RegExp(
+      r'(?:creatinin|creatinine)[^\d-]*(-?\d+(?:[,.]\d+)?)',
+      caseSensitive: false,
+    ).firstMatch(value);
+    if (labeledMatch != null) {
+      return ClinicalValueParser.parseDouble(labeledMatch.group(1));
+    }
+
+    final unitMatch = RegExp(
+      r'(-?\d+(?:[,.]\d+)?)\s*(?:mg/dl|umol|µmol)',
+      caseSensitive: false,
+    ).firstMatch(value);
+    if (unitMatch != null) {
+      return ClinicalValueParser.parseDouble(unitMatch.group(1));
+    }
+
+    return ClinicalValueParser.parseDouble(value);
+  }
+
   static int? _extractUrineOutput(String value) {
     if (!ClinicalValueParser.hasText(value)) {
       return null;
@@ -409,6 +445,13 @@ class SofaScoring {
         !lower.contains('nước tiểu') &&
         !lower.contains('nuoc tieu')) {
       return null;
+    }
+    final mlMatches = RegExp(
+      r'(-?\d+)\s*ml',
+      caseSensitive: false,
+    ).allMatches(value);
+    if (mlMatches.isNotEmpty) {
+      return ClinicalValueParser.parseInteger(mlMatches.last.group(1));
     }
     return ClinicalValueParser.parseInteger(
       value.substring(0, urineIndex > 0 ? urineIndex : value.length),
@@ -455,7 +498,8 @@ void recalculateClinicalAssessment(ClinicalAssessment assessment) {
       (ClinicalValueParser.parseInteger(assessment.news2SystolicBpMeasured) ??
               999) <=
           100;
-  final consciousness = assessment.news2ConsciousnessMeasured.trim().toUpperCase();
+  final consciousness =
+      assessment.news2ConsciousnessMeasured.trim().toUpperCase();
   assessment.qsofaConsciousness = ClinicalValueParser.hasText(consciousness) &&
       consciousness != 'A' &&
       !consciousness.contains('TINH') &&

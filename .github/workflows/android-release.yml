@@ -13,7 +13,7 @@ on:
       prerelease:
         description: 'Mark the GitHub Release as a pre-release.'
         required: false
-        default: true
+        default: false
         type: boolean
 
 permissions:

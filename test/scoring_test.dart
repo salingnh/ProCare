@@ -34,7 +34,7 @@ void main() {
     expect(assessment.qsofaTotal, 3);
   });
 
-  test('NEWS2 boundary scores match Android Java thresholds', () {
+  test('NEWS2 boundary scores match clinical thresholds', () {
     expect(News2Scoring.scoreRespiration(8, 0), 3);
     expect(News2Scoring.scoreRespiration(9, 0), 1);
     expect(News2Scoring.scoreRespiration(12, 3), 0);
@@ -79,7 +79,7 @@ void main() {
     expect(News2Scoring.scoreConsciousness('V', 0), 3);
   });
 
-  test('qSOFA and Sepsis-3 diagnosis match Android Java rules', () {
+  test('qSOFA and Sepsis-3 diagnosis match clinical rules', () {
     final assessment = ClinicalAssessment(
       news2RespirationMeasured: '22',
       news2SystolicBpMeasured: '100',
@@ -132,7 +132,7 @@ void main() {
     expect(alert.qsofaTotal, 0);
   });
 
-  test('SOFA boundary scores and risk groups match Android Java thresholds', () {
+  test('SOFA boundary scores and risk groups match clinical thresholds', () {
     expect(SofaScoring.scoreRespiration('399', 0), 1);
     expect(SofaScoring.scoreRespiration('299', 0), 2);
     expect(SofaScoring.scoreRespiration('199 thở oxy', 0), 3);
@@ -163,8 +163,12 @@ void main() {
     expect(SofaScoring.scoreRenal('2.0 mg/dL', 0), 2);
     expect(SofaScoring.scoreRenal('3.5 mg/dL', 0), 3);
     expect(SofaScoring.scoreRenal('5.0 mg/dL', 0), 4);
-    expect(SofaScoring.scoreRenal('400 ml nước tiểu', 0), 4);
+    expect(SofaScoring.scoreRenal('400 ml nước tiểu', 0), 3);
     expect(SofaScoring.scoreRenal('100 ml nước tiểu', 0), 4);
+    expect(
+      SofaScoring.scoreRenal('Creatinin 2.0 mg/dL, nước tiểu 400 ml', 0),
+      3,
+    );
 
     expect(SofaScoring.riskGroup(8), SofaScoring.riskLow);
     expect(SofaScoring.riskGroup(9), SofaScoring.riskIntermediate);
@@ -210,7 +214,8 @@ void main() {
     expect(assessment.qsofaTotal, 0);
   });
 
-  test('SOFA scores reset when measured inputs and vasopressor are cleared', () {
+  test('SOFA scores reset when measured inputs and vasopressor are cleared',
+      () {
     final assessment = ClinicalAssessment(
       lactate: '4.2',
       vasopressor: true,
