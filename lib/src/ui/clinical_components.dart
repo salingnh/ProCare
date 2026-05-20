@@ -56,6 +56,132 @@ ClinicalStatusStyle clinicalStatusStyle(
   };
 }
 
+class ClinicalSurfaceCard extends StatelessWidget {
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  final EdgeInsetsGeometry margin;
+  final Color? color;
+  final Color? borderColor;
+  final double radius;
+  final VoidCallback? onTap;
+  final Clip clipBehavior;
+
+  const ClinicalSurfaceCard({
+    super.key,
+    required this.child,
+    this.padding = const EdgeInsets.all(14),
+    this.margin = EdgeInsets.zero,
+    this.color,
+    this.borderColor,
+    this.radius = 16,
+    this.onTap,
+    this.clipBehavior = Clip.antiAlias,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final resolvedColor = color ?? scheme.surfaceContainerLowest;
+    final shape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(radius),
+      side: BorderSide(color: borderColor ?? scheme.outlineVariant),
+    );
+    final content = Padding(
+      padding: padding,
+      child: child,
+    );
+    return Padding(
+      padding: margin,
+      child: Material(
+        color: resolvedColor,
+        elevation: 0,
+        shadowColor: scheme.shadow.withValues(alpha: 0.08),
+        surfaceTintColor: Colors.transparent,
+        shape: shape,
+        clipBehavior: clipBehavior,
+        child: onTap == null
+            ? content
+            : InkWell(
+                onTap: onTap,
+                borderRadius: BorderRadius.circular(radius),
+                child: content,
+              ),
+      ),
+    );
+  }
+}
+
+class ClinicalInfoBanner extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String? message;
+  final Widget? trailing;
+  final Widget? progress;
+  final ClinicalStatus status;
+
+  const ClinicalInfoBanner({
+    super.key,
+    required this.icon,
+    required this.title,
+    this.message,
+    this.trailing,
+    this.progress,
+    this.status = ClinicalStatus.normal,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final style = clinicalStatusStyle(context, status);
+    final theme = Theme.of(context);
+    return ClinicalSurfaceCard(
+      color: style.background,
+      borderColor: style.border,
+      radius: 14,
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(icon, color: style.foreground),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: style.foreground,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                if (message != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    message!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: style.foreground,
+                      height: 1.25,
+                    ),
+                  ),
+                ],
+                if (progress != null) ...[
+                  const SizedBox(height: 8),
+                  progress!,
+                ],
+              ],
+            ),
+          ),
+          if (trailing != null) ...[
+            const SizedBox(width: 10),
+            trailing!,
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class StatusBadge extends StatelessWidget {
   final ClinicalStatus status;
   final String label;
@@ -72,32 +198,35 @@ class StatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final style = clinicalStatusStyle(context, status);
     final theme = Theme.of(context);
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: dense ? 8 : 10,
-        vertical: dense ? 4 : 6,
-      ),
+    return DecoratedBox(
       decoration: BoxDecoration(
         color: style.background,
         border: Border.all(color: style.border),
         borderRadius: BorderRadius.circular(999),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(style.icon, size: dense ? 14 : 16, color: style.foreground),
-          const SizedBox(width: 5),
-          Flexible(
-            child: Text(
-              label,
-              overflow: TextOverflow.visible,
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: style.foreground,
-                fontWeight: FontWeight.w800,
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: dense ? 8 : 10,
+          vertical: dense ? 4 : 6,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(style.icon, size: dense ? 14 : 16, color: style.foreground),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(
+                label,
+                overflow: TextOverflow.visible,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: style.foreground,
+                  fontWeight: FontWeight.w900,
+                  height: 1.1,
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -106,165 +235,121 @@ class StatusBadge extends StatelessWidget {
 class ClinicalSummaryCard extends StatelessWidget {
   final ScoreDisplay display;
   final VoidCallback? onTap;
+  final bool compact;
 
   const ClinicalSummaryCard({
     super.key,
     required this.display,
     this.onTap,
+    this.compact = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final style = clinicalStatusStyle(context, display.status);
     final theme = Theme.of(context);
-    return Card.filled(
+    return ClinicalSurfaceCard(
       color: style.background,
-      margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: style.border),
+      borderColor: style.border,
+      radius: compact ? 12 : 16,
+      padding: EdgeInsets.all(compact ? 10 : 14),
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            display.title,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: style.foreground,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          SizedBox(height: compact ? 5 : 8),
+          Text(
+            display.scoreText,
+            style: (compact
+                    ? theme.textTheme.headlineSmall
+                    : theme.textTheme.displaySmall)
+                ?.copyWith(
+              color: style.foreground,
+              fontWeight: FontWeight.w900,
+              height: 0.95,
+            ),
+          ),
+          SizedBox(height: compact ? 7 : 10),
+          if (!compact)
+            StatusBadge(
+              status: display.status,
+              label: display.statusLabel,
+              dense: true,
+            ),
+          if (!compact) ...[
+            const SizedBox(height: 8),
+            Text(
+              display.helperText,
+              maxLines: 3,
+              overflow: TextOverflow.visible,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: style.foreground,
+                fontWeight: FontWeight.w600,
+                height: 1.2,
+              ),
+            ),
+          ] else
+            StatusBadge(
+              status: display.status,
+              label: display.statusLabel,
+              dense: true,
+            ),
+        ],
       ),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
+    );
+  }
+}
+
+class ClinicalSectionHeader extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final Widget trailing;
+
+  const ClinicalSectionHeader({
+    super.key,
+    required this.title,
+    required this.subtitle,
+    required this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                display.title,
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: style.foreground,
+                title,
+                style: theme.textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.w900,
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 3),
               Text(
-                display.scoreText,
-                style: theme.textTheme.displaySmall?.copyWith(
-                  color: style.foreground,
-                  fontWeight: FontWeight.w900,
-                  height: 0.95,
-                ),
-              ),
-              const SizedBox(height: 10),
-              StatusBadge(
-                status: display.status,
-                label: display.statusLabel,
-                dense: true,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                display.helperText,
-                maxLines: 3,
+                subtitle,
                 overflow: TextOverflow.visible,
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: style.foreground,
-                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.onSurfaceVariant,
                   height: 1.2,
                 ),
               ),
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class MissingDataPanel extends StatelessWidget {
-  final List<MissingDataItem> items;
-  final ValueChanged<MissingDataItem> onItemTap;
-
-  const MissingDataPanel({
-    super.key,
-    required this.items,
-    required this.onItemTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (items.isEmpty) {
-      return const SizedBox.shrink();
-    }
-    final theme = Theme.of(context);
-    final chipStyle = clinicalStatusStyle(context, ClinicalStatus.missing);
-    final groups = <String, List<MissingDataItem>>{};
-    for (final item in items) {
-      groups.putIfAbsent(item.groupLabel, () => []).add(item);
-    }
-    return Card.outlined(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.playlist_add_check_circle_outlined,
-                  color: theme.colorScheme.primary,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Cần bổ sung để hoàn tất đánh giá',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            for (final entry in groups.entries) ...[
-              Text(
-                entry.key,
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  for (final item in entry.value)
-                    ActionChip(
-                      label: Text(item.label),
-                      avatar: Icon(
-                        Icons.arrow_downward,
-                        size: 16,
-                        color: chipStyle.foreground,
-                      ),
-                      backgroundColor: chipStyle.background,
-                      elevation: 1,
-                      pressElevation: 3,
-                      shadowColor: chipStyle.foreground.withValues(alpha: 0.2),
-                      surfaceTintColor: Colors.transparent,
-                      side: BorderSide(color: chipStyle.border),
-                      shape: StadiumBorder(
-                        side: BorderSide(color: chipStyle.border),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 6,
-                      ),
-                      labelStyle: theme.textTheme.labelMedium?.copyWith(
-                        color: chipStyle.foreground,
-                        fontWeight: FontWeight.w900,
-                      ),
-                      onPressed: () => onItemTap(item),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 10),
-            ],
-          ],
-        ),
-      ),
+        const SizedBox(width: 10),
+        trailing,
+      ],
     );
   }
 }
@@ -293,43 +378,30 @@ class FormSectionAccordion extends StatelessWidget {
         : 'Còn thiếu: ${progress.missingLabels.join(', ')}';
     return Card.outlined(
       margin: const EdgeInsets.only(bottom: 12),
+      color: theme.colorScheme.surfaceContainerLowest,
       clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: theme.colorScheme.outlineVariant),
+      ),
       child: ExpansionTile(
         initiallyExpanded: initiallyExpanded,
         maintainState: true,
         onExpansionChanged: onExpansionChanged,
-        tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        title: Text(
-          title,
-          style: theme.textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.w900,
+        tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+        childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+        title: ClinicalSectionHeader(
+          title: title,
+          subtitle: missingText,
+          trailing: StatusBadge(
+            status: progress.complete
+                ? ClinicalStatus.normal
+                : ClinicalStatus.missing,
+            label: '${progress.completedCount}/${progress.totalCount}',
+            dense: true,
           ),
         ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Text(
-            missingText,
-            overflow: TextOverflow.visible,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            StatusBadge(
-              status: progress.complete
-                  ? ClinicalStatus.normal
-                  : ClinicalStatus.missing,
-              label: '${progress.completedCount}/${progress.totalCount}',
-              dense: true,
-            ),
-            const SizedBox(width: 4),
-            const Icon(Icons.expand_more),
-          ],
-        ),
+        trailing: const Icon(Icons.expand_more),
         children: children,
       ),
     );
@@ -345,7 +417,11 @@ class MedicalInputField extends StatelessWidget {
   final String? warningText;
   final String? errorText;
   final String? scoreText;
+  final ClinicalStatus scoreStatus;
   final String? hintText;
+  final List<String>? unitOptions;
+  final String? selectedUnit;
+  final ValueChanged<String>? onUnitChanged;
   final TextInputType? keyboardType;
   final List<TextInputFormatter>? inputFormatters;
   final int maxLines;
@@ -361,7 +437,11 @@ class MedicalInputField extends StatelessWidget {
     this.warningText,
     this.errorText,
     this.scoreText,
+    this.scoreStatus = ClinicalStatus.normal,
     this.hintText,
+    this.unitOptions,
+    this.selectedUnit,
+    this.onUnitChanged,
     this.keyboardType,
     this.inputFormatters,
     this.maxLines = 1,
@@ -372,6 +452,53 @@ class MedicalInputField extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final warning = warningText;
+    final units = unitOptions ??
+        (unit == null || unit!.trim().isEmpty ? null : <String>[unit!]);
+    final selected =
+        selectedUnit ?? (units?.isNotEmpty == true ? units!.first : null);
+    final unitButton = units == null || units.isEmpty || selected == null
+        ? null
+        : Padding(
+            padding: const EdgeInsetsDirectional.only(end: 8),
+            child: SizedBox(
+              width: 92,
+              height: 34,
+              child: TextButton(
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  minimumSize: const Size(0, 34),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(999),
+                    side: BorderSide(color: theme.colorScheme.outlineVariant),
+                  ),
+                  backgroundColor: theme.colorScheme.primaryContainer,
+                  foregroundColor: theme.colorScheme.onPrimaryContainer,
+                  disabledBackgroundColor:
+                      theme.colorScheme.surfaceContainerHighest,
+                  disabledForegroundColor: theme.colorScheme.onSurfaceVariant,
+                ),
+                onPressed: units.length <= 1 || onUnitChanged == null
+                    ? null
+                    : () {
+                        final currentIndex = units.indexOf(selected);
+                        final nextIndex = currentIndex < 0
+                            ? 0
+                            : (currentIndex + 1) % units.length;
+                        onUnitChanged!(units[nextIndex]);
+                      },
+                child: Text(
+                  selected,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ),
+          );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -385,7 +512,15 @@ class MedicalInputField extends StatelessWidget {
           decoration: InputDecoration(
             labelText: label,
             hintText: hintText,
-            suffixText: unit,
+            suffixText: unitButton == null ? unit : null,
+            suffixIcon: unitButton,
+            suffixIconConstraints: unitButton == null
+                ? null
+                : const BoxConstraints(
+                    minWidth: 100,
+                    maxWidth: 100,
+                    minHeight: 40,
+                  ),
             helperText: helperText,
             helperMaxLines: 3,
             errorText: errorText,
@@ -393,39 +528,140 @@ class MedicalInputField extends StatelessWidget {
           onChanged: onChanged,
         ),
         if (warning != null && errorText == null) ...[
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
+          ClinicalSurfaceCard(
+            color: const Color(0xFFFFF8E6),
+            borderColor: const Color(0xFFE4BA62),
+            radius: 10,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.warning_amber,
+                  size: 16,
+                  color: Color(0xFF7A4D00),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    warning,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: const Color(0xFF7A4D00),
+                      fontWeight: FontWeight.w800,
+                      height: 1.2,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+        if (scoreText != null) ...[
+          const SizedBox(height: 6),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: StatusBadge(
+              status: scoreStatus,
+              label: scoreText!,
+              dense: true,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class MissingDataPanel extends StatelessWidget {
+  final List<MissingDataItem> items;
+  final ValueChanged<MissingDataItem> onItemTap;
+
+  const MissingDataPanel({
+    super.key,
+    required this.items,
+    required this.onItemTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (items.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final theme = Theme.of(context);
+    final chipStyle = clinicalStatusStyle(context, ClinicalStatus.missing);
+    final groups = <String, List<MissingDataItem>>{};
+    for (final item in items) {
+      groups.putIfAbsent(item.groupLabel, () => []).add(item);
+    }
+    return ClinicalSurfaceCard(
+      color: theme.colorScheme.surfaceContainerLowest,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(
-                Icons.warning_amber,
-                size: 16,
-                color: Color(0xFFA34A00),
+              Icon(
+                Icons.playlist_add_check_circle_outlined,
+                color: theme.colorScheme.primary,
               ),
-              const SizedBox(width: 5),
+              const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  warning,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: const Color(0xFFA34A00),
-                    fontWeight: FontWeight.w700,
+                  'Cần bổ sung để hoàn tất đánh giá',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
               ),
             ],
           ),
-        ],
-        if (scoreText != null) ...[
-          const SizedBox(height: 4),
-          Text(
-            scoreText!,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: theme.colorScheme.primary,
-              fontWeight: FontWeight.w900,
+          const SizedBox(height: 10),
+          for (final entry in groups.entries) ...[
+            Text(
+              entry.key,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w800,
+              ),
             ),
-          ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final item in entry.value)
+                  ActionChip(
+                    label: Text(item.label),
+                    avatar: Icon(
+                      Icons.arrow_downward,
+                      size: 16,
+                      color: chipStyle.foreground,
+                    ),
+                    backgroundColor: chipStyle.background,
+                    elevation: 0,
+                    pressElevation: 1,
+                    surfaceTintColor: Colors.transparent,
+                    side: BorderSide(color: chipStyle.border),
+                    shape: StadiumBorder(
+                      side: BorderSide(color: chipStyle.border),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 6,
+                    ),
+                    labelStyle: theme.textTheme.labelMedium?.copyWith(
+                      color: chipStyle.foreground,
+                      fontWeight: FontWeight.w900,
+                    ),
+                    onPressed: () => onItemTap(item),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 10),
+          ],
         ],
-      ],
+      ),
     );
   }
 }
@@ -464,13 +700,11 @@ class ScoreBreakdownRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final style = clinicalStatusStyle(context, status);
     final theme = Theme.of(context);
-    return Container(
+    return ClinicalSurfaceCard(
+      color: style.background,
+      borderColor: style.border,
+      radius: 12,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: style.background,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: style.border),
-      ),
       child: Row(
         children: [
           Expanded(
@@ -531,64 +765,61 @@ class PatientCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Card.outlined(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
-          child: Column(
+    return ClinicalSurfaceCard(
+      padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Text(
-                      name,
-                      overflow: TextOverflow.visible,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
-                  if (actionMenu != null) actionMenu!,
-                ],
-              ),
-              const SizedBox(height: 6),
-              Text(
-                identityLine,
-                overflow: TextOverflow.visible,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                admissionLine,
-                overflow: TextOverflow.visible,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-              if (badges.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                Wrap(spacing: 6, runSpacing: 6, children: badges),
-              ],
-              const SizedBox(height: 10),
-              Align(
-                alignment: Alignment.centerRight,
+              Expanded(
                 child: Text(
-                  updatedText,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w700,
+                  name,
+                  overflow: TextOverflow.visible,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
               ),
+              if (actionMenu != null) actionMenu!,
             ],
           ),
-        ),
+          const SizedBox(height: 6),
+          Text(
+            identityLine,
+            overflow: TextOverflow.visible,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              height: 1.2,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            admissionLine,
+            overflow: TextOverflow.visible,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              height: 1.2,
+            ),
+          ),
+          if (badges.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Wrap(spacing: 6, runSpacing: 6, children: badges),
+          ],
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerRight,
+            child: Text(
+              updatedText,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

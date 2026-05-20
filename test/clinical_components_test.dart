@@ -85,4 +85,45 @@ void main() {
     expect(find.text('Nhịp tim'), findsOneWidget);
     expect(find.text('Nhịp tim ngoài khoảng thường gặp'), findsOneWidget);
   });
+
+  testWidgets('MedicalInputField cycles between multiple unit options',
+      (tester) async {
+    var selectedUnit = 'mg/dL';
+
+    await tester.pumpWidget(wrap(StatefulBuilder(
+      builder: (context, setState) {
+        return MedicalInputField(
+          label: 'Bilirubin',
+          value: '',
+          onChanged: (_) {},
+          unitOptions: const ['mg/dL', 'µmol/L'],
+          selectedUnit: selectedUnit,
+          onUnitChanged: (value) => setState(() => selectedUnit = value),
+        );
+      },
+    )));
+
+    expect(find.widgetWithText(TextButton, 'mg/dL'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(TextButton, 'mg/dL'));
+    await tester.pump();
+
+    expect(find.widgetWithText(TextButton, 'µmol/L'), findsOneWidget);
+  });
+
+  testWidgets('MedicalInputField shows disabled button for single unit',
+      (tester) async {
+    await tester.pumpWidget(wrap(MedicalInputField(
+      label: 'Huyết áp',
+      value: '120',
+      onChanged: (_) {},
+      unitOptions: const ['mmHg'],
+    )));
+
+    final button = tester.widget<TextButton>(
+      find.widgetWithText(TextButton, 'mmHg'),
+    );
+
+    expect(button.onPressed, isNull);
+  });
 }

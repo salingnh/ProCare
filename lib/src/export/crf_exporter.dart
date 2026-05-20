@@ -27,6 +27,11 @@ enum CrfExportFormat {
 class CrfExporter {
   const CrfExporter();
 
+  static const _news2TableNote =
+      '*Ghi chú: SpO2 Thang 2 chỉ dùng cho BN suy hô hấp tăng CO2 (COPD). Điểm 1, 2, 3 ở phía bên phải bảng điểm của Thang 2 chỉ áp dụng khi BN đang thở Oxy hỗ trợ.';
+  static const _sofaTableNote =
+      'Ghi chú đánh giá SOFA: Tăng ≥ 2 điểm so với điểm nền (nếu bệnh nhân không có bệnh nền suy tạng, mặc định điểm SOFA nền = 0).';
+
   Future<File> export(
     ClinicalAssessment assessment,
     CrfExportFormat format,
@@ -45,47 +50,31 @@ class CrfExporter {
     return file;
   }
 
-  static String buildFileName(
+  Future<Uint8List> buildBytes(
     ClinicalAssessment assessment,
     CrfExportFormat format,
   ) {
-    final identity = _firstText(
-      assessment.patientId,
-      _firstText(assessment.fullName, 'benh-nhan'),
-    );
-    final now = DateTime.now();
-    final stamp =
-        '${now.year}${_two(now.month)}${_two(now.day)}-${_two(now.hour)}${_two(now.minute)}';
-    return 'NEWS2-L-${sanitizeFileName(identity)}-$stamp.${format.extension}';
+    return switch (format) {
+      CrfExportFormat.pdf => buildPdfBytes(assessment),
+      CrfExportFormat.docx => buildDocxBytes(assessment),
+    };
   }
 
-  static String sanitizeFileName(String value) {
-    final trimmed = value.trim();
-    if (trimmed.isEmpty) {
-      return 'benh-nhan';
-    }
-    final safe = trimmed
-        .replaceAll(RegExp(r'[^\p{L}\p{N}._-]+', unicode: true), '-')
-        .replaceAll(RegExp('-{2,}'), '-')
-        .replaceAll(RegExp(r'^-|-$'), '');
-    return safe.isEmpty ? 'benh-nhan' : safe;
-  }
-
-  Future<Directory> _exportDirectory() async {
-    final external = await getExternalStorageDirectory();
-    final base = external ?? await getApplicationDocumentsDirectory();
-    final directory = Directory(p.join(base.path, 'exports'));
-    if (!await directory.exists()) {
-      await directory.create(recursive: true);
-    }
-    return directory;
-  }
-
-  Future<void> _writePdf(File file, ClinicalAssessment assessment) async {
+  Future<Uint8List> buildPdfBytes(ClinicalAssessment assessment) async {
     final fontBytes = await rootBundle.load('assets/fonts/NotoSans.ttf');
+    final mathFontBytes =
+        await rootBundle.load('assets/fonts/NotoSansMath-Regular.ttf');
+    final symbolsFontBytes =
+        await rootBundle.load('assets/fonts/NotoSansSymbols2-Regular.ttf');
     final font = pw.Font.ttf(fontBytes);
+    final mathFont = pw.Font.ttf(mathFontBytes);
+    final symbolsFont = pw.Font.ttf(symbolsFontBytes);
     final document = pw.Document();
-    final theme = pw.ThemeData.withFont(base: font, bold: font);
+    final theme = pw.ThemeData.withFont(
+      base: font,
+      bold: font,
+      fontFallback: [symbolsFont, mathFont],
+    );
 
     document.addPage(
       pw.MultiPage(
@@ -139,7 +128,7 @@ class CrfExporter {
           ),
           _pdfSection('III. ĐÁNH GIÁ BAN ĐẦU LÚC NHẬP VIỆN'),
           _pdfText('1. Thang điểm NEWS2'),
-          _pdfTable(_news2Rows(assessment)),
+          _pdfTable(_news2Rows(assessment), note: _news2TableNote),
         ],
       ),
     );
@@ -165,7 +154,7 @@ class CrfExporter {
             '${_checked(_lactateHigh(assessment.lactateLevel))} ≥ 4 mmol/L',
           ),
           _pdfSection('IV. THANG ĐIỂM SOFA (TIÊU CHUẨN VÀNG TRONG 24H)'),
-          _pdfTable(_sofaRows(assessment)),
+          _pdfTable(_sofaRows(assessment), note: _sofaTableNote),
           _pdfSection('V. KẾT CỤC LÂM SÀNG'),
           _pdfText('1. Chẩn đoán xác định (Theo Sepsis-3):'),
           _pdfText(
@@ -194,10 +183,10 @@ class CrfExporter {
       ),
     );
 
-    await file.writeAsBytes(await document.save());
+    return document.save();
   }
 
-  Future<void> _writeDocx(File file, ClinicalAssessment assessment) async {
+  Future<Uint8List> buildDocxBytes(ClinicalAssessment assessment) async {
     final documentXml = _documentXml(assessment);
     final archive = Archive()
       ..addFile(_archiveText('[Content_Types].xml', '''
@@ -215,8 +204,51 @@ class CrfExporter {
 </Relationships>
 '''))
       ..addFile(_archiveText('word/document.xml', documentXml));
-    final bytes = ZipEncoder().encode(archive);
-    await file.writeAsBytes(bytes);
+    return Uint8List.fromList(ZipEncoder().encode(archive));
+  }
+
+  static String buildFileName(
+    ClinicalAssessment assessment,
+    CrfExportFormat format,
+  ) {
+    final identity = _firstText(
+      assessment.patientId,
+      _firstText(assessment.fullName, 'benh-nhan'),
+    );
+    final now = DateTime.now();
+    final stamp =
+        '${now.year}${_two(now.month)}${_two(now.day)}-${_two(now.hour)}${_two(now.minute)}';
+    return 'NEWS2-L-${sanitizeFileName(identity)}-$stamp.${format.extension}';
+  }
+
+  static String sanitizeFileName(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      return 'benh-nhan';
+    }
+    final safe = trimmed
+        .replaceAll(RegExp(r'[^\p{L}\p{N}._-]+', unicode: true), '-')
+        .replaceAll(RegExp('-{2,}'), '-')
+        .replaceAll(RegExp(r'^-|-$'), '');
+    return safe.isEmpty ? 'benh-nhan' : safe;
+  }
+
+  Future<Directory> _exportDirectory() async {
+    final external = await getExternalStorageDirectory();
+    final base = external ?? await getApplicationDocumentsDirectory();
+    final directory = Directory(p.join(base.path, 'exports'));
+    if (!await directory.exists()) {
+      await directory.create(recursive: true);
+    }
+    return directory;
+  }
+
+  Future<void> _writePdf(File file, ClinicalAssessment assessment) async {
+    await file.writeAsBytes(await buildPdfBytes(assessment));
+  }
+
+  Future<void> _writeDocx(File file, ClinicalAssessment assessment) async {
+    await file.writeAsBytes(await buildDocxBytes(assessment));
   }
 
   String _documentXml(ClinicalAssessment a) {
@@ -272,7 +304,7 @@ class CrfExporter {
       '• Bệnh lý nền: ☐ ĐTĐ  ☐ Suy thận  ☐ Suy gan  ☐ Tăng HA  ☐ COPD   Khác: ..........',
     );
     _paragraph(buffer, 'III. ĐÁNH GIÁ BAN ĐẦU LÚC NHẬP VIỆN', bold: true);
-    _docxTable(buffer, _news2Rows(a));
+    _docxTable(buffer, _news2Rows(a), note: _news2TableNote);
     _paragraph(buffer, '2. Thang điểm qSOFA', bold: true);
     _docxTable(buffer, _qsofaRows(a));
     _paragraph(buffer, '3. Dấu ấn sinh học ban đầu', bold: true);
@@ -288,7 +320,7 @@ class CrfExporter {
     );
     _paragraph(buffer, 'IV. THANG ĐIỂM SOFA (TIÊU CHUẨN VÀNG TRONG 24H)',
         bold: true);
-    _docxTable(buffer, _sofaRows(a));
+    _docxTable(buffer, _sofaRows(a), note: _sofaTableNote);
     _paragraph(buffer, 'V. KẾT CỤC LÂM SÀNG', bold: true);
     _paragraph(buffer, '1. Chẩn đoán xác định (Theo Sepsis-3):');
     _paragraph(
@@ -350,26 +382,60 @@ class CrfExporter {
     );
   }
 
-  static pw.Widget _pdfTable(List<List<String>> rows) {
-    return pw.Table(
+  static pw.Widget _pdfTable(List<List<Object>> rows, {String? note}) {
+    final table = pw.Table(
       border: pw.TableBorder.all(width: 0.5),
       defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
       children: rows.map((row) {
         return pw.TableRow(
-          children: row.map((cell) {
+          children: row.map((value) {
+            final cell = _exportCell(value);
             return pw.Padding(
               padding: const pw.EdgeInsets.all(3),
-              child: pw.Text(cell, style: const pw.TextStyle(fontSize: 8)),
+              child: pw.Text(
+                cell.text,
+                style: pw.TextStyle(
+                  fontSize: 8,
+                  fontWeight:
+                      cell.bold ? pw.FontWeight.bold : pw.FontWeight.normal,
+                ),
+              ),
             );
           }).toList(),
         );
       }).toList(),
     );
+    if (note == null) {
+      return table;
+    }
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+      children: [
+        table,
+        pw.Container(
+          padding: const pw.EdgeInsets.all(3),
+          decoration: const pw.BoxDecoration(
+            border: pw.Border(
+              left: pw.BorderSide(width: 0.5),
+              right: pw.BorderSide(width: 0.5),
+              bottom: pw.BorderSide(width: 0.5),
+            ),
+          ),
+          child: pw.Text(
+            note,
+            style: pw.TextStyle(
+              fontSize: 8,
+              fontStyle: pw.FontStyle.italic,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
-  static List<List<String>> _news2Rows(ClinicalAssessment a) {
+  static List<List<Object>> _news2Rows(ClinicalAssessment a) {
     return [
-      [
+      _news2Row([
         'Thông số',
         'Thực đo',
         'Điểm 3',
@@ -380,8 +446,8 @@ class CrfExporter {
         'Điểm 2',
         'Điểm 3',
         'Điểm'
-      ],
-      [
+      ]),
+      _news2Row([
         'Nhịp thở',
         a.news2RespirationMeasured,
         '≤ 8',
@@ -392,8 +458,8 @@ class CrfExporter {
         '21-24',
         '≥ 25',
         _scoreIfPresent(a.news2Respiration, a.news2RespirationMeasured)
-      ],
-      [
+      ], boldIndex: _news2RespirationBoldIndex(a.news2RespirationMeasured)),
+      _news2Row([
         'SpO2 T1',
         a.news2Spo2Scale2 ? '' : a.news2Spo2Measured,
         '≤ 91',
@@ -407,7 +473,10 @@ class CrfExporter {
             ? ''
             : _scoreIfPresent(a.news2Spo2, a.news2Spo2Measured)
       ],
-      [
+          boldIndex: a.news2Spo2Scale2
+              ? null
+              : _news2Spo2Scale1BoldIndex(a.news2Spo2Measured)),
+      _news2Row([
         'SpO2 T2',
         a.news2Spo2Scale2 ? a.news2Spo2Measured : '',
         '≤ 83',
@@ -421,19 +490,22 @@ class CrfExporter {
             ? _scoreIfPresent(a.news2Spo2, a.news2Spo2Measured)
             : ''
       ],
-      [
+          boldIndex: a.news2Spo2Scale2
+              ? _news2Spo2Scale2BoldIndex(a.news2Spo2Measured)
+              : null),
+      _news2Row([
         'Thở oxy',
         a.news2OxygenMeasured,
-        'Có',
         '',
+        'Có',
         '',
         'Không',
         '',
         '',
         '',
         _scoreIfPresent(a.news2Oxygen, a.news2OxygenMeasured)
-      ],
-      [
+      ], boldIndex: _news2OxygenBoldIndex(a.news2OxygenMeasured)),
+      _news2Row([
         'Nhiệt độ',
         a.news2TemperatureMeasured,
         '≤ 35.0',
@@ -444,8 +516,8 @@ class CrfExporter {
         '≥ 39.1',
         '',
         _scoreIfPresent(a.news2Temperature, a.news2TemperatureMeasured)
-      ],
-      [
+      ], boldIndex: _news2TemperatureBoldIndex(a.news2TemperatureMeasured)),
+      _news2Row([
         'HA tâm thu',
         a.news2SystolicBpMeasured,
         '≤ 90',
@@ -456,8 +528,8 @@ class CrfExporter {
         '',
         '≥ 220',
         _scoreIfPresent(a.news2SystolicBp, a.news2SystolicBpMeasured)
-      ],
-      [
+      ], boldIndex: _news2SystolicBpBoldIndex(a.news2SystolicBpMeasured)),
+      _news2Row([
         'Nhịp tim',
         a.news2HeartRateMeasured,
         '≤ 40',
@@ -468,8 +540,8 @@ class CrfExporter {
         '111-130',
         '≥ 131',
         _scoreIfPresent(a.news2HeartRate, a.news2HeartRateMeasured)
-      ],
-      [
+      ], boldIndex: _news2HeartRateBoldIndex(a.news2HeartRateMeasured)),
+      _news2Row([
         'Tri giác',
         a.news2ConsciousnessMeasured,
         'K.Đ.Ư',
@@ -480,8 +552,8 @@ class CrfExporter {
         '',
         '',
         _scoreIfPresent(a.news2Consciousness, a.news2ConsciousnessMeasured)
-      ],
-      [
+      ], boldIndex: _news2ConsciousnessBoldIndex(a.news2ConsciousnessMeasured)),
+      _news2Row([
         'TỔNG ĐIỂM NEWS2',
         '',
         '',
@@ -492,8 +564,196 @@ class CrfExporter {
         '',
         '',
         _allNews2Completed(a) ? '${a.news2Total}/21' : '........'
-      ],
+      ]),
     ];
+  }
+
+  static List<Object> _news2Row(List<String> values, {int? boldIndex}) {
+    return [
+      for (var index = 0; index < values.length; index++)
+        _ExportCell(
+          values[index],
+          bold: index == boldIndex && values[index].isNotEmpty,
+        ),
+    ];
+  }
+
+  static int? _news2RespirationBoldIndex(String value) {
+    final number = ClinicalValueParser.parseInteger(value);
+    if (number == null) {
+      return null;
+    }
+    if (number <= 8) {
+      return 2;
+    }
+    if (number <= 11) {
+      return 4;
+    }
+    if (number <= 20) {
+      return 5;
+    }
+    if (number <= 24) {
+      return 7;
+    }
+    return 8;
+  }
+
+  static int? _news2Spo2Scale1BoldIndex(String value) {
+    final number = ClinicalValueParser.parseInteger(value);
+    if (number == null) {
+      return null;
+    }
+    if (number <= 91) {
+      return 2;
+    }
+    if (number <= 93) {
+      return 3;
+    }
+    if (number <= 95) {
+      return 4;
+    }
+    return 5;
+  }
+
+  static int? _news2Spo2Scale2BoldIndex(String value) {
+    final number = ClinicalValueParser.parseInteger(value);
+    if (number == null) {
+      return null;
+    }
+    if (number <= 83) {
+      return 2;
+    }
+    if (number <= 85) {
+      return 3;
+    }
+    if (number <= 87) {
+      return 4;
+    }
+    if (number <= 92) {
+      return 5;
+    }
+    if (number <= 94) {
+      return 6;
+    }
+    if (number <= 96) {
+      return 7;
+    }
+    return 8;
+  }
+
+  static int? _news2OxygenBoldIndex(String value) {
+    if (!ClinicalValueParser.hasText(value)) {
+      return null;
+    }
+    final normalized = value.trim().toLowerCase();
+    if (normalized.contains('không') ||
+        normalized.contains('khong') ||
+        normalized.contains('room') ||
+        normalized.contains('khí phòng') ||
+        normalized.contains('khi phong')) {
+      return 5;
+    }
+    if (normalized.contains('oxy') ||
+        normalized.contains('oxygen') ||
+        normalized.contains('có') ||
+        normalized.contains('co')) {
+      return 3;
+    }
+    return null;
+  }
+
+  static int? _news2TemperatureBoldIndex(String value) {
+    final number = ClinicalValueParser.parseDouble(value);
+    if (number == null) {
+      return null;
+    }
+    if (number <= 35.0) {
+      return 2;
+    }
+    if (number <= 36.0) {
+      return 4;
+    }
+    if (number <= 38.0) {
+      return 5;
+    }
+    if (number <= 39.0) {
+      return 6;
+    }
+    return 7;
+  }
+
+  static int? _news2SystolicBpBoldIndex(String value) {
+    final number = ClinicalValueParser.parseInteger(value);
+    if (number == null) {
+      return null;
+    }
+    if (number <= 90) {
+      return 2;
+    }
+    if (number <= 100) {
+      return 3;
+    }
+    if (number <= 110) {
+      return 4;
+    }
+    if (number <= 219) {
+      return 5;
+    }
+    return 8;
+  }
+
+  static int? _news2HeartRateBoldIndex(String value) {
+    final number = ClinicalValueParser.parseInteger(value);
+    if (number == null) {
+      return null;
+    }
+    if (number <= 40) {
+      return 2;
+    }
+    if (number <= 50) {
+      return 4;
+    }
+    if (number <= 90) {
+      return 5;
+    }
+    if (number <= 110) {
+      return 6;
+    }
+    if (number <= 130) {
+      return 7;
+    }
+    return 8;
+  }
+
+  static int? _news2ConsciousnessBoldIndex(String value) {
+    if (!ClinicalValueParser.hasText(value)) {
+      return null;
+    }
+    final normalized = value.trim().toUpperCase();
+    if (normalized == 'A' ||
+        normalized.contains('TINH') ||
+        normalized.contains('TỈNH')) {
+      return 5;
+    }
+    if (normalized == 'V' ||
+        normalized.contains('GỌI') ||
+        normalized.contains('GOI') ||
+        normalized.contains('LỜI') ||
+        normalized.contains('LOI')) {
+      return 4;
+    }
+    if (normalized == 'P' ||
+        normalized.contains('ĐAU') ||
+        normalized.contains('DAU')) {
+      return 3;
+    }
+    if (normalized == 'U' ||
+        normalized.contains('K.Đ') ||
+        normalized.contains('KHÔNG') ||
+        normalized.contains('KHONG')) {
+      return 2;
+    }
+    return null;
   }
 
   static List<List<String>> _qsofaRows(ClinicalAssessment a) {
@@ -571,7 +831,11 @@ class CrfExporter {
     ];
   }
 
-  static void _docxTable(StringBuffer buffer, List<List<String>> rows) {
+  static void _docxTable(
+    StringBuffer buffer,
+    List<List<Object>> rows, {
+    String? note,
+  }) {
     buffer.write('<w:tbl><w:tblPr><w:tblBorders>');
     buffer.write(
         '<w:top w:val="single" w:sz="6"/><w:left w:val="single" w:sz="6"/>');
@@ -582,24 +846,43 @@ class CrfExporter {
     buffer.write('</w:tblBorders></w:tblPr>');
     for (final row in rows) {
       buffer.write('<w:tr>');
-      for (final cell in row) {
+      for (final value in row) {
+        final cell = _exportCell(value);
         buffer.write('<w:tc><w:tcPr><w:tcW w:w="1800" w:type="dxa"/></w:tcPr>');
-        _paragraph(buffer, cell);
+        _paragraph(buffer, cell.text, bold: cell.bold);
         buffer.write('</w:tc>');
       }
       buffer.write('</w:tr>');
+    }
+    if (note != null && rows.isNotEmpty) {
+      buffer.write('<w:tr><w:tc><w:tcPr>');
+      buffer.write('<w:gridSpan w:val="${rows.first.length}"/>');
+      buffer.write('<w:tcW w:w="1800" w:type="dxa"/></w:tcPr>');
+      _paragraph(buffer, note, italic: true);
+      buffer.write('</w:tc></w:tr>');
     }
     buffer.write('</w:tbl>');
   }
 
   static void _paragraph(StringBuffer buffer, String text,
-      {bool bold = false}) {
+      {bool bold = false, bool italic = false}) {
     buffer.write('<w:p><w:r>');
-    if (bold) {
-      buffer.write('<w:rPr><w:b/></w:rPr>');
+    if (bold || italic) {
+      buffer.write('<w:rPr>');
+      if (bold) {
+        buffer.write('<w:b/>');
+      }
+      if (italic) {
+        buffer.write('<w:i/>');
+      }
+      buffer.write('</w:rPr>');
     }
     buffer.write('<w:t xml:space="preserve">${_escapeXml(text)}</w:t>');
     buffer.write('</w:r></w:p>');
+  }
+
+  static _ExportCell _exportCell(Object value) {
+    return value is _ExportCell ? value : _ExportCell(value.toString());
   }
 
   static ArchiveFile _archiveText(String name, String value) {
@@ -696,4 +979,11 @@ class CrfExporter {
   }
 
   static String _two(int value) => value.toString().padLeft(2, '0');
+}
+
+class _ExportCell {
+  final String text;
+  final bool bold;
+
+  const _ExportCell(this.text, {this.bold = false});
 }

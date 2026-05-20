@@ -6,6 +6,7 @@ clinical dashboard + guided form.
 ## Cách dùng
 
 - Mỗi agent nhận đúng task được giao, đọc phần `Context chung` và task của mình.
+- Khi phát triển UI mới, đọc thêm `docs/soft-minimal-clinical-ui-guidelines.md`.
 - Agent phải cập nhật checklist trong file này khi hoàn thành từng hạng mục.
 - Không đổi công thức tính NEWS2/qSOFA/SOFA.
 - Không đổi schema database.
@@ -371,6 +372,8 @@ bước này nếu không cần thiết; tập trung khóa regression.
 
 Ghi mọi quyết định/phát sinh ở đây để agent sau không mất context.
 
+- [x] 2026-05-20: Thêm guideline `Soft Minimal Card-based Clinical Scoring UI` cho các màn lâm sàng sau này.
+- [x] 2026-05-20: Bắt đầu phase polish toàn app theo guideline mới: visual polish only, không đổi cách nhập liệu/logic scoring/schema/export.
 - [x] 2026-05-19: Đã triển khai code cho T1-T6, phần chính của T7, và test/build cho T8.
 - [x] 2026-05-19: `flutter test` pass 20/20.
 - [x] 2026-05-19: `flutter build web` pass.
