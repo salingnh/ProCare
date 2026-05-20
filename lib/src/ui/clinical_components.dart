@@ -24,33 +24,33 @@ ClinicalStatusStyle clinicalStatusStyle(
   final scheme = Theme.of(context).colorScheme;
   return switch (status) {
     ClinicalStatus.missing => ClinicalStatusStyle(
-        background: const Color(0xFFEEF3F2),
-        border: const Color(0xFFC6D6D2),
-        foreground: const Color(0xFF5F6F6B),
+        background: const Color(0xFFE4ECE9),
+        border: const Color(0xFF8FA5A0),
+        foreground: const Color(0xFF243D38),
         icon: Icons.remove_circle_outline,
       ),
     ClinicalStatus.normal => ClinicalStatusStyle(
-        background: const Color(0xFFE7F6ED),
-        border: const Color(0xFFA8DDB8),
-        foreground: const Color(0xFF1D7A46),
+        background: const Color(0xFFE3F4EA),
+        border: const Color(0xFF7AC49B),
+        foreground: const Color(0xFF0F6B3A),
         icon: Icons.check_circle,
       ),
     ClinicalStatus.watch => ClinicalStatusStyle(
-        background: const Color(0xFFFFF6D8),
-        border: const Color(0xFFFFD978),
-        foreground: const Color(0xFF8A6500),
+        background: const Color(0xFFFFF2C2),
+        border: const Color(0xFFE7B835),
+        foreground: const Color(0xFF6C4A00),
         icon: Icons.info_outline,
       ),
     ClinicalStatus.warning => ClinicalStatusStyle(
-        background: const Color(0xFFFFEAD6),
-        border: const Color(0xFFFFBE7A),
-        foreground: const Color(0xFFA34A00),
+        background: const Color(0xFFFFE3C2),
+        border: const Color(0xFFE89A43),
+        foreground: const Color(0xFF8A3B00),
         icon: Icons.warning_amber,
       ),
     ClinicalStatus.danger => ClinicalStatusStyle(
         background: const Color(0xFFFFE1E1),
         border: scheme.error.withValues(alpha: 0.36),
-        foreground: const Color(0xFFB42318),
+        foreground: const Color(0xFF982117),
         icon: Icons.error_outline,
       ),
   };
@@ -190,6 +190,7 @@ class MissingDataPanel extends StatelessWidget {
       return const SizedBox.shrink();
     }
     final theme = Theme.of(context);
+    final chipStyle = clinicalStatusStyle(context, ClinicalStatus.missing);
     final groups = <String, List<MissingDataItem>>{};
     for (final item in items) {
       groups.putIfAbsent(item.groupLabel, () => []).add(item);
@@ -233,7 +234,28 @@ class MissingDataPanel extends StatelessWidget {
                   for (final item in entry.value)
                     ActionChip(
                       label: Text(item.label),
-                      avatar: const Icon(Icons.arrow_downward, size: 16),
+                      avatar: Icon(
+                        Icons.arrow_downward,
+                        size: 16,
+                        color: chipStyle.foreground,
+                      ),
+                      backgroundColor: chipStyle.background,
+                      elevation: 1,
+                      pressElevation: 3,
+                      shadowColor: chipStyle.foreground.withValues(alpha: 0.2),
+                      surfaceTintColor: Colors.transparent,
+                      side: BorderSide(color: chipStyle.border),
+                      shape: StadiumBorder(
+                        side: BorderSide(color: chipStyle.border),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 6,
+                      ),
+                      labelStyle: theme.textTheme.labelMedium?.copyWith(
+                        color: chipStyle.foreground,
+                        fontWeight: FontWeight.w900,
+                      ),
                       onPressed: () => onItemTap(item),
                     ),
                 ],

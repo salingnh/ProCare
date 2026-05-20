@@ -77,7 +77,16 @@ class News2LApp extends StatelessWidget {
         chipTheme: ChipThemeData(
           backgroundColor: colorScheme.surfaceContainerHighest,
           shape: const StadiumBorder(),
-          labelStyle: const TextStyle(fontSize: 12),
+          labelStyle: TextStyle(
+            color: colorScheme.onSurfaceVariant,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+          secondaryLabelStyle: TextStyle(
+            color: colorScheme.onSecondaryContainer,
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+          ),
           padding: const EdgeInsets.symmetric(horizontal: 4),
           side: BorderSide(color: colorScheme.outlineVariant),
         ),
@@ -713,13 +722,14 @@ class _HomeScreenState extends State<HomeScreen> {
               actions: _appBarActions(constraints.maxWidth),
             ),
             body: content,
-            floatingActionButton: !_loading && !isForm
-                ? FloatingActionButton.extended(
-                    onPressed: _startNew,
-                    icon: const Icon(Icons.add),
-                    label: const Text('Phiếu mới'),
-                  )
-                : null,
+            floatingActionButton:
+                !_loading && !isForm && _filteredPatients(_history).isNotEmpty
+                    ? FloatingActionButton.extended(
+                        onPressed: _startNew,
+                        icon: const Icon(Icons.add),
+                        label: const Text('Phiếu mới'),
+                      )
+                    : null,
           ),
         );
       },
@@ -1373,66 +1383,92 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildPatientList() {
     final patients = _filteredPatients(_history);
+    final showHeader = _history.isNotEmpty ||
+        _searchQuery.trim().isNotEmpty ||
+        _patientFilter != _PatientFilter.all;
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final searchField = TextField(
-                style: const TextStyle(fontSize: 14),
-                decoration: const InputDecoration(
-                  labelText: 'Tìm theo mã BN hoặc họ tên',
-                  prefixIcon: Icon(Icons.search),
-                ),
-                onChanged: (value) {
-                  _searchQuery = value;
-                  _refreshHistory();
-                },
-              );
-              final sortControl = _patientSortControl();
-              if (constraints.maxWidth < 620) {
+        if (showHeader)
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              16,
+              patients.isEmpty ? 8 : 12,
+              16,
+              patients.isEmpty ? 6 : 10,
+            ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxWidth < 620;
+                final searchField = TextField(
+                  style: const TextStyle(fontSize: 14),
+                  decoration: const InputDecoration(
+                    labelText: 'Tìm theo mã BN hoặc họ tên',
+                    prefixIcon: Icon(Icons.search),
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  ),
+                  onChanged: (value) {
+                    _searchQuery = value;
+                    _refreshHistory();
+                  },
+                );
+                if (compact) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      searchField,
+                      if (_history.isNotEmpty ||
+                          _patientFilter != _PatientFilter.all) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _patientSortControl(compact: true),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(child: _patientFilterMenu()),
+                          ],
+                        ),
+                      ],
+                      if (patients.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        _patientSummaryStrip(_history, compact: true),
+                      ],
+                    ],
+                  );
+                }
+                final sortControl = _patientSortControl();
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    searchField,
-                    const SizedBox(height: 10),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: sortControl,
+                    Row(
+                      children: [
+                        Expanded(child: searchField),
+                        const SizedBox(width: 12),
+                        sortControl,
+                      ],
                     ),
-                    const SizedBox(height: 10),
-                    _patientFilterChips(),
-                    const SizedBox(height: 10),
-                    _patientSummaryStrip(_history),
+                    if (patients.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Wrap(
+                        alignment: WrapAlignment.spaceBetween,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        runSpacing: 8,
+                        children: [
+                          _patientFilterChips(),
+                          _patientSummaryStrip(_history),
+                        ],
+                      ),
+                    ] else if (_history.isNotEmpty ||
+                        _patientFilter != _PatientFilter.all) ...[
+                      const SizedBox(height: 10),
+                      _patientFilterChips(),
+                    ],
                   ],
                 );
-              }
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(child: searchField),
-                      const SizedBox(width: 12),
-                      sortControl,
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    alignment: WrapAlignment.spaceBetween,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    runSpacing: 8,
-                    children: [
-                      _patientFilterChips(),
-                      _patientSummaryStrip(_history),
-                    ],
-                  ),
-                ],
-              );
-            },
+              },
+            ),
           ),
-        ),
         Expanded(
           child: patients.isEmpty
               ? _emptyPatientState()
@@ -1477,7 +1513,23 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _patientSortControl() {
+  Widget _patientSortControl({bool compact = false}) {
+    if (compact) {
+      return PopupMenuButton<PatientSortMode>(
+        initialValue: _sortMode,
+        tooltip: 'Sắp xếp',
+        onSelected: _selectPatientSort,
+        itemBuilder: (context) => [
+          _patientSortMenuItem(PatientSortMode.name),
+          _patientSortMenuItem(PatientSortMode.createdAt),
+          _patientSortMenuItem(PatientSortMode.updatedAt),
+        ],
+        child: _patientListMenuButton(
+          icon: Icons.sort,
+          label: _patientSortLabel(_sortMode, compact: true),
+        ),
+      );
+    }
     return SegmentedButton<PatientSortMode>(
       showSelectedIcon: false,
       style: SegmentedButton.styleFrom(
@@ -1502,21 +1554,46 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ],
       onSelectionChanged: (selection) {
-        final next = selection.first;
-        if (next == _sortMode) {
-          return;
-        }
-        setState(() {
-          _sortMode = next;
-          _patientScrollBubbleLabel = '';
-          _showPatientScrollBubble = false;
-        });
-        if (_patientScrollControllerOrCreate.hasClients) {
-          _patientScrollControllerOrCreate.jumpTo(0);
-        }
-        _refreshHistory();
+        _selectPatientSort(selection.first);
       },
     );
+  }
+
+  PopupMenuItem<PatientSortMode> _patientSortMenuItem(PatientSortMode mode) {
+    final selected = _sortMode == mode;
+    return PopupMenuItem(
+      value: mode,
+      child: Row(
+        children: [
+          Icon(selected ? Icons.check : null, size: 18),
+          const SizedBox(width: 8),
+          Text(_patientSortLabel(mode)),
+        ],
+      ),
+    );
+  }
+
+  String _patientSortLabel(PatientSortMode mode, {bool compact = false}) {
+    return switch (mode) {
+      PatientSortMode.name => 'Tên',
+      PatientSortMode.createdAt => compact ? 'Ngày tạo' : 'Ngày tạo',
+      PatientSortMode.updatedAt => compact ? 'Cập nhật' : 'Ngày cập nhật',
+    };
+  }
+
+  void _selectPatientSort(PatientSortMode next) {
+    if (next == _sortMode) {
+      return;
+    }
+    setState(() {
+      _sortMode = next;
+      _patientScrollBubbleLabel = '';
+      _showPatientScrollBubble = false;
+    });
+    if (_patientScrollControllerOrCreate.hasClients) {
+      _patientScrollControllerOrCreate.jumpTo(0);
+    }
+    _refreshHistory();
   }
 
   List<SavedAssessment> _filteredPatients(List<SavedAssessment> source) {
@@ -1547,24 +1624,132 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget _patientFilterMenu() {
+    return PopupMenuButton<_PatientFilter>(
+      initialValue: _patientFilter,
+      tooltip: 'Lọc danh sách',
+      onSelected: _selectPatientFilter,
+      itemBuilder: (context) => [
+        _patientFilterMenuItem(_PatientFilter.all),
+        _patientFilterMenuItem(_PatientFilter.incomplete),
+        _patientFilterMenuItem(_PatientFilter.highRisk),
+        _patientFilterMenuItem(_PatientFilter.septicShock),
+      ],
+      child: _patientListMenuButton(
+        icon: Icons.filter_list,
+        label: _patientFilterLabel(_patientFilter, compact: true),
+      ),
+    );
+  }
+
+  PopupMenuItem<_PatientFilter> _patientFilterMenuItem(_PatientFilter filter) {
+    final selected = _patientFilter == filter;
+    return PopupMenuItem(
+      value: filter,
+      child: Row(
+        children: [
+          Icon(selected ? Icons.check : null, size: 18),
+          const SizedBox(width: 8),
+          Text(_patientFilterLabel(filter)),
+        ],
+      ),
+    );
+  }
+
+  Widget _patientListMenuButton({
+    required IconData icon,
+    required String label,
+  }) {
+    final theme = Theme.of(context);
+    return Container(
+      height: 40,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: ShapeDecoration(
+        color: theme.colorScheme.surfaceContainerLowest,
+        shape: StadiumBorder(
+          side: BorderSide(color: theme.colorScheme.outlineVariant),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: theme.colorScheme.onSurfaceVariant),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Icon(
+            Icons.arrow_drop_down,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _patientFilterLabel(_PatientFilter filter, {bool compact = false}) {
+    return switch (filter) {
+      _PatientFilter.all => 'Tất cả',
+      _PatientFilter.incomplete => compact ? 'Chưa đủ' : 'Chưa đủ dữ liệu',
+      _PatientFilter.highRisk => 'Nguy cơ cao',
+      _PatientFilter.septicShock => 'Sốc NK',
+    };
+  }
+
   Widget _patientFilterChip(_PatientFilter filter, String label) {
+    final theme = Theme.of(context);
+    final selected = _patientFilter == filter;
+    final status = switch (filter) {
+      _PatientFilter.all => ClinicalStatus.normal,
+      _PatientFilter.incomplete => ClinicalStatus.missing,
+      _PatientFilter.highRisk => ClinicalStatus.warning,
+      _PatientFilter.septicShock => ClinicalStatus.danger,
+    };
+    final style = clinical_ui.clinicalStatusStyle(context, status);
     return FilterChip(
-      selected: _patientFilter == filter,
+      selected: selected,
       label: Text(label),
+      backgroundColor: theme.colorScheme.surfaceContainerLowest,
+      selectedColor: style.background,
+      checkmarkColor: style.foreground,
+      side: BorderSide(
+        color: selected ? style.border : theme.colorScheme.outlineVariant,
+      ),
+      labelStyle: theme.textTheme.labelMedium?.copyWith(
+        color: selected ? style.foreground : theme.colorScheme.onSurfaceVariant,
+        fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+      ),
       onSelected: (_) {
-        setState(() {
-          _patientFilter = filter;
-          _patientScrollBubbleLabel = '';
-          _showPatientScrollBubble = false;
-        });
-        if (_patientScrollControllerOrCreate.hasClients) {
-          _patientScrollControllerOrCreate.jumpTo(0);
-        }
+        _selectPatientFilter(filter);
       },
     );
   }
 
-  Widget _patientSummaryStrip(List<SavedAssessment> patients) {
+  void _selectPatientFilter(_PatientFilter filter) {
+    if (filter == _patientFilter) {
+      return;
+    }
+    setState(() {
+      _patientFilter = filter;
+      _patientScrollBubbleLabel = '';
+      _showPatientScrollBubble = false;
+    });
+    if (_patientScrollControllerOrCreate.hasClients) {
+      _patientScrollControllerOrCreate.jumpTo(0);
+    }
+  }
+
+  Widget _patientSummaryStrip(
+    List<SavedAssessment> patients, {
+    bool compact = false,
+  }) {
     final total = patients.length;
     final incomplete = patients
         .where(
@@ -1577,15 +1762,29 @@ class _HomeScreenState extends State<HomeScreen> {
         .where(
             (saved) => AssessmentDisplay.isSepticShockPatient(saved.assessment))
         .length;
+    final badges = [
+      _summaryBadge('Tổng', total, ClinicalStatus.normal),
+      _summaryBadge('Chưa đủ', incomplete, ClinicalStatus.missing),
+      _summaryBadge('Nguy cơ cao', highRisk, ClinicalStatus.warning),
+      _summaryBadge('Sốc NK', shock, ClinicalStatus.danger),
+    ];
+    if (compact) {
+      return SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            for (var i = 0; i < badges.length; i++) ...[
+              badges[i],
+              if (i < badges.length - 1) const SizedBox(width: 6),
+            ],
+          ],
+        ),
+      );
+    }
     return Wrap(
       spacing: 6,
       runSpacing: 6,
-      children: [
-        _summaryBadge('Tổng', total, ClinicalStatus.normal),
-        _summaryBadge('Chưa đủ', incomplete, ClinicalStatus.missing),
-        _summaryBadge('Nguy cơ cao', highRisk, ClinicalStatus.warning),
-        _summaryBadge('Sốc NK', shock, ClinicalStatus.danger),
-      ],
+      children: badges,
     );
   }
 
@@ -1599,6 +1798,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _emptyPatientState() {
     final theme = Theme.of(context);
+    final activeFilter =
+        _searchQuery.trim().isNotEmpty || _patientFilter != _PatientFilter.all;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -1612,22 +1813,28 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 12),
             Text(
-              _history.isEmpty
-                  ? 'Chưa có phiếu theo dõi'
-                  : 'Không có phiếu phù hợp bộ lọc',
+              activeFilter
+                  ? 'Không có phiếu phù hợp'
+                  : 'Chưa có phiếu theo dõi',
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w900,
               ),
             ),
             const SizedBox(height: 6),
             Text(
-              _history.isEmpty
-                  ? 'Tạo phiếu đầu tiên để ghi nhận NEWS2, lactate và SOFA.'
-                  : 'Thử đổi bộ lọc hoặc từ khóa tìm kiếm.',
+              activeFilter
+                  ? 'Thử đổi bộ lọc hoặc từ khóa tìm kiếm.'
+                  : 'Tạo phiếu đầu tiên để ghi nhận NEWS2, lactate và SOFA.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: _startNew,
+              icon: const Icon(Icons.add),
+              label: const Text('Phiếu mới'),
             ),
           ],
         ),
@@ -2070,10 +2277,13 @@ class _HomeScreenState extends State<HomeScreen> {
         child: LayoutBuilder(
           builder: (context, constraints) {
             final compact = constraints.maxWidth < 760;
+            if (compact) {
+              return _compactClinicalDashboard(displays, missingItems);
+            }
             final cards = [
               for (final display in displays)
                 SizedBox(
-                  width: compact ? 180 : (constraints.maxWidth - 36) / 4,
+                  width: (constraints.maxWidth - 36) / 4,
                   child: clinical_ui.ClinicalSummaryCard(
                     display: display,
                     onTap: () => _scrollToSection(_sectionForDisplay(display)),
@@ -2108,6 +2318,157 @@ class _HomeScreenState extends State<HomeScreen> {
           },
         ),
       ),
+    );
+  }
+
+  Widget _compactClinicalDashboard(
+    List<ScoreDisplay> displays,
+    List<MissingDataItem> missingItems,
+  ) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            for (var i = 0; i < displays.length; i++) ...[
+              Expanded(child: _compactScoreTile(displays[i])),
+              if (i < displays.length - 1) const SizedBox(width: 6),
+            ],
+          ],
+        ),
+        if (missingItems.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          _compactMissingDataButton(missingItems),
+        ],
+      ],
+    );
+  }
+
+  Widget _compactScoreTile(ScoreDisplay display) {
+    final style = clinical_ui.clinicalStatusStyle(context, display.status);
+    final theme = Theme.of(context);
+    return Tooltip(
+      message:
+          '${display.title}: ${display.statusLabel}. ${display.helperText}',
+      child: Material(
+        color: style.background,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(color: style.border),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => _scrollToSection(_sectionForDisplay(display)),
+          child: SizedBox(
+            height: 58,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Icon(style.icon, size: 13, color: style.foreground),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          display.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: style.foreground,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    display.scoreText,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      color: style.foreground,
+                      fontWeight: FontWeight.w900,
+                      height: 1,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _compactMissingDataButton(List<MissingDataItem> missingItems) {
+    final theme = Theme.of(context);
+    final style =
+        clinical_ui.clinicalStatusStyle(context, ClinicalStatus.missing);
+    return Material(
+      color: style.background,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(color: style.border),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => _showMissingDataSheet(missingItems),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Row(
+            children: [
+              Icon(Icons.playlist_add_check_circle_outlined,
+                  size: 18, color: style.foreground),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Cần bổ sung ${missingItems.length} dữ liệu',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: style.foreground,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              Text(
+                'Xem',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showMissingDataSheet(List<MissingDataItem> missingItems) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: SingleChildScrollView(
+              child: clinical_ui.MissingDataPanel(
+                items: missingItems,
+                onItemTap: (item) {
+                  Navigator.of(context).pop();
+                  _jumpToMissingItem(item);
+                },
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
