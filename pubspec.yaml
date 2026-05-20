@@ -28,7 +28,13 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/InterVariable.ttf
   assets:
     - assets/fonts/NotoSans.ttf
+    - assets/fonts/NotoSans-Bold.ttf
+    - assets/fonts/NotoSans-Italic.ttf
     - assets/fonts/NotoSansMath-Regular.ttf
     - assets/fonts/NotoSansSymbols2-Regular.ttf

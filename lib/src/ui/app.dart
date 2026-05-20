@@ -23,6 +23,7 @@ class News2LApp extends StatelessWidget {
       title: 'NEWS2-L',
       theme: ThemeData(
         colorScheme: colorScheme,
+        fontFamily: 'Inter',
         scaffoldBackgroundColor: colorScheme.surfaceContainerLowest,
         useMaterial3: true,
         extensions: [

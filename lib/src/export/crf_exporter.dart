@@ -62,17 +62,25 @@ class CrfExporter {
 
   Future<Uint8List> buildPdfBytes(ClinicalAssessment assessment) async {
     final fontBytes = await rootBundle.load('assets/fonts/NotoSans.ttf');
+    final boldFontBytes =
+        await rootBundle.load('assets/fonts/NotoSans-Bold.ttf');
+    final italicFontBytes =
+        await rootBundle.load('assets/fonts/NotoSans-Italic.ttf');
     final mathFontBytes =
         await rootBundle.load('assets/fonts/NotoSansMath-Regular.ttf');
     final symbolsFontBytes =
         await rootBundle.load('assets/fonts/NotoSansSymbols2-Regular.ttf');
     final font = pw.Font.ttf(fontBytes);
+    final boldFont = pw.Font.ttf(boldFontBytes);
+    final italicFont = pw.Font.ttf(italicFontBytes);
     final mathFont = pw.Font.ttf(mathFontBytes);
     final symbolsFont = pw.Font.ttf(symbolsFontBytes);
     final document = pw.Document();
     final theme = pw.ThemeData.withFont(
       base: font,
-      bold: font,
+      bold: boldFont,
+      italic: italicFont,
+      boldItalic: boldFont,
       fontFallback: [symbolsFont, mathFont],
     );
 
@@ -747,8 +755,11 @@ class CrfExporter {
         normalized.contains('DAU')) {
       return 3;
     }
-    if (normalized == 'U' ||
+    if (normalized == 'C' ||
+        normalized == 'U' ||
         normalized.contains('K.Đ') ||
+        normalized.contains('LÚ LẪN') ||
+        normalized.contains('LU LAN') ||
         normalized.contains('KHÔNG') ||
         normalized.contains('KHONG')) {
       return 2;
@@ -867,16 +878,18 @@ class CrfExporter {
   static void _paragraph(StringBuffer buffer, String text,
       {bool bold = false, bool italic = false}) {
     buffer.write('<w:p><w:r>');
-    if (bold || italic) {
-      buffer.write('<w:rPr>');
-      if (bold) {
-        buffer.write('<w:b/>');
-      }
-      if (italic) {
-        buffer.write('<w:i/>');
-      }
-      buffer.write('</w:rPr>');
+    buffer.write('<w:rPr>');
+    buffer.write(
+      '<w:rFonts w:ascii="Noto Sans" w:hAnsi="Noto Sans" w:eastAsia="Noto Sans" w:cs="Noto Sans"/>',
+    );
+    buffer.write('<w:lang w:val="vi-VN" w:eastAsia="vi-VN" w:bidi="vi-VN"/>');
+    if (bold) {
+      buffer.write('<w:b/>');
     }
+    if (italic) {
+      buffer.write('<w:i/>');
+    }
+    buffer.write('</w:rPr>');
     buffer.write('<w:t xml:space="preserve">${_escapeXml(text)}</w:t>');
     buffer.write('</w:r></w:p>');
   }

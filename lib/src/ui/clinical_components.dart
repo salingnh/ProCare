@@ -490,13 +490,34 @@ class MedicalInputField extends StatelessWidget {
                           : (currentIndex + 1) % units.length;
                       onUnitChanged!(units[nextIndex]);
                     },
-              child: Text(
-                selected,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  fontWeight: canSwitchUnit ? FontWeight.w900 : FontWeight.w700,
-                ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      selected,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: canSwitchUnit
+                            ? const Color(0xFF006D5B)
+                            : theme.colorScheme.onSurfaceVariant
+                                .withValues(alpha: 0.72),
+                        fontWeight:
+                            canSwitchUnit ? FontWeight.w900 : FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  if (canSwitchUnit) ...[
+                    const SizedBox(width: 3),
+                    const Icon(
+                      Icons.swap_horiz,
+                      size: 14,
+                      color: Color(0xFF006D5B),
+                    ),
+                  ],
+                ],
               ),
             ),
           );
