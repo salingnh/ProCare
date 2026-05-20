@@ -158,7 +158,9 @@ enum _SaveState {
   error,
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+  static const _updateCheckInterval = Duration(hours: 6);
+  static const _resumeUpdateCheckCooldown = Duration(minutes: 15);
   static final _integerInputFormatters = <TextInputFormatter>[
     FilteringTextInputFormatter.digitsOnly,
   ];
@@ -200,12 +202,16 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _formDirty = false;
   bool _exporting = false;
   bool _downloadingUpdate = false;
+  bool _checkingUpdate = false;
+  bool _pendingUpdateCheck = false;
   bool _includePrereleaseUpdates = false;
   bool _showPatientScrollBubble = false;
   double _downloadProgress = 0;
+  int _lastUpdateCheckAtMillis = 0;
   String _patientScrollBubbleLabel = '';
   UpdateInfo? _availableUpdate;
   Timer? _patientScrollBubbleTimer;
+  Timer? _updateCheckTimer;
 
   _ClinicalTones get _clinicalTones =>
       Theme.of(context).extension<_ClinicalTones>()!;
@@ -217,19 +223,29 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _load();
   }
 
   @override
   void dispose() {
     _autoSaveTimer?.cancel();
+    _updateCheckTimer?.cancel();
     _patientScrollBubbleTimer?.cancel();
     _patientScrollController?.dispose();
     _formScrollController.dispose();
     for (final node in _fieldFocusNodes.values) {
       node.dispose();
     }
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkUpdateAfterResume();
+    }
   }
 
   Future<void> _load() async {
@@ -279,6 +295,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _formVersion++;
     });
     _checkUpdate();
+    _startUpdateCheckTimer();
   }
 
   Future<void> _refreshHistory() async {
@@ -294,17 +311,56 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  Future<void> _checkUpdate() async {
+  void _startUpdateCheckTimer() {
     if (kIsWeb) {
       return;
     }
-    final update = await _updateService.checkForUpdate(
-      includePrerelease: _includePrereleaseUpdates,
+    _updateCheckTimer?.cancel();
+    _updateCheckTimer = Timer.periodic(
+      _updateCheckInterval,
+      (_) => _checkUpdate(),
     );
-    if (!mounted || update == null) {
+  }
+
+  void _checkUpdateAfterResume() {
+    if (kIsWeb) {
       return;
     }
-    setState(() => _availableUpdate = update);
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final lastCheck = _lastUpdateCheckAtMillis;
+    if (lastCheck == 0 ||
+        now - lastCheck >= _resumeUpdateCheckCooldown.inMilliseconds) {
+      _checkUpdate();
+    }
+  }
+
+  Future<void> _checkUpdate({bool force = false}) async {
+    if (kIsWeb) {
+      return;
+    }
+    if (_checkingUpdate) {
+      if (force) {
+        _pendingUpdateCheck = true;
+      }
+      return;
+    }
+    _checkingUpdate = true;
+    _lastUpdateCheckAtMillis = DateTime.now().millisecondsSinceEpoch;
+    try {
+      final update = await _updateService.checkForUpdate(
+        includePrerelease: _includePrereleaseUpdates,
+      );
+      if (!mounted || update == null) {
+        return;
+      }
+      setState(() => _availableUpdate = update);
+    } finally {
+      _checkingUpdate = false;
+      if (_pendingUpdateCheck && mounted) {
+        _pendingUpdateCheck = false;
+        _checkUpdate(force: true);
+      }
+    }
   }
 
   Future<void> _setIncludePrereleaseUpdates(bool enabled) async {
@@ -313,7 +369,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _availableUpdate = null;
     });
     await _repository.saveIncludePrereleaseUpdates(enabled);
-    await _checkUpdate();
+    await _checkUpdate(force: true);
   }
 
   void _showUpdateSettings() {
@@ -337,6 +393,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     const Text('Mặc định tắt, chỉ bật khi cần thử nghiệm'),
               ),
               actions: [
+                TextButton(
+                  onPressed: () => _checkUpdate(force: true),
+                  child: const Text('Kiểm tra ngay'),
+                ),
                 TextButton(
                   onPressed: () => Navigator.pop(context),
                   child: const Text('Đóng'),
