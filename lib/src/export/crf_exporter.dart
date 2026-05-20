@@ -802,7 +802,7 @@ class CrfExporter {
       ],
       [
         'Gan',
-        'Bilirubin: ${_dotsOrText(a.sofaLiverMeasured)}',
+        'Bilirubin: ${_dotsOrTextWithUnit(a.sofaLiverMeasured, a.sofaLiverUnit)}',
         _scoreIfPresent(a.sofaLiver, a.sofaLiverMeasured)
       ],
       [
@@ -818,7 +818,7 @@ class CrfExporter {
       ],
       [
         'Thận',
-        'Creatinin/nước tiểu: ${_dotsOrText(a.sofaRenalMeasured)}',
+        'Creatinin/nước tiểu: ${_renalValueWithUnit(a.sofaRenalMeasured, a.sofaRenalUnit)}',
         _scoreIfPresent(a.sofaRenal, a.sofaRenalMeasured)
       ],
       [
@@ -948,6 +948,44 @@ class CrfExporter {
     return ClinicalValueParser.hasText(value)
         ? value.trim()
         : '........................';
+  }
+
+  static String _dotsOrTextWithUnit(String value, String unit) {
+    if (!ClinicalValueParser.hasText(value)) {
+      return '........................';
+    }
+    final text = value.trim();
+    if (_hasUnitText(text) || !ClinicalValueParser.hasText(unit)) {
+      return text;
+    }
+    return '$text ${unit.trim()}';
+  }
+
+  static String _renalValueWithUnit(String value, String unit) {
+    if (!ClinicalValueParser.hasText(value)) {
+      return '........................';
+    }
+    final text = value.trim();
+    if (_hasUnitText(text) || !ClinicalValueParser.hasText(unit)) {
+      return text;
+    }
+    final lower = text.toLowerCase();
+    final hasUrineOnly = (lower.contains('ml') ||
+            lower.contains('nước tiểu') ||
+            lower.contains('nuoc tieu')) &&
+        !lower.contains('creatinin') &&
+        !lower.contains('creatinine');
+    if (hasUrineOnly) {
+      return text;
+    }
+    return '$text ${unit.trim()}';
+  }
+
+  static bool _hasUnitText(String value) {
+    final lower = value.toLowerCase();
+    return lower.contains('mg/dl') ||
+        lower.contains('umol') ||
+        lower.contains('µmol');
   }
 
   static String _firstText(String first, String fallback) {

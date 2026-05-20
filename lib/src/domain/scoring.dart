@@ -300,13 +300,12 @@ class SofaScoring {
     return 0;
   }
 
-  static int scoreLiver(String value, int fallback) {
+  static int scoreLiver(String value, int fallback, {String unit = ''}) {
     var bilirubin = ClinicalValueParser.parseDouble(value);
     if (bilirubin == null) {
       return fallback;
     }
-    final lower = value.toLowerCase();
-    if (lower.contains('umol') || lower.contains('µmol')) {
+    if (_usesMicromol(value, unit)) {
       bilirubin = bilirubin / 17.1;
     }
     if (bilirubin >= 12.0) {
@@ -378,13 +377,16 @@ class SofaScoring {
     return 0;
   }
 
-  static int scoreRenal(String value, int fallback) {
+  static int scoreRenal(
+    String value,
+    int fallback, {
+    String creatinineUnit = '',
+  }) {
     final urineOutput = _extractUrineOutput(value);
     var creatinine = _extractCreatinine(value);
     var creatinineScore = fallback;
     if (creatinine != null) {
-      final lower = value.toLowerCase();
-      if (lower.contains('umol') || lower.contains('µmol')) {
+      if (_usesMicromol(value, creatinineUnit)) {
         creatinine = creatinine / 88.4;
       }
       if (creatinine >= 5.0) {
@@ -408,6 +410,18 @@ class SofaScoring {
       }
     }
     return creatinineScore > urineScore ? creatinineScore : urineScore;
+  }
+
+  static bool _usesMicromol(String value, String fallbackUnit) {
+    final lower = value.toLowerCase();
+    if (lower.contains('umol') || lower.contains('µmol')) {
+      return true;
+    }
+    if (lower.contains('mg/dl')) {
+      return false;
+    }
+    final unit = fallbackUnit.toLowerCase();
+    return unit.contains('umol') || unit.contains('µmol');
   }
 
   static double? _extractCreatinine(String value) {
@@ -528,6 +542,7 @@ void recalculateClinicalAssessment(ClinicalAssessment assessment) {
   assessment.sofaLiver = SofaScoring.scoreLiver(
     assessment.sofaLiverMeasured,
     0,
+    unit: assessment.sofaLiverUnit,
   );
   assessment.sofaCardiovascular = SofaScoring.scoreCardiovascular(
     assessment.sofaCardiovascularMeasured,
@@ -541,6 +556,7 @@ void recalculateClinicalAssessment(ClinicalAssessment assessment) {
   assessment.sofaRenal = SofaScoring.scoreRenal(
     assessment.sofaRenalMeasured,
     0,
+    creatinineUnit: assessment.sofaRenalUnit,
   );
   assessment.sofaTotal = SofaScoring.total(assessment);
   assessment.sepsisDiagnosis = buildSepsisDiagnosis(assessment);

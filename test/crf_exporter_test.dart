@@ -9,7 +9,13 @@ import 'package:news2_l/src/export/crf_exporter.dart';
 void main() {
   test('DOCX export includes table notes and bolds selected NEWS2 range',
       () async {
-    final assessment = ClinicalAssessment(news2TemperatureMeasured: '36');
+    final assessment = ClinicalAssessment(
+      news2TemperatureMeasured: '36',
+      sofaLiverMeasured: '34.2',
+      sofaLiverUnit: 'µmol/L',
+      sofaRenalMeasured: '177',
+      sofaRenalUnit: 'µmol/L',
+    );
     recalculateClinicalAssessment(assessment);
 
     final bytes = await const CrfExporter().buildDocxBytes(assessment);
@@ -37,5 +43,7 @@ void main() {
         '<w:rPr><w:b/></w:rPr><w:t xml:space="preserve">35.1-36</w:t>',
       ),
     );
+    expect(xml, contains('Bilirubin: 34.2 µmol/L'));
+    expect(xml, contains('Creatinin/nước tiểu: 177 µmol/L'));
   });
 }

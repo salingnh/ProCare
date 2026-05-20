@@ -456,45 +456,46 @@ class MedicalInputField extends StatelessWidget {
         (unit == null || unit!.trim().isEmpty ? null : <String>[unit!]);
     final selected =
         selectedUnit ?? (units?.isNotEmpty == true ? units!.first : null);
+    final canSwitchUnit =
+        units != null && units.length > 1 && onUnitChanged != null;
     final unitButton = units == null || units.isEmpty || selected == null
         ? null
-        : Padding(
-            padding: const EdgeInsetsDirectional.only(end: 8),
-            child: SizedBox(
-              width: 92,
-              height: 34,
-              child: TextButton(
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  minimumSize: const Size(0, 34),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  visualDensity: VisualDensity.compact,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(999),
-                    side: BorderSide(color: theme.colorScheme.outlineVariant),
-                  ),
-                  backgroundColor: theme.colorScheme.primaryContainer,
-                  foregroundColor: theme.colorScheme.onPrimaryContainer,
-                  disabledBackgroundColor:
-                      theme.colorScheme.surfaceContainerHighest,
-                  disabledForegroundColor: theme.colorScheme.onSurfaceVariant,
+        : SizedBox(
+            width: 90,
+            height: 48,
+            child: TextButton(
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                minimumSize: const Size(0, 48),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                onPressed: units.length <= 1 || onUnitChanged == null
-                    ? null
-                    : () {
-                        final currentIndex = units.indexOf(selected);
-                        final nextIndex = currentIndex < 0
-                            ? 0
-                            : (currentIndex + 1) % units.length;
-                        onUnitChanged!(units[nextIndex]);
-                      },
-                child: Text(
-                  selected,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
+                backgroundColor: Colors.transparent,
+                foregroundColor: canSwitchUnit
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.onSurfaceVariant
+                        .withValues(alpha: 0.72),
+                disabledBackgroundColor: Colors.transparent,
+                disabledForegroundColor:
+                    theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.72),
+              ),
+              onPressed: !canSwitchUnit
+                  ? null
+                  : () {
+                      final currentIndex = units.indexOf(selected);
+                      final nextIndex = currentIndex < 0
+                          ? 0
+                          : (currentIndex + 1) % units.length;
+                      onUnitChanged!(units[nextIndex]);
+                    },
+              child: Text(
+                selected,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  fontWeight: canSwitchUnit ? FontWeight.w900 : FontWeight.w700,
                 ),
               ),
             ),
@@ -517,9 +518,10 @@ class MedicalInputField extends StatelessWidget {
             suffixIconConstraints: unitButton == null
                 ? null
                 : const BoxConstraints(
-                    minWidth: 100,
-                    maxWidth: 100,
-                    minHeight: 40,
+                    minWidth: 90,
+                    maxWidth: 90,
+                    minHeight: 48,
+                    maxHeight: 48,
                   ),
             helperText: helperText,
             helperMaxLines: 3,
@@ -748,6 +750,8 @@ class PatientCard extends StatelessWidget {
   final String admissionLine;
   final String updatedText;
   final List<Widget> badges;
+  final String? treatmentOutcomeLine;
+  final ClinicalStatus treatmentOutcomeStatus;
   final Widget? actionMenu;
   final VoidCallback onTap;
 
@@ -759,6 +763,8 @@ class PatientCard extends StatelessWidget {
     required this.updatedText,
     required this.badges,
     required this.onTap,
+    this.treatmentOutcomeLine,
+    this.treatmentOutcomeStatus = ClinicalStatus.normal,
     this.actionMenu,
   });
 
@@ -786,15 +792,17 @@ class PatientCard extends StatelessWidget {
               if (actionMenu != null) actionMenu!,
             ],
           ),
-          const SizedBox(height: 6),
-          Text(
-            identityLine,
-            overflow: TextOverflow.visible,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-              height: 1.2,
+          if (identityLine.trim().isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              identityLine,
+              overflow: TextOverflow.visible,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                height: 1.2,
+              ),
             ),
-          ),
+          ],
           const SizedBox(height: 4),
           Text(
             admissionLine,
@@ -807,6 +815,19 @@ class PatientCard extends StatelessWidget {
           if (badges.isNotEmpty) ...[
             const SizedBox(height: 10),
             Wrap(spacing: 6, runSpacing: 6, children: badges),
+          ],
+          if (treatmentOutcomeLine != null &&
+              treatmentOutcomeLine!.trim().isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              children: [
+                StatusBadge(
+                  status: treatmentOutcomeStatus,
+                  label: treatmentOutcomeLine!.trim(),
+                  dense: true,
+                ),
+              ],
+            ),
           ],
           const SizedBox(height: 10),
           Align(

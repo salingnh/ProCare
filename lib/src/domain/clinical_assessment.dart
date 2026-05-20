@@ -55,12 +55,14 @@ class ClinicalAssessment {
   String sofaCoagulationMeasured;
   int sofaCoagulation;
   String sofaLiverMeasured;
+  String sofaLiverUnit;
   int sofaLiver;
   String sofaCardiovascularMeasured;
   int sofaCardiovascular;
   String sofaNeurologicMeasured;
   int sofaNeurologic;
   String sofaRenalMeasured;
+  String sofaRenalUnit;
   int sofaRenal;
   int sofaTotal;
   bool vasopressor;
@@ -125,12 +127,14 @@ class ClinicalAssessment {
     this.sofaCoagulationMeasured = '',
     this.sofaCoagulation = 0,
     this.sofaLiverMeasured = '',
+    this.sofaLiverUnit = 'mg/dL',
     this.sofaLiver = 0,
     this.sofaCardiovascularMeasured = '',
     this.sofaCardiovascular = 0,
     this.sofaNeurologicMeasured = '',
     this.sofaNeurologic = 0,
     this.sofaRenalMeasured = '',
+    this.sofaRenalUnit = 'mg/dL',
     this.sofaRenal = 0,
     this.sofaTotal = 0,
     this.vasopressor = false,
@@ -196,12 +200,14 @@ class ClinicalAssessment {
       sofaCoagulationMeasured: _string(json, 'sofaCoagulationMeasured'),
       sofaCoagulation: _int(json, 'sofaCoagulation'),
       sofaLiverMeasured: _string(json, 'sofaLiverMeasured'),
+      sofaLiverUnit: _unit(json, 'sofaLiverUnit'),
       sofaLiver: _int(json, 'sofaLiver'),
       sofaCardiovascularMeasured: _string(json, 'sofaCardiovascularMeasured'),
       sofaCardiovascular: _int(json, 'sofaCardiovascular'),
       sofaNeurologicMeasured: _string(json, 'sofaNeurologicMeasured'),
       sofaNeurologic: _int(json, 'sofaNeurologic'),
       sofaRenalMeasured: _string(json, 'sofaRenalMeasured'),
+      sofaRenalUnit: _unit(json, 'sofaRenalUnit'),
       sofaRenal: _int(json, 'sofaRenal'),
       sofaTotal: _int(json, 'sofaTotal'),
       vasopressor: _bool(json, 'vasopressor'),
@@ -270,12 +276,14 @@ class ClinicalAssessment {
       'sofaCoagulationMeasured': sofaCoagulationMeasured,
       'sofaCoagulation': sofaCoagulation,
       'sofaLiverMeasured': sofaLiverMeasured,
+      'sofaLiverUnit': sofaLiverUnit,
       'sofaLiver': sofaLiver,
       'sofaCardiovascularMeasured': sofaCardiovascularMeasured,
       'sofaCardiovascular': sofaCardiovascular,
       'sofaNeurologicMeasured': sofaNeurologicMeasured,
       'sofaNeurologic': sofaNeurologic,
       'sofaRenalMeasured': sofaRenalMeasured,
+      'sofaRenalUnit': sofaRenalUnit,
       'sofaRenal': sofaRenal,
       'sofaTotal': sofaTotal,
       'vasopressor': vasopressor,
@@ -291,6 +299,14 @@ class ClinicalAssessment {
   static String _string(Map<String, dynamic> json, String key) {
     final value = json[key];
     return value == null ? '' : value.toString();
+  }
+
+  static String _unit(Map<String, dynamic> json, String key) {
+    final value = _string(json, key).trim();
+    if (value == 'µmol/L' || value.toLowerCase() == 'umol/l') {
+      return 'µmol/L';
+    }
+    return 'mg/dL';
   }
 
   static int _int(Map<String, dynamic> json, String key) {

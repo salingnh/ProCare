@@ -238,6 +238,8 @@ CREATE TABLE clinical_assessments (
   Future<List<SavedAssessment>> loadAssessmentHistory({
     String query = '',
     PatientSortMode sortMode = PatientSortMode.updatedAt,
+    int? limit,
+    int offset = 0,
   }) async {
     if (kIsWeb) {
       final normalizedQuery = query.trim().toLowerCase();
@@ -248,11 +250,6 @@ CREATE TABLE clinical_assessments (
         final assessment = saved.assessment;
         return assessment.patientId.toLowerCase().contains(normalizedQuery) ||
             assessment.fullName.toLowerCase().contains(normalizedQuery);
-      }).map((saved) {
-        return SavedAssessment(
-          id: saved.id,
-          assessment: saved.assessment.clone(),
-        );
       }).toList();
       rows.sort((a, b) {
         final left = a.assessment;
@@ -270,7 +267,15 @@ CREATE TABLE clinical_assessments (
             right.modifiedAtMillis.compareTo(left.modifiedAtMillis),
         };
       });
-      return rows;
+      final start = offset.clamp(0, rows.length);
+      final end =
+          limit == null ? rows.length : (start + limit).clamp(0, rows.length);
+      return rows.sublist(start, end).map((saved) {
+        return SavedAssessment(
+          id: saved.id,
+          assessment: saved.assessment.clone(),
+        );
+      }).toList();
     }
     final db = await _db;
     final trimmedQuery = query.trim();
@@ -289,6 +294,8 @@ CREATE TABLE clinical_assessments (
       where: where,
       whereArgs: whereArgs,
       orderBy: orderBy,
+      limit: limit,
+      offset: offset <= 0 ? null : offset,
     );
     return rows.map((row) {
       return SavedAssessment(

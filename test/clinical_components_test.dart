@@ -126,4 +126,35 @@ void main() {
 
     expect(button.onPressed, isNull);
   });
+
+  testWidgets('PatientCard hides empty identity line', (tester) async {
+    await tester.pumpWidget(wrap(PatientCard(
+      name: 'Nguyễn Văn A',
+      identityLine: '',
+      admissionLine: 'Nhập viện: 07:16',
+      updatedText: 'Vừa cập nhật',
+      badges: const [],
+      onTap: () {},
+    )));
+
+    expect(find.text('Nguyễn Văn A'), findsOneWidget);
+    expect(find.text('Nhập viện: 07:16'), findsOneWidget);
+    expect(find.textContaining('Mã BN'), findsNothing);
+  });
+
+  testWidgets('PatientCard renders treatment outcome when provided',
+      (tester) async {
+    await tester.pumpWidget(wrap(PatientCard(
+      name: 'Nguyễn Văn A',
+      identityLine: 'Mã BN: BN001',
+      admissionLine: 'Nhập viện: 07:16',
+      updatedText: 'Vừa cập nhật',
+      badges: const [],
+      treatmentOutcomeLine: 'Kết quả điều trị: Khỏi / Đỡ ra viện',
+      treatmentOutcomeStatus: ClinicalStatus.normal,
+      onTap: () {},
+    )));
+
+    expect(find.text('Kết quả điều trị: Khỏi / Đỡ ra viện'), findsOneWidget);
+  });
 }

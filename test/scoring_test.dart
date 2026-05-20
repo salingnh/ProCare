@@ -149,6 +149,7 @@ void main() {
     expect(SofaScoring.scoreLiver('6.0 mg/dL', 0), 3);
     expect(SofaScoring.scoreLiver('12.0 mg/dL', 0), 4);
     expect(SofaScoring.scoreLiver('34.2 µmol/L', 0), 2);
+    expect(SofaScoring.scoreLiver('34.2', 0, unit: 'µmol/L'), 2);
 
     expect(SofaScoring.scoreCardiovascular('69', false, 0), 1);
     expect(SofaScoring.scoreCardiovascular('', true, 0), 2);
@@ -164,8 +165,16 @@ void main() {
     expect(SofaScoring.scoreRenal('2.0 mg/dL', 0), 2);
     expect(SofaScoring.scoreRenal('3.5 mg/dL', 0), 3);
     expect(SofaScoring.scoreRenal('5.0 mg/dL', 0), 4);
+    expect(
+      SofaScoring.scoreRenal('177', 0, creatinineUnit: 'µmol/L'),
+      2,
+    );
     expect(SofaScoring.scoreRenal('400 ml nước tiểu', 0), 3);
     expect(SofaScoring.scoreRenal('100 ml nước tiểu', 0), 4);
+    expect(
+      SofaScoring.scoreRenal('400 ml nước tiểu', 0, creatinineUnit: 'µmol/L'),
+      3,
+    );
     expect(
       SofaScoring.scoreRenal('Creatinin 2.0 mg/dL, nước tiểu 400 ml', 0),
       3,
@@ -174,6 +183,32 @@ void main() {
     expect(SofaScoring.riskGroup(8), SofaScoring.riskLow);
     expect(SofaScoring.riskGroup(9), SofaScoring.riskIntermediate);
     expect(SofaScoring.riskGroup(12), SofaScoring.riskHigh);
+  });
+
+  test('SOFA bilirubin and creatinine use persisted unit fields', () {
+    final assessment = ClinicalAssessment(
+      sofaLiverMeasured: '34.2',
+      sofaLiverUnit: 'µmol/L',
+      sofaRenalMeasured: '177',
+      sofaRenalUnit: 'µmol/L',
+    );
+
+    recalculateClinicalAssessment(assessment);
+
+    expect(assessment.sofaLiver, 2);
+    expect(assessment.sofaRenal, 2);
+  });
+
+  test('ClinicalAssessment persists SOFA unit selections', () {
+    final assessment = ClinicalAssessment(
+      sofaLiverUnit: 'µmol/L',
+      sofaRenalUnit: 'µmol/L',
+    );
+
+    final restored = ClinicalAssessment.fromJson(assessment.toJson());
+
+    expect(restored.sofaLiverUnit, 'µmol/L');
+    expect(restored.sofaRenalUnit, 'µmol/L');
   });
 
   test('SOFA sepsis helpers set diagnosis', () {
