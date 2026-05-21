@@ -2623,7 +2623,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   bool _lactateComplete(ClinicalAssessment assessment) {
-    return ClinicalValueParser.hasText(assessment.lactate);
+    return ClinicalValueParser.hasText(assessment.lactate) ||
+        (assessment.isQuickMode &&
+            ClinicalValueParser.hasText(assessment.lactateLevel));
   }
 
   bool _shockInputsIncomplete(ClinicalAssessment assessment) {
@@ -3271,20 +3273,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       sectionId: AssessmentSections.lactate,
       progress: AssessmentDisplay.lactateProgress(assessment),
       children: [
+        _quickLactateLevelGroup(assessment),
         _quickFieldGrid(
           twoColumns: twoColumns,
           children: [
-            _field('Lactate tĩnh mạch', assessment.lactate, (value) {
-              assessment.lactate = value;
-              assessment.lactateLevel = _lactateLevel(value);
-            },
-                fieldId: AssessmentFields.lactate,
-                unitOptions: const ['mmol/L'],
-                warningText: _lactateWarning(assessment.lactate),
-                hint: 'VD: 2.1',
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: _decimalInputFormatters),
             _field('Thời gian lấy mẫu lactate', assessment.lactateSampleTime,
                 (value) {
               assessment.lactateSampleTime = value;
@@ -3316,11 +3308,31 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           assessment.lactateLevel.isEmpty
               ? 'Chưa nhập lactate'
               : assessment.lactateLevel,
-          tone: ClinicalValueParser.hasText(assessment.lactate)
-              ? null
-              : _clinicalTones.muted,
+          tone: _lactateComplete(assessment) ? null : _clinicalTones.muted,
         ),
       ],
+    );
+  }
+
+  Widget _quickLactateLevelGroup(ClinicalAssessment assessment) {
+    return _quickChoiceGroup(
+      title: 'Lactate tĩnh mạch',
+      subtitle: 'Chọn nhanh phân mức lactate lúc phân loại/giờ đầu',
+      selectedValue: assessment.lactateLevel,
+      fieldId: AssessmentFields.lactate,
+      options: const [
+        _QuickChoiceOption('< 2 mmol/L', '< 2 mmol/L', 'Bình thường'),
+        _QuickChoiceOption('2 - 3.9 mmol/L', '2 - 3.9 mmol/L', 'Tăng'),
+        _QuickChoiceOption('≥ 4 mmol/L', '≥ 4 mmol/L', 'Cao'),
+      ],
+      onSelected: (value) => _mutate((a) {
+        a.lactate = '';
+        a.lactateLevel = value;
+      }),
+      onClear: () => _mutate((a) {
+        a.lactate = '';
+        a.lactateLevel = '';
+      }),
     );
   }
 
@@ -3378,7 +3390,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           score: assessment.sofaRespiration,
           fieldId: AssessmentFields.sofaRespiration,
           options: sofaRespirationOptions,
-          minTileWidth: 168,
+          minTileWidth: 132,
           onSelected: (score) => _mutate((a) {
             a.sofaRespiration = score;
             a.sofaRespirationSelected = true;
@@ -3391,7 +3403,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           score: assessment.sofaCoagulation,
           fieldId: AssessmentFields.sofaCoagulation,
           options: sofaCoagulationOptions,
-          minTileWidth: 168,
+          minTileWidth: 132,
           onSelected: (score) => _mutate((a) {
             a.sofaCoagulation = score;
             a.sofaCoagulationSelected = true;
@@ -3405,7 +3417,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           fieldId: AssessmentFields.sofaLiver,
           subtitle: 'Bilirubin theo mg/dL',
           options: sofaLiverOptions,
-          minTileWidth: 168,
+          minTileWidth: 132,
           onSelected: (score) => _mutate((a) {
             a.sofaLiver = score;
             a.sofaLiverSelected = true;
@@ -3419,7 +3431,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           fieldId: AssessmentFields.sofaCardiovascularScore,
           subtitle: 'Liều vận mạch theo µg/kg/phút',
           options: sofaCardiovascularOptions,
-          minTileWidth: 168,
+          minTileWidth: 132,
           onSelected: (score) => _mutate((a) {
             a.sofaCardiovascular = score;
             a.sofaCardiovascularSelected = true;
@@ -3432,7 +3444,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           score: assessment.sofaNeurologic,
           fieldId: AssessmentFields.sofaNeurologic,
           options: sofaNeurologicOptions,
-          minTileWidth: 168,
+          minTileWidth: 132,
           onSelected: (score) => _mutate((a) {
             a.sofaNeurologic = score;
             a.sofaNeurologicSelected = true;
@@ -3446,7 +3458,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           fieldId: AssessmentFields.sofaRenal,
           subtitle: 'Creatinin theo mg/dL hoặc nước tiểu/24 giờ',
           options: sofaRenalOptions,
-          minTileWidth: 168,
+          minTileWidth: 132,
           onSelected: (score) => _mutate((a) {
             a.sofaRenal = score;
             a.sofaRenalSelected = true;
@@ -3634,6 +3646,129 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return KeyedSubtree(
       key: _fieldKey(fieldId),
       child: selector,
+    );
+  }
+
+  Widget _quickChoiceGroup({
+    required String title,
+    required String selectedValue,
+    required List<_QuickChoiceOption> options,
+    required ValueChanged<String> onSelected,
+    required VoidCallback onClear,
+    String? subtitle,
+    String? fieldId,
+  }) {
+    final theme = Theme.of(context);
+    final selector = clinical_ui.ClinicalSurfaceCard(
+      radius: 16,
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w900,
+              height: 1.2,
+            ),
+          ),
+          if (subtitle != null) ...[
+            const SizedBox(height: 3),
+            Text(
+              subtitle,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                height: 1.25,
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              const spacing = 10.0;
+              final columns = _quickScoreColumnCount(
+                constraints.maxWidth,
+                options.length,
+                minTileWidth: 112,
+              );
+              final tileWidth =
+                  (constraints.maxWidth - spacing * (columns - 1)) / columns;
+              return Wrap(
+                spacing: spacing,
+                runSpacing: spacing,
+                children: [
+                  for (final option in options)
+                    SizedBox(
+                      width: tileWidth,
+                      child: _quickChoiceTile(
+                        option: option,
+                        selected: selectedValue == option.value,
+                        onSelected: () => onSelected(option.value),
+                        onClear: onClear,
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+    if (fieldId == null) {
+      return selector;
+    }
+    return KeyedSubtree(
+      key: _fieldKey(fieldId),
+      child: selector,
+    );
+  }
+
+  Widget _quickChoiceTile({
+    required _QuickChoiceOption option,
+    required bool selected,
+    required VoidCallback onSelected,
+    required VoidCallback onClear,
+  }) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final tone = selected ? _clinicalTones.attention : null;
+    return clinical_ui.ClinicalSurfaceCard(
+      color: tone?.background ?? scheme.surfaceContainerLowest,
+      borderColor: tone?.border ?? scheme.outlineVariant,
+      radius: 12,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+      onTap: selected ? onClear : onSelected,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 68),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              option.label,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: tone?.foreground ?? scheme.onSurface,
+                fontWeight: FontWeight.w900,
+                height: 1.15,
+              ),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              option.helper,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: tone?.foreground ??
+                    scheme.onSurfaceVariant.withValues(alpha: 0.72),
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -4388,6 +4523,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _hasMeaningfulHistoryData(ClinicalAssessment assessment) {
     return _hasAnyClinicalData(assessment) ||
         _hasQuickScoreData(assessment) ||
+        ClinicalValueParser.hasText(assessment.lactateLevel) ||
         ClinicalValueParser.hasText(assessment.news2RespirationMeasured) ||
         ClinicalValueParser.hasText(assessment.news2SystolicBpMeasured) ||
         ClinicalValueParser.hasText(assessment.news2HeartRateMeasured) ||
@@ -4424,6 +4560,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       assessment.age,
       assessment.admissionReason,
       assessment.infectionOrgan,
+      assessment.lactateLevel,
       assessment.news2RespirationMeasured,
       assessment.news2Spo2Measured,
       assessment.sofaRespirationMeasured,
@@ -4431,7 +4568,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   static bool _hasQuickScoreData(ClinicalAssessment assessment) {
-    return assessment.news2RespirationSelected ||
+    return ClinicalValueParser.hasText(assessment.lactateLevel) ||
+        assessment.news2RespirationSelected ||
         assessment.news2Spo2Selected ||
         assessment.news2OxygenSelected ||
         assessment.news2TemperatureSelected ||
@@ -4565,4 +4703,12 @@ class _QuickScoreOption {
   final int score;
 
   const _QuickScoreOption(this.label, this.score);
+}
+
+class _QuickChoiceOption {
+  final String label;
+  final String value;
+  final String helper;
+
+  const _QuickChoiceOption(this.label, this.value, this.helper);
 }

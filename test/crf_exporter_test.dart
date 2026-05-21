@@ -93,6 +93,7 @@ void main() {
       qsofaSystolicBpSelected: true,
       qsofaConsciousness: true,
       qsofaConsciousnessSelected: true,
+      lactateLevel: '2 - 3.9 mmol/L',
       sofaRespiration: 0,
       sofaRespirationSelected: true,
       sofaCoagulation: 1,
@@ -114,6 +115,8 @@ void main() {
     expect(xml, contains('10/21'));
     expect(xml, contains('2 / 3 điểm'));
     expect(xml, contains('10 / 24'));
+    expect(xml, contains('Nồng độ Lactate tĩnh mạch: Đánh giá nhanh'));
+    expect(xml, contains('☑ 2 - 3.9 mmol/L'));
     expect(xml, contains('☑ Có (1 điểm)      ☐ Không (0 điểm)'));
     expect(xml, contains('☐ Có (1 điểm)      ☑ Không (0 điểm)'));
   });

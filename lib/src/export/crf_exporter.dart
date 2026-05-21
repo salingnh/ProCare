@@ -152,7 +152,7 @@ class CrfExporter {
           _pdfTable(_qsofaRows(assessment)),
           _pdfSection('3. Dấu ấn sinh học ban đầu'),
           _pdfText(
-            '• Nồng độ Lactate tĩnh mạch: ${_dotsOrText(assessment.lactate)} mmol/L',
+            '• Nồng độ Lactate tĩnh mạch: ${_lactateValueText(assessment)}',
           ),
           _pdfText(
             '• Thời gian lấy mẫu: ${_dotsOrText(assessment.lactateSampleTime)}',
@@ -317,8 +317,7 @@ class CrfExporter {
     _paragraph(buffer, '2. Thang điểm qSOFA', bold: true);
     _docxTable(buffer, _qsofaRows(a));
     _paragraph(buffer, '3. Dấu ấn sinh học ban đầu', bold: true);
-    _paragraph(buffer,
-        '• Nồng độ Lactate tĩnh mạch: ${_dotsOrText(a.lactate)} mmol/L');
+    _paragraph(buffer, '• Nồng độ Lactate tĩnh mạch: ${_lactateValueText(a)}');
     _paragraph(
         buffer, '• Thời gian lấy mẫu: ${_dotsOrText(a.lactateSampleTime)}');
     _paragraph(
@@ -1147,6 +1146,15 @@ class CrfExporter {
       return text;
     }
     return '$text ${unit.trim()}';
+  }
+
+  static String _lactateValueText(ClinicalAssessment assessment) {
+    if (!ClinicalValueParser.hasText(assessment.lactate) &&
+        assessment.isQuickMode &&
+        ClinicalValueParser.hasText(assessment.lactateLevel)) {
+      return _quickModeValueText;
+    }
+    return _dotsOrTextWithUnit(assessment.lactate, 'mmol/L');
   }
 
   static String _renalValueWithUnit(

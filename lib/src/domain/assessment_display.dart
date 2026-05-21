@@ -319,7 +319,7 @@ class AssessmentDisplay {
       return const [];
     }
     final items = <MissingDataItem>[];
-    if (!_hasText(assessment.lactate)) {
+    if (!_hasLactateData(assessment)) {
       items.add(const MissingDataItem(
         id: 'shock_lactate',
         label: 'Lactate',
@@ -380,7 +380,7 @@ class AssessmentDisplay {
 
   static SectionProgress lactateProgress(ClinicalAssessment assessment) {
     final missing = <String>[];
-    if (!_hasText(assessment.lactate)) {
+    if (!_hasLactateData(assessment)) {
       missing.add('Lactate');
     }
     if (assessment.vasopressor &&
@@ -394,6 +394,11 @@ class AssessmentDisplay {
       totalCount: total,
       missingLabels: missing,
     );
+  }
+
+  static bool _hasLactateData(ClinicalAssessment assessment) {
+    return _hasText(assessment.lactate) ||
+        (assessment.isQuickMode && _hasText(assessment.lactateLevel));
   }
 
   static SectionProgress sofaProgress(ClinicalAssessment assessment) {

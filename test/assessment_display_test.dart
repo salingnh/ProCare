@@ -148,4 +148,24 @@ void main() {
     );
     expect(AssessmentDisplay.isIncompletePatient(assessment), isTrue);
   });
+
+  test('quick mode lactate level completes lactate progress', () {
+    final assessment = ClinicalAssessment(
+      assessmentMode: ClinicalAssessment.assessmentModeQuick,
+      lactateLevel: '2 - 3.9 mmol/L',
+    );
+
+    final progress = AssessmentDisplay.lactateProgress(assessment);
+    final shockMissing = AssessmentDisplay.shockMissingItems(
+      ClinicalAssessment(
+        assessmentMode: ClinicalAssessment.assessmentModeQuick,
+        lactateLevel: '2 - 3.9 mmol/L',
+        vasopressor: true,
+      ),
+    );
+
+    expect(progress.complete, isTrue);
+    expect(shockMissing.map((item) => item.label), isNot(contains('Lactate')));
+    expect(shockMissing.map((item) => item.label), contains('MAP/vận mạch'));
+  });
 }
