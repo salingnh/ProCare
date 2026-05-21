@@ -3325,12 +3325,47 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Widget _quickSofaSection(ClinicalAssessment assessment) {
-    const sofaOptions = [
-      _QuickScoreOption('0', 0),
-      _QuickScoreOption('1', 1),
-      _QuickScoreOption('2', 2),
-      _QuickScoreOption('3', 3),
-      _QuickScoreOption('4', 4),
+    const sofaRespirationOptions = [
+      _QuickScoreOption('PaO2/FiO2 ≥ 400', 0),
+      _QuickScoreOption('PaO2/FiO2 < 400', 1),
+      _QuickScoreOption('PaO2/FiO2 < 300', 2),
+      _QuickScoreOption('< 200 + hỗ trợ hô hấp', 3),
+      _QuickScoreOption('< 100 + hỗ trợ hô hấp', 4),
+    ];
+    const sofaCoagulationOptions = [
+      _QuickScoreOption('Tiểu cầu ≥ 150', 0),
+      _QuickScoreOption('Tiểu cầu < 150', 1),
+      _QuickScoreOption('Tiểu cầu < 100', 2),
+      _QuickScoreOption('Tiểu cầu < 50', 3),
+      _QuickScoreOption('Tiểu cầu < 20', 4),
+    ];
+    const sofaLiverOptions = [
+      _QuickScoreOption('Bilirubin < 1.2', 0),
+      _QuickScoreOption('Bilirubin 1.2 - 1.9', 1),
+      _QuickScoreOption('Bilirubin 2.0 - 5.9', 2),
+      _QuickScoreOption('Bilirubin 6.0 - 11.9', 3),
+      _QuickScoreOption('Bilirubin ≥ 12.0', 4),
+    ];
+    const sofaCardiovascularOptions = [
+      _QuickScoreOption('MAP ≥ 70', 0),
+      _QuickScoreOption('MAP < 70', 1),
+      _QuickScoreOption('Dopamine ≤ 5 hoặc dobutamine', 2),
+      _QuickScoreOption('Dopamine > 5 hoặc norepi/epi ≤ 0.1', 3),
+      _QuickScoreOption('Dopamine > 15 hoặc norepi/epi > 0.1', 4),
+    ];
+    const sofaNeurologicOptions = [
+      _QuickScoreOption('GCS 15', 0),
+      _QuickScoreOption('GCS 13 - 14', 1),
+      _QuickScoreOption('GCS 10 - 12', 2),
+      _QuickScoreOption('GCS 6 - 9', 3),
+      _QuickScoreOption('GCS < 6', 4),
+    ];
+    const sofaRenalOptions = [
+      _QuickScoreOption('Creatinin < 1.2', 0),
+      _QuickScoreOption('Creatinin 1.2 - 1.9', 1),
+      _QuickScoreOption('Creatinin 2.0 - 3.4', 2),
+      _QuickScoreOption('Creatinin 3.5 - 4.9 hoặc nước tiểu < 500 mL', 3),
+      _QuickScoreOption('Creatinin ≥ 5.0 hoặc nước tiểu < 200 mL', 4),
     ];
     return _quickSectionCard(
       '4. SOFA 24 giờ - chọn điểm nhanh',
@@ -3342,7 +3377,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           selected: assessment.sofaRespirationSelected,
           score: assessment.sofaRespiration,
           fieldId: AssessmentFields.sofaRespiration,
-          options: sofaOptions,
+          options: sofaRespirationOptions,
+          minTileWidth: 168,
           onSelected: (score) => _mutate((a) {
             a.sofaRespiration = score;
             a.sofaRespirationSelected = true;
@@ -3354,7 +3390,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           selected: assessment.sofaCoagulationSelected,
           score: assessment.sofaCoagulation,
           fieldId: AssessmentFields.sofaCoagulation,
-          options: sofaOptions,
+          options: sofaCoagulationOptions,
+          minTileWidth: 168,
           onSelected: (score) => _mutate((a) {
             a.sofaCoagulation = score;
             a.sofaCoagulationSelected = true;
@@ -3366,7 +3403,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           selected: assessment.sofaLiverSelected,
           score: assessment.sofaLiver,
           fieldId: AssessmentFields.sofaLiver,
-          options: sofaOptions,
+          subtitle: 'Bilirubin theo mg/dL',
+          options: sofaLiverOptions,
+          minTileWidth: 168,
           onSelected: (score) => _mutate((a) {
             a.sofaLiver = score;
             a.sofaLiverSelected = true;
@@ -3378,7 +3417,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           selected: assessment.sofaCardiovascularSelected,
           score: assessment.sofaCardiovascular,
           fieldId: AssessmentFields.sofaCardiovascularScore,
-          options: sofaOptions,
+          subtitle: 'Liều vận mạch theo µg/kg/phút',
+          options: sofaCardiovascularOptions,
+          minTileWidth: 168,
           onSelected: (score) => _mutate((a) {
             a.sofaCardiovascular = score;
             a.sofaCardiovascularSelected = true;
@@ -3390,7 +3431,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           selected: assessment.sofaNeurologicSelected,
           score: assessment.sofaNeurologic,
           fieldId: AssessmentFields.sofaNeurologic,
-          options: sofaOptions,
+          options: sofaNeurologicOptions,
+          minTileWidth: 168,
           onSelected: (score) => _mutate((a) {
             a.sofaNeurologic = score;
             a.sofaNeurologicSelected = true;
@@ -3402,7 +3444,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           selected: assessment.sofaRenalSelected,
           score: assessment.sofaRenal,
           fieldId: AssessmentFields.sofaRenal,
-          options: sofaOptions,
+          subtitle: 'Creatinin theo mg/dL hoặc nước tiểu/24 giờ',
+          options: sofaRenalOptions,
+          minTileWidth: 168,
           onSelected: (score) => _mutate((a) {
             a.sofaRenal = score;
             a.sofaRenalSelected = true;
@@ -3526,6 +3570,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     required VoidCallback onClear,
     String? subtitle,
     String? fieldId,
+    double minTileWidth = 112,
   }) {
     final theme = Theme.of(context);
     final selector = clinical_ui.ClinicalSurfaceCard(
@@ -3555,8 +3600,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           LayoutBuilder(
             builder: (context, constraints) {
               const spacing = 10.0;
-              final columns =
-                  _quickScoreColumnCount(constraints.maxWidth, options.length);
+              final columns = _quickScoreColumnCount(
+                constraints.maxWidth,
+                options.length,
+                minTileWidth: minTileWidth,
+              );
               final tileWidth =
                   (constraints.maxWidth - spacing * (columns - 1)) / columns;
               return Wrap(
@@ -3589,16 +3637,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  int _quickScoreColumnCount(double width, int optionCount) {
-    var columns = 1;
-    if (width >= 760) {
-      columns = 5;
-    } else if (width >= 520) {
-      columns = 4;
-    } else if (width >= 340) {
-      columns = 3;
-    } else if (width >= 220) {
-      columns = 2;
+  int _quickScoreColumnCount(
+    double width,
+    int optionCount, {
+    required double minTileWidth,
+  }) {
+    const spacing = 10.0;
+    var columns = ((width + spacing) / (minTileWidth + spacing)).floor();
+    if (columns < 1) {
+      columns = 1;
+    }
+    final maxColumns = width >= 760
+        ? 5
+        : width >= 520
+            ? 4
+            : width >= 340
+                ? 3
+                : width >= 220
+                    ? 2
+                    : 1;
+    if (columns > maxColumns) {
+      columns = maxColumns;
     }
     return columns > optionCount ? optionCount : columns;
   }
@@ -3619,14 +3678,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
       onTap: selected ? onClear : onSelected,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 58),
+        constraints: const BoxConstraints(minHeight: 68),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
               option.label,
               textAlign: TextAlign.center,
-              maxLines: 3,
+              maxLines: 4,
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: tone?.foreground ?? scheme.onSurface,
