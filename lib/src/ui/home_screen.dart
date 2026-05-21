@@ -84,6 +84,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   PatientSortMode _sortMode = PatientSortMode.updatedAt;
   _PatientFilter _patientFilter = _PatientFilter.all;
   String _searchQuery = '';
+  String _preferredAssessmentMode = ClinicalAssessment.assessmentModeDetailed;
   int? _openedSavedAssessmentId;
   _HomeMode _homeMode = _HomeMode.list;
   ClinicalAssessment? _formBaseline;
@@ -149,11 +150,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final startupWatch = Stopwatch()..start();
     _logStartup('start', startupWatch);
     if (kIsWeb) {
+      final preferredAssessmentMode = await _repository.loadAssessmentMode();
       if (!mounted) {
         return;
       }
       setState(() {
-        _assessment = _newAssessment();
+        _assessment = _newAssessment(assessmentMode: preferredAssessmentMode);
         _formBaseline = _assessment.clone();
         _fieldUnitSelections.clear();
         _history = [];
@@ -161,6 +163,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         _patientSummary = const _PatientSummary.empty();
         _historyLoading = false;
         _historyLoadedAll = true;
+        _preferredAssessmentMode = preferredAssessmentMode;
         _homeMode = _HomeMode.list;
         _formDirty = false;
         _saveState = _SaveState.clean;
@@ -173,10 +176,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       return;
     }
     final draft = await _repository.loadCurrentAssessment();
+    final preferredAssessmentMode = await _repository.loadAssessmentMode();
     _logStartup('draft loaded', startupWatch);
     recalculateClinicalAssessment(draft);
-    final activeAssessment =
-        _hasAnyClinicalData(draft) ? draft : _newAssessment();
+    final activeAssessment = _hasAnyClinicalData(draft)
+        ? draft
+        : _newAssessment(assessmentMode: preferredAssessmentMode);
     if (!mounted) {
       return;
     }
@@ -185,6 +190,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _history = [];
       _filteredHistory = [];
       _patientSummary = const _PatientSummary.empty();
+      _preferredAssessmentMode = preferredAssessmentMode;
       _fieldUnitSelections.clear();
       _openedSavedAssessmentId = null;
       _formBaseline = activeAssessment.clone();
@@ -401,6 +407,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   void _showUpdateSettings() {
     var includePrereleaseUpdates = _includePrereleaseUpdates;
+    var assessmentMode = ClinicalAssessment.normalizeAssessmentMode(
+      _preferredAssessmentMode,
+    );
     showDialog<void>(
       context: context,
       builder: (context) {
@@ -408,41 +417,56 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           builder: (context, setDialogState) {
             return AlertDialog(
               title: const Text('Cài đặt app'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  clinical_ui.ClinicalSurfaceCard(
-                    padding: EdgeInsets.zero,
-                    child: SwitchListTile(
-                      value: includePrereleaseUpdates,
-                      onChanged: (value) {
-                        setDialogState(() => includePrereleaseUpdates = value);
-                        _setIncludePrereleaseUpdates(value);
-                      },
-                      contentPadding:
-                          const EdgeInsets.symmetric(horizontal: 12),
-                      title: const Text('Cài bản prerelease'),
-                      subtitle: const Text(
-                        'Mặc định tắt, chỉ bật khi cần thử nghiệm',
+              content: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 520),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _assessmentModeSettingsCard(
+                        assessmentMode: assessmentMode,
+                        onChanged: (mode) {
+                          setDialogState(() => assessmentMode = mode);
+                          _setAssessmentMode(mode);
+                        },
                       ),
-                    ),
+                      const SizedBox(height: 12),
+                      clinical_ui.ClinicalSurfaceCard(
+                        padding: EdgeInsets.zero,
+                        child: SwitchListTile(
+                          value: includePrereleaseUpdates,
+                          onChanged: (value) {
+                            setDialogState(
+                                () => includePrereleaseUpdates = value);
+                            _setIncludePrereleaseUpdates(value);
+                          },
+                          contentPadding:
+                              const EdgeInsets.symmetric(horizontal: 12),
+                          title: const Text('Cài bản prerelease'),
+                          subtitle: const Text(
+                            'Mặc định tắt, chỉ bật khi cần thử nghiệm',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      clinical_ui.ClinicalInfoBanner(
+                        icon: Icons.system_update_alt,
+                        title: 'Cập nhật ứng dụng',
+                        message:
+                            'Kiểm tra bản phát hành mới từ GitHub Releases.',
+                        status: ClinicalStatus.missing,
+                        trailing: OutlinedButton.icon(
+                          onPressed: () {
+                            _checkUpdate(force: true);
+                            _showMessage('Đang kiểm tra cập nhật...');
+                          },
+                          icon: const Icon(Icons.sync, size: 18),
+                          label: const Text('Kiểm tra ngay'),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  clinical_ui.ClinicalInfoBanner(
-                    icon: Icons.system_update_alt,
-                    title: 'Cập nhật ứng dụng',
-                    message: 'Kiểm tra bản phát hành mới từ GitHub Releases.',
-                    status: ClinicalStatus.missing,
-                    trailing: OutlinedButton.icon(
-                      onPressed: () {
-                        _checkUpdate(force: true);
-                        _showMessage('Đang kiểm tra cập nhật...');
-                      },
-                      icon: const Icon(Icons.sync, size: 18),
-                      label: const Text('Kiểm tra ngay'),
-                    ),
-                  ),
-                ],
+                ),
               ),
               actions: [
                 TextButton(
@@ -454,6 +478,62 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           },
         );
       },
+    );
+  }
+
+  Widget _assessmentModeSettingsCard({
+    required String assessmentMode,
+    required ValueChanged<String> onChanged,
+  }) {
+    final theme = Theme.of(context);
+    final selectedMode = ClinicalAssessment.parseAssessmentInputMode(
+      assessmentMode,
+    );
+    return clinical_ui.ClinicalSurfaceCard(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Mode đánh giá',
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Áp dụng cho phiếu mới và phiếu mở chỉnh sửa.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 12),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SegmentedButton<ClinicalAssessmentInputMode>(
+              showSelectedIcon: false,
+              selected: {selectedMode},
+              segments: const [
+                ButtonSegment(
+                  value: ClinicalAssessmentInputMode.detailed,
+                  icon: Icon(Icons.monitor_heart_outlined),
+                  label: Text('Chi tiết'),
+                ),
+                ButtonSegment(
+                  value: ClinicalAssessmentInputMode.quick,
+                  icon: Icon(Icons.touch_app_outlined),
+                  label: Text('Nhanh'),
+                ),
+              ],
+              onSelectionChanged: (selection) {
+                onChanged(
+                  ClinicalAssessment.assessmentModeValue(selection.first),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -702,6 +782,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void _openSaved(SavedAssessment saved) {
     final assessment = saved.assessment.clone();
     recalculateClinicalAssessment(assessment);
+    final preferredAssessmentMode = _preferredAssessmentMode;
+    final keepQuickScores =
+        preferredAssessmentMode == ClinicalAssessment.assessmentModeDetailed &&
+            assessment.isQuickMode &&
+            _hasQuickScoreData(assessment);
+    if (!keepQuickScores &&
+        assessment.assessmentMode != preferredAssessmentMode) {
+      assessment.assessmentMode = preferredAssessmentMode;
+      recalculateClinicalAssessment(assessment);
+    }
     setState(() {
       _assessment = assessment;
       _openedSavedAssessmentId = saved.id;
@@ -721,7 +811,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   void _startNew() {
-    final assessment = _newAssessment();
+    final assessment = _newAssessment(assessmentMode: _preferredAssessmentMode);
     setState(() {
       _assessment = assessment;
       _openedSavedAssessmentId = null;
@@ -738,6 +828,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _formVersion++;
     });
     _repository.saveCurrentAssessment(assessment);
+  }
+
+  void _setAssessmentMode(String mode) {
+    final normalized = ClinicalAssessment.normalizeAssessmentMode(mode);
+    if (_assessment.assessmentMode == normalized &&
+        _preferredAssessmentMode == normalized) {
+      return;
+    }
+    unawaited(_repository.saveAssessmentMode(normalized));
+    if (_homeMode != _HomeMode.form) {
+      setState(() => _preferredAssessmentMode = normalized);
+      return;
+    }
+    _preferredAssessmentMode = normalized;
+    _mutate((assessment) {
+      assessment.assessmentMode = normalized;
+    });
   }
 
   Future<void> _leaveForm() async {
@@ -879,7 +986,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     child: isForm
                         ? KeyedSubtree(
                             key: ValueKey(_formVersion),
-                            child: _buildAssessmentForm(),
+                            child: _assessment.isQuickMode
+                                ? _buildQuickAssessmentForm()
+                                : _buildAssessmentForm(),
                           )
                         : _buildPatientList(),
                   ),
@@ -959,6 +1068,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ),
         ),
         _formExportMenu(),
+        IconButton(
+          tooltip: 'Cài đặt app',
+          onPressed: _showUpdateSettings,
+          icon: const Icon(Icons.settings_outlined),
+        ),
         const SizedBox(width: 4),
       ];
     }
@@ -970,6 +1084,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         icon: const Icon(Icons.save_outlined),
       ),
       _formExportMenu(),
+      IconButton(
+        tooltip: 'Cài đặt app',
+        onPressed: _showUpdateSettings,
+        icon: const Icon(Icons.settings_outlined),
+      ),
       const SizedBox(width: 4),
     ];
   }
@@ -1545,6 +1664,77 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ),
               ],
             ),
+            _diagnosisOutcomeCard(assessment, twoColumns: twoColumns),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildQuickAssessmentForm() {
+    final assessment = _assessment;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final twoColumns = constraints.maxWidth >= 720;
+        return ListView(
+          controller: _formScrollController,
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+          children: [
+            _quickSectionCard(
+              'Thông tin bệnh nhân',
+              sectionId: AssessmentSections.patient,
+              progress: _patientProgress(assessment),
+              children: [
+                _quickFieldGrid(
+                  twoColumns: twoColumns,
+                  children: [
+                    _field('Mã bệnh nhân', assessment.patientId, (value) {
+                      assessment.patientId = value;
+                    }, fieldId: AssessmentFields.patientId),
+                    _field('Họ và tên', assessment.fullName, (value) {
+                      assessment.fullName = value;
+                    }, fieldId: AssessmentFields.fullName),
+                    _field('Ngày nhập viện', assessment.admissionDate, (value) {
+                      assessment.admissionDate = value;
+                    },
+                        fieldId: AssessmentFields.admissionDate,
+                        hint: 'yyyy-MM-dd',
+                        keyboardType: TextInputType.datetime,
+                        inputFormatters: _dateInputFormatters),
+                    _field('Giờ nhập viện', assessment.admissionTime, (value) {
+                      assessment.admissionTime = value;
+                    },
+                        fieldId: AssessmentFields.admissionTime,
+                        hint: 'HH:mm',
+                        keyboardType: TextInputType.datetime,
+                        inputFormatters: _timeInputFormatters),
+                    _field('Tuổi', assessment.age, (value) {
+                      assessment.age = value;
+                    },
+                        unitOptions: const ['năm'],
+                        hint: 'VD: 65',
+                        keyboardType: TextInputType.number,
+                        inputFormatters: _integerInputFormatters),
+                    _field('Cơ quan nhiễm trùng', assessment.infectionOrgan,
+                        (value) {
+                      assessment.infectionOrgan = value;
+                    }),
+                    _fullWidth(
+                      _field('Lý do nhập viện', assessment.admissionReason,
+                          (value) {
+                        assessment.admissionReason = value;
+                      }, maxLines: 3),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            _quickNews2Section(assessment),
+            _quickHemodynamicsSection(
+              assessment,
+              twoColumns: twoColumns,
+            ),
+            _quickSofaSection(assessment),
             _diagnosisOutcomeCard(assessment, twoColumns: twoColumns),
           ],
         );
@@ -2403,6 +2593,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   bool _news2Complete(ClinicalAssessment assessment) {
+    if (assessment.isQuickMode) {
+      return assessment.news2RespirationSelected &&
+          assessment.news2Spo2Selected &&
+          assessment.news2OxygenSelected &&
+          assessment.news2TemperatureSelected &&
+          assessment.news2SystolicBpSelected &&
+          assessment.news2HeartRateSelected &&
+          assessment.news2ConsciousnessSelected;
+    }
     return ClinicalValueParser.hasText(assessment.news2RespirationMeasured) &&
         ClinicalValueParser.hasText(assessment.news2Spo2Measured) &&
         ClinicalValueParser.hasText(assessment.news2OxygenMeasured) &&
@@ -2413,6 +2612,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   bool _qsofaComplete(ClinicalAssessment assessment) {
+    if (assessment.isQuickMode) {
+      return assessment.qsofaRespirationSelected &&
+          assessment.qsofaSystolicBpSelected &&
+          assessment.qsofaConsciousnessSelected;
+    }
     return ClinicalValueParser.hasText(assessment.news2RespirationMeasured) &&
         ClinicalValueParser.hasText(assessment.news2SystolicBpMeasured) &&
         ClinicalValueParser.hasText(assessment.news2ConsciousnessMeasured);
@@ -2431,11 +2635,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   bool _sofaCardiovascularComplete(ClinicalAssessment assessment) {
+    if (assessment.isQuickMode) {
+      return assessment.sofaCardiovascularSelected;
+    }
     return ClinicalValueParser.hasText(assessment.sofaCardiovascularMeasured) ||
         assessment.vasopressor;
   }
 
   bool _sofaComplete(ClinicalAssessment assessment) {
+    if (assessment.isQuickMode) {
+      return assessment.sofaRespirationSelected &&
+          assessment.sofaCoagulationSelected &&
+          assessment.sofaLiverSelected &&
+          assessment.sofaCardiovascularSelected &&
+          assessment.sofaNeurologicSelected &&
+          assessment.sofaRenalSelected;
+    }
     return ClinicalValueParser.hasText(assessment.sofaRespirationMeasured) &&
         ClinicalValueParser.hasText(assessment.sofaCoagulationMeasured) &&
         ClinicalValueParser.hasText(assessment.sofaLiverMeasured) &&
@@ -2691,6 +2906,749 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ),
         );
       },
+    );
+  }
+
+  Widget _quickSectionCard(
+    String title, {
+    required List<Widget> children,
+    String? subtitle,
+    String? sectionId,
+    SectionProgress? progress,
+  }) {
+    final theme = Theme.of(context);
+    final card = clinical_ui.ClinicalSurfaceCard(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+      radius: 18,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    height: 1.18,
+                  ),
+                ),
+              ),
+              if (progress != null) ...[
+                const SizedBox(width: 10),
+                _quickProgressPill(progress),
+              ],
+            ],
+          ),
+          if (subtitle != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                height: 1.25,
+              ),
+            ),
+          ],
+          const SizedBox(height: 14),
+          ..._withVerticalSpacing(children, spacing: 14),
+        ],
+      ),
+    );
+    if (sectionId == null) {
+      return card;
+    }
+    return KeyedSubtree(
+      key: _sectionKey(sectionId),
+      child: card,
+    );
+  }
+
+  List<Widget> _withVerticalSpacing(
+    List<Widget> children, {
+    required double spacing,
+  }) {
+    final spaced = <Widget>[];
+    for (final child in children) {
+      if (spaced.isNotEmpty) {
+        spaced.add(SizedBox(height: spacing));
+      }
+      spaced.add(child);
+    }
+    return spaced;
+  }
+
+  Widget _quickProgressPill(SectionProgress progress) {
+    final theme = Theme.of(context);
+    final tone =
+        progress.complete ? _clinicalTones.success : _clinicalTones.muted;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: tone.background,
+        border: Border.all(color: tone.border),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        '${progress.completedCount}/${progress.totalCount}',
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: tone.foreground,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
+
+  Widget _quickFieldGrid({
+    required bool twoColumns,
+    required List<Widget> children,
+  }) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const spacing = 12.0;
+        final availableWidth = constraints.maxWidth;
+        final itemWidth =
+            twoColumns ? (availableWidth - spacing) / 2 : availableWidth;
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: [
+            for (final child in children)
+              SizedBox(
+                width: child is _FullWidth || !twoColumns
+                    ? availableWidth
+                    : itemWidth,
+                child: child is _FullWidth ? child.child : child,
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _quickNews2Section(ClinicalAssessment assessment) {
+    final spo2Options = assessment.news2Spo2Scale2
+        ? const [
+            _QuickScoreOption('88 - 92%', 0),
+            _QuickScoreOption('86 - 87% hoặc 93 - 94%', 1),
+            _QuickScoreOption('84 - 85% hoặc 95 - 96%', 2),
+            _QuickScoreOption('≤ 83% hoặc ≥ 97%', 3),
+          ]
+        : const [
+            _QuickScoreOption('≥ 96%', 0),
+            _QuickScoreOption('94 - 95%', 1),
+            _QuickScoreOption('92 - 93%', 2),
+            _QuickScoreOption('≤ 91%', 3),
+          ];
+    return _quickSectionCard(
+      '2. NEWS2/qSOFA - đánh giá nhanh',
+      sectionId: AssessmentSections.news2,
+      progress: AssessmentDisplay.news2Progress(assessment),
+      children: [
+        _quickSpo2ScaleCard(assessment),
+        _quickScoreGroup(
+          title: 'Nhịp thở (lần/phút)',
+          selected: assessment.news2RespirationSelected,
+          score: assessment.news2Respiration,
+          fieldId: AssessmentFields.respiration,
+          options: const [
+            _QuickScoreOption('12 - 20', 0),
+            _QuickScoreOption('9 - 11', 1),
+            _QuickScoreOption('21 - 24', 2),
+            _QuickScoreOption('≤ 8 hoặc ≥ 25', 3),
+          ],
+          onSelected: (score) => _mutate((a) {
+            a.news2Respiration = score;
+            a.news2RespirationSelected = true;
+          }),
+          onClear: () => _mutate((a) => a.news2RespirationSelected = false),
+        ),
+        _quickScoreGroup(
+          title: assessment.news2Spo2Scale2
+              ? 'SpO2 (%) - Thang 2'
+              : 'SpO2 (%) - Thang 1',
+          subtitle: assessment.news2Spo2Scale2
+              ? 'Bệnh nhân có nguy cơ suy hô hấp tăng CO2'
+              : 'Bệnh nhân không có nguy cơ suy hô hấp tăng CO2',
+          selected: assessment.news2Spo2Selected,
+          score: assessment.news2Spo2,
+          fieldId: AssessmentFields.spo2,
+          options: spo2Options,
+          onSelected: (score) => _mutate((a) {
+            a.news2Spo2 = score;
+            a.news2Spo2Selected = true;
+          }),
+          onClear: () => _mutate((a) => a.news2Spo2Selected = false),
+        ),
+        _quickScoreGroup(
+          title: 'Hỗ trợ hô hấp',
+          selected: assessment.news2OxygenSelected,
+          score: assessment.news2Oxygen,
+          fieldId: AssessmentFields.oxygen,
+          options: const [
+            _QuickScoreOption('Thở khí phòng', 0),
+            _QuickScoreOption('Thở Oxy', 2),
+          ],
+          onSelected: (score) => _mutate((a) {
+            a.news2Oxygen = score;
+            a.news2OxygenSelected = true;
+          }),
+          onClear: () => _mutate((a) => a.news2OxygenSelected = false),
+        ),
+        _quickScoreGroup(
+          title: 'Huyết áp tâm thu (mmHg)',
+          selected: assessment.news2SystolicBpSelected,
+          score: assessment.news2SystolicBp,
+          fieldId: AssessmentFields.systolicBp,
+          options: const [
+            _QuickScoreOption('111 - 219', 0),
+            _QuickScoreOption('101 - 110', 1),
+            _QuickScoreOption('91 - 100', 2),
+            _QuickScoreOption('≤ 90 hoặc ≥ 220', 3),
+          ],
+          onSelected: (score) => _mutate((a) {
+            a.news2SystolicBp = score;
+            a.news2SystolicBpSelected = true;
+          }),
+          onClear: () => _mutate((a) => a.news2SystolicBpSelected = false),
+        ),
+        _quickScoreGroup(
+          title: 'Nhịp tim (lần/phút)',
+          selected: assessment.news2HeartRateSelected,
+          score: assessment.news2HeartRate,
+          fieldId: AssessmentFields.heartRate,
+          options: const [
+            _QuickScoreOption('51 - 90', 0),
+            _QuickScoreOption('41 - 50 hoặc 91 - 110', 1),
+            _QuickScoreOption('111 - 130', 2),
+            _QuickScoreOption('≤ 40 hoặc ≥ 131', 3),
+          ],
+          onSelected: (score) => _mutate((a) {
+            a.news2HeartRate = score;
+            a.news2HeartRateSelected = true;
+          }),
+          onClear: () => _mutate((a) => a.news2HeartRateSelected = false),
+        ),
+        _quickScoreGroup(
+          title: 'Nhiệt độ (°C)',
+          selected: assessment.news2TemperatureSelected,
+          score: assessment.news2Temperature,
+          fieldId: AssessmentFields.temperature,
+          options: const [
+            _QuickScoreOption('36.1 - 38.0', 0),
+            _QuickScoreOption('35.1 - 36.0 hoặc 38.1 - 39.0', 1),
+            _QuickScoreOption('≥ 39.1', 2),
+            _QuickScoreOption('≤ 35.0', 3),
+          ],
+          onSelected: (score) => _mutate((a) {
+            a.news2Temperature = score;
+            a.news2TemperatureSelected = true;
+          }),
+          onClear: () => _mutate((a) => a.news2TemperatureSelected = false),
+        ),
+        _quickScoreGroup(
+          title: 'Tri giác (AVPU)',
+          selected: assessment.news2ConsciousnessSelected,
+          score: assessment.news2Consciousness,
+          fieldId: AssessmentFields.consciousness,
+          options: const [
+            _QuickScoreOption('A - Tỉnh', 0),
+            _QuickScoreOption('C / V / P / U', 3),
+          ],
+          onSelected: (score) => _mutate((a) {
+            a.news2Consciousness = score;
+            a.news2ConsciousnessSelected = true;
+          }),
+          onClear: () => _mutate((a) => a.news2ConsciousnessSelected = false),
+        ),
+        _quickSubheading('qSOFA'),
+        _quickScoreGroup(
+          title: 'Nhịp thở ≥ 22 lần/phút',
+          selected: assessment.qsofaRespirationSelected,
+          score: assessment.qsofaRespiration ? 1 : 0,
+          fieldId: AssessmentFields.qsofaRespiration,
+          options: const [
+            _QuickScoreOption('Không', 0),
+            _QuickScoreOption('Có', 1),
+          ],
+          onSelected: (score) => _mutate((a) {
+            a.qsofaRespiration = score == 1;
+            a.qsofaRespirationSelected = true;
+          }),
+          onClear: () => _mutate((a) => a.qsofaRespirationSelected = false),
+        ),
+        _quickScoreGroup(
+          title: 'Huyết áp tâm thu ≤ 100 mmHg',
+          selected: assessment.qsofaSystolicBpSelected,
+          score: assessment.qsofaSystolicBp ? 1 : 0,
+          fieldId: AssessmentFields.qsofaSystolicBp,
+          options: const [
+            _QuickScoreOption('Không', 0),
+            _QuickScoreOption('Có', 1),
+          ],
+          onSelected: (score) => _mutate((a) {
+            a.qsofaSystolicBp = score == 1;
+            a.qsofaSystolicBpSelected = true;
+          }),
+          onClear: () => _mutate((a) => a.qsofaSystolicBpSelected = false),
+        ),
+        _quickScoreGroup(
+          title: 'Rối loạn ý thức',
+          selected: assessment.qsofaConsciousnessSelected,
+          score: assessment.qsofaConsciousness ? 1 : 0,
+          fieldId: AssessmentFields.qsofaConsciousness,
+          options: const [
+            _QuickScoreOption('Không', 0),
+            _QuickScoreOption('Có', 1),
+          ],
+          onSelected: (score) => _mutate((a) {
+            a.qsofaConsciousness = score == 1;
+            a.qsofaConsciousnessSelected = true;
+          }),
+          onClear: () => _mutate((a) => a.qsofaConsciousnessSelected = false),
+        ),
+        _miniScores([
+          _ScoreItem(
+            'Nhịp thở',
+            assessment.news2Respiration,
+            completed: assessment.news2RespirationSelected,
+          ),
+          _ScoreItem(
+            'HA',
+            assessment.news2SystolicBp,
+            completed: assessment.news2SystolicBpSelected,
+          ),
+          _ScoreItem(
+            'Tri giác',
+            assessment.news2Consciousness,
+            completed: assessment.news2ConsciousnessSelected,
+          ),
+          _ScoreItem(
+            'SpO2',
+            assessment.news2Spo2,
+            completed: assessment.news2Spo2Selected,
+          ),
+          _ScoreItem(
+            'Oxy',
+            assessment.news2Oxygen,
+            completed: assessment.news2OxygenSelected,
+          ),
+          _ScoreItem(
+            'Nhiệt',
+            assessment.news2Temperature,
+            completed: assessment.news2TemperatureSelected,
+          ),
+          _ScoreItem(
+            'Mạch',
+            assessment.news2HeartRate,
+            completed: assessment.news2HeartRateSelected,
+          ),
+        ]),
+        _readOnlyLine(
+          'Kết luận NEWS2',
+          _news2ConclusionText(assessment),
+          tone: _news2Tone(assessment),
+          maxLines: 9,
+        ),
+        _readOnlyLine(
+          'Kết luận qSOFA',
+          _qsofaConclusionText(assessment),
+          tone: _qsofaTone(assessment),
+          maxLines: 5,
+        ),
+      ],
+    );
+  }
+
+  Widget _quickHemodynamicsSection(
+    ClinicalAssessment assessment, {
+    required bool twoColumns,
+  }) {
+    return _quickSectionCard(
+      '3. Lactate & huyết động',
+      sectionId: AssessmentSections.lactate,
+      progress: AssessmentDisplay.lactateProgress(assessment),
+      children: [
+        _quickFieldGrid(
+          twoColumns: twoColumns,
+          children: [
+            _field('Lactate tĩnh mạch', assessment.lactate, (value) {
+              assessment.lactate = value;
+              assessment.lactateLevel = _lactateLevel(value);
+            },
+                fieldId: AssessmentFields.lactate,
+                unitOptions: const ['mmol/L'],
+                warningText: _lactateWarning(assessment.lactate),
+                hint: 'VD: 2.1',
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: _decimalInputFormatters),
+            _field('Thời gian lấy mẫu lactate', assessment.lactateSampleTime,
+                (value) {
+              assessment.lactateSampleTime = value;
+            },
+                fieldId: AssessmentFields.lactateSampleTime,
+                hint: 'HH:mm',
+                keyboardType: TextInputType.datetime,
+                inputFormatters: _timeInputFormatters),
+            _field('Tim mạch - MAP/Vận mạch (mmHg; thuốc/liều)',
+                assessment.sofaCardiovascularMeasured, (value) {
+              assessment.sofaCardiovascularMeasured = value;
+            },
+                fieldId: AssessmentFields.cardiovascular,
+                scoreText: _scoreText(
+                  assessment.sofaCardiovascularMeasured,
+                  'Điểm SOFA tim mạch: ${assessment.sofaCardiovascular}',
+                ),
+                scoreStatus: _scoreStatus(assessment.sofaCardiovascular),
+                hint: 'VD: MAP 65 hoặc norepi 0.2'),
+            _toggleTile(
+              'Có dùng vận mạch',
+              assessment.vasopressor,
+              (value) => _mutate((a) => a.vasopressor = value),
+            ),
+          ],
+        ),
+        _readOnlyLine(
+          'Phân mức Lactate',
+          assessment.lactateLevel.isEmpty
+              ? 'Chưa nhập lactate'
+              : assessment.lactateLevel,
+          tone: ClinicalValueParser.hasText(assessment.lactate)
+              ? null
+              : _clinicalTones.muted,
+        ),
+      ],
+    );
+  }
+
+  Widget _quickSofaSection(ClinicalAssessment assessment) {
+    const sofaOptions = [
+      _QuickScoreOption('0', 0),
+      _QuickScoreOption('1', 1),
+      _QuickScoreOption('2', 2),
+      _QuickScoreOption('3', 3),
+      _QuickScoreOption('4', 4),
+    ];
+    return _quickSectionCard(
+      '4. SOFA 24 giờ - chọn điểm nhanh',
+      sectionId: AssessmentSections.sofa,
+      progress: AssessmentDisplay.sofaProgress(assessment),
+      children: [
+        _quickScoreGroup(
+          title: 'Hô hấp',
+          selected: assessment.sofaRespirationSelected,
+          score: assessment.sofaRespiration,
+          fieldId: AssessmentFields.sofaRespiration,
+          options: sofaOptions,
+          onSelected: (score) => _mutate((a) {
+            a.sofaRespiration = score;
+            a.sofaRespirationSelected = true;
+          }),
+          onClear: () => _mutate((a) => a.sofaRespirationSelected = false),
+        ),
+        _quickScoreGroup(
+          title: 'Đông máu',
+          selected: assessment.sofaCoagulationSelected,
+          score: assessment.sofaCoagulation,
+          fieldId: AssessmentFields.sofaCoagulation,
+          options: sofaOptions,
+          onSelected: (score) => _mutate((a) {
+            a.sofaCoagulation = score;
+            a.sofaCoagulationSelected = true;
+          }),
+          onClear: () => _mutate((a) => a.sofaCoagulationSelected = false),
+        ),
+        _quickScoreGroup(
+          title: 'Gan',
+          selected: assessment.sofaLiverSelected,
+          score: assessment.sofaLiver,
+          fieldId: AssessmentFields.sofaLiver,
+          options: sofaOptions,
+          onSelected: (score) => _mutate((a) {
+            a.sofaLiver = score;
+            a.sofaLiverSelected = true;
+          }),
+          onClear: () => _mutate((a) => a.sofaLiverSelected = false),
+        ),
+        _quickScoreGroup(
+          title: 'Tim mạch',
+          selected: assessment.sofaCardiovascularSelected,
+          score: assessment.sofaCardiovascular,
+          fieldId: AssessmentFields.sofaCardiovascularScore,
+          options: sofaOptions,
+          onSelected: (score) => _mutate((a) {
+            a.sofaCardiovascular = score;
+            a.sofaCardiovascularSelected = true;
+          }),
+          onClear: () => _mutate((a) => a.sofaCardiovascularSelected = false),
+        ),
+        _quickScoreGroup(
+          title: 'Thần kinh',
+          selected: assessment.sofaNeurologicSelected,
+          score: assessment.sofaNeurologic,
+          fieldId: AssessmentFields.sofaNeurologic,
+          options: sofaOptions,
+          onSelected: (score) => _mutate((a) {
+            a.sofaNeurologic = score;
+            a.sofaNeurologicSelected = true;
+          }),
+          onClear: () => _mutate((a) => a.sofaNeurologicSelected = false),
+        ),
+        _quickScoreGroup(
+          title: 'Thận',
+          selected: assessment.sofaRenalSelected,
+          score: assessment.sofaRenal,
+          fieldId: AssessmentFields.sofaRenal,
+          options: sofaOptions,
+          onSelected: (score) => _mutate((a) {
+            a.sofaRenal = score;
+            a.sofaRenalSelected = true;
+          }),
+          onClear: () => _mutate((a) => a.sofaRenalSelected = false),
+        ),
+        _miniScores([
+          _ScoreItem(
+            'Hô hấp',
+            assessment.sofaRespiration,
+            completed: assessment.sofaRespirationSelected,
+          ),
+          _ScoreItem(
+            'Đông máu',
+            assessment.sofaCoagulation,
+            completed: assessment.sofaCoagulationSelected,
+          ),
+          _ScoreItem(
+            'Gan',
+            assessment.sofaLiver,
+            completed: assessment.sofaLiverSelected,
+          ),
+          _ScoreItem(
+            'Tim mạch',
+            assessment.sofaCardiovascular,
+            completed: assessment.sofaCardiovascularSelected,
+          ),
+          _ScoreItem(
+            'Thần kinh',
+            assessment.sofaNeurologic,
+            completed: assessment.sofaNeurologicSelected,
+          ),
+          _ScoreItem(
+            'Thận',
+            assessment.sofaRenal,
+            completed: assessment.sofaRenalSelected,
+          ),
+        ]),
+        _readOnlyLine(
+          'Ngưỡng Sepsis-3',
+          _sofaComplete(assessment)
+              ? sofaThresholdText(assessment)
+              : _missingSentence(AssessmentDisplay.sofaProgress(assessment)),
+          tone: _sofaThresholdTone(assessment),
+        ),
+        _readOnlyLine(
+          'Kết luận SOFA',
+          _sofaConclusionText(assessment),
+          tone: _sofaTone(assessment),
+          maxLines: 5,
+        ),
+      ],
+    );
+  }
+
+  Widget _quickSpo2ScaleCard(ClinicalAssessment assessment) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return clinical_ui.ClinicalSurfaceCard(
+      color: scheme.primaryContainer.withValues(alpha: 0.35),
+      borderColor: scheme.primary.withValues(alpha: 0.18),
+      radius: 16,
+      padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+      child: Row(
+        children: [
+          Icon(
+            Icons.air_outlined,
+            color: scheme.primary,
+            size: 22,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Bệnh nhân có suy hô hấp?',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: scheme.onPrimaryContainer,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'Bật nếu bệnh nhân có tiền sử suy hô hấp do tăng CO2 máu.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: scheme.onPrimaryContainer.withValues(alpha: 0.78),
+                    height: 1.25,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Switch(
+            value: assessment.news2Spo2Scale2,
+            onChanged: (value) => _mutate((a) => a.news2Spo2Scale2 = value),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _quickSubheading(String title) {
+    final theme = Theme.of(context);
+    return Text(
+      title,
+      style: theme.textTheme.titleSmall?.copyWith(
+        color: theme.colorScheme.primary,
+        fontWeight: FontWeight.w900,
+      ),
+    );
+  }
+
+  Widget _quickScoreGroup({
+    required String title,
+    required bool selected,
+    required int score,
+    required List<_QuickScoreOption> options,
+    required ValueChanged<int> onSelected,
+    required VoidCallback onClear,
+    String? subtitle,
+    String? fieldId,
+  }) {
+    final theme = Theme.of(context);
+    final selector = clinical_ui.ClinicalSurfaceCard(
+      radius: 16,
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w900,
+              height: 1.2,
+            ),
+          ),
+          if (subtitle != null) ...[
+            const SizedBox(height: 3),
+            Text(
+              subtitle,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                height: 1.25,
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              const spacing = 10.0;
+              final columns =
+                  _quickScoreColumnCount(constraints.maxWidth, options.length);
+              final tileWidth =
+                  (constraints.maxWidth - spacing * (columns - 1)) / columns;
+              return Wrap(
+                spacing: spacing,
+                runSpacing: spacing,
+                children: [
+                  for (final option in options)
+                    SizedBox(
+                      width: tileWidth,
+                      child: _quickScoreTile(
+                        option: option,
+                        selected: selected && score == option.score,
+                        onSelected: () => onSelected(option.score),
+                        onClear: onClear,
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+    if (fieldId == null) {
+      return selector;
+    }
+    return KeyedSubtree(
+      key: _fieldKey(fieldId),
+      child: selector,
+    );
+  }
+
+  int _quickScoreColumnCount(double width, int optionCount) {
+    var columns = 1;
+    if (width >= 760) {
+      columns = 5;
+    } else if (width >= 520) {
+      columns = 4;
+    } else if (width >= 340) {
+      columns = 3;
+    } else if (width >= 220) {
+      columns = 2;
+    }
+    return columns > optionCount ? optionCount : columns;
+  }
+
+  Widget _quickScoreTile({
+    required _QuickScoreOption option,
+    required bool selected,
+    required VoidCallback onSelected,
+    required VoidCallback onClear,
+  }) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final tone = selected ? _componentScoreTone(option.score) : null;
+    return clinical_ui.ClinicalSurfaceCard(
+      color: tone?.background ?? scheme.surfaceContainerLowest,
+      borderColor: tone?.border ?? scheme.outlineVariant,
+      radius: 12,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+      onTap: selected ? onClear : onSelected,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 58),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              option.label,
+              textAlign: TextAlign.center,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: tone?.foreground ?? scheme.onSurface,
+                fontWeight: FontWeight.w800,
+                height: 1.15,
+              ),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              '${option.score} điểm',
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: tone?.foreground ??
+                    scheme.onSurfaceVariant.withValues(alpha: 0.72),
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -3370,6 +4328,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   bool _hasMeaningfulHistoryData(ClinicalAssessment assessment) {
     return _hasAnyClinicalData(assessment) ||
+        _hasQuickScoreData(assessment) ||
         ClinicalValueParser.hasText(assessment.news2RespirationMeasured) ||
         ClinicalValueParser.hasText(assessment.news2SystolicBpMeasured) ||
         ClinicalValueParser.hasText(assessment.news2HeartRateMeasured) ||
@@ -3378,9 +4337,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ClinicalValueParser.hasText(assessment.treatmentOutcome);
   }
 
-  static ClinicalAssessment _newAssessment() {
+  static ClinicalAssessment _newAssessment({
+    String assessmentMode = ClinicalAssessment.assessmentModeDetailed,
+  }) {
     final now = DateTime.now();
     final assessment = ClinicalAssessment(
+      assessmentMode: ClinicalAssessment.normalizeAssessmentMode(
+        assessmentMode,
+      ),
       admissionDate: _dateText(now),
       admissionTime: _timeText(now),
       admissionDateTime: '${_timeText(now)}, ngày ${_dateText(now)}',
@@ -3392,6 +4356,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   static bool _hasAnyClinicalData(ClinicalAssessment assessment) {
+    if (assessment.isQuickMode && _hasQuickScoreData(assessment)) {
+      return true;
+    }
     return [
       assessment.patientId,
       assessment.fullName,
@@ -3402,6 +4369,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       assessment.news2Spo2Measured,
       assessment.sofaRespirationMeasured,
     ].any(ClinicalValueParser.hasText);
+  }
+
+  static bool _hasQuickScoreData(ClinicalAssessment assessment) {
+    return assessment.news2RespirationSelected ||
+        assessment.news2Spo2Selected ||
+        assessment.news2OxygenSelected ||
+        assessment.news2TemperatureSelected ||
+        assessment.news2SystolicBpSelected ||
+        assessment.news2HeartRateSelected ||
+        assessment.news2ConsciousnessSelected ||
+        assessment.qsofaRespirationSelected ||
+        assessment.qsofaSystolicBpSelected ||
+        assessment.qsofaConsciousnessSelected ||
+        assessment.sofaRespirationSelected ||
+        assessment.sofaCoagulationSelected ||
+        assessment.sofaLiverSelected ||
+        assessment.sofaCardiovascularSelected ||
+        assessment.sofaNeurologicSelected ||
+        assessment.sofaRenalSelected;
   }
 
   static String _buildAdmissionDateTime(ClinicalAssessment assessment) {
@@ -3513,4 +4499,11 @@ class _ScoreItem {
     this.score, {
     required this.completed,
   });
+}
+
+class _QuickScoreOption {
+  final String label;
+  final int score;
+
+  const _QuickScoreOption(this.label, this.score);
 }

@@ -20,8 +20,10 @@ class AssessmentRepository {
   static const _databaseName = 'news2_l.db';
   static const _databaseVersion = 1;
   static const _draftKey = 'current_assessment';
+  static const _assessmentModeKey = 'assessment_mode';
   static const _includePrereleaseUpdatesKey = 'include_prerelease_updates';
   static ClinicalAssessment? _webDraft;
+  static String _webAssessmentMode = ClinicalAssessment.assessmentModeDetailed;
   static bool _webIncludePrereleaseUpdates = false;
   static final List<SavedAssessment> _webHistory = [];
   static int _webNextId = 1;
@@ -102,6 +104,43 @@ CREATE TABLE clinical_assessments (
       {
         'key': _draftKey,
         'value': jsonEncode(assessment.toJson()),
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<String> loadAssessmentMode() async {
+    if (kIsWeb) {
+      return _webAssessmentMode;
+    }
+    final db = await _db;
+    final rows = await db.query(
+      'app_state',
+      columns: ['value'],
+      where: 'key = ?',
+      whereArgs: [_assessmentModeKey],
+      limit: 1,
+    );
+    if (rows.isEmpty) {
+      return ClinicalAssessment.assessmentModeDetailed;
+    }
+    return ClinicalAssessment.normalizeAssessmentMode(
+      rows.first['value'] as String,
+    );
+  }
+
+  Future<void> saveAssessmentMode(String mode) async {
+    final normalized = ClinicalAssessment.normalizeAssessmentMode(mode);
+    if (kIsWeb) {
+      _webAssessmentMode = normalized;
+      return;
+    }
+    final db = await _db;
+    await db.insert(
+      'app_state',
+      {
+        'key': _assessmentModeKey,
+        'value': normalized,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );

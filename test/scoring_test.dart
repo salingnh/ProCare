@@ -211,6 +211,83 @@ void main() {
     expect(restored.sofaRenalUnit, 'µmol/L');
   });
 
+  test('ClinicalAssessment persists quick mode and selected zero scores', () {
+    final assessment = ClinicalAssessment(
+      assessmentMode: ClinicalAssessment.assessmentModeQuick,
+      news2Respiration: 0,
+      news2RespirationSelected: true,
+      qsofaRespiration: false,
+      qsofaRespirationSelected: true,
+      sofaRespiration: 0,
+      sofaRespirationSelected: true,
+    );
+
+    final restored = ClinicalAssessment.fromJson(assessment.toJson());
+    final legacy = ClinicalAssessment.fromJson(const <String, dynamic>{});
+    final normalized = ClinicalAssessment.fromJson(const <String, dynamic>{
+      'assessmentMode': ' QUICK ',
+    });
+
+    expect(restored.assessmentMode, ClinicalAssessment.assessmentModeQuick);
+    expect(restored.inputMode, ClinicalAssessmentInputMode.quick);
+    expect(restored.news2Respiration, 0);
+    expect(restored.news2RespirationSelected, isTrue);
+    expect(restored.qsofaRespirationSelected, isTrue);
+    expect(restored.sofaRespirationSelected, isTrue);
+    expect(legacy.assessmentMode, ClinicalAssessment.assessmentModeDetailed);
+    expect(normalized.assessmentMode, ClinicalAssessment.assessmentModeQuick);
+  });
+
+  test('quick mode recalculates totals without overwriting selected scores',
+      () {
+    final assessment = ClinicalAssessment(
+      assessmentMode: ClinicalAssessment.assessmentModeQuick,
+      news2Respiration: 0,
+      news2RespirationSelected: true,
+      news2Spo2: 1,
+      news2Spo2Selected: true,
+      news2Oxygen: 2,
+      news2OxygenSelected: true,
+      news2Temperature: 3,
+      news2TemperatureSelected: true,
+      news2SystolicBp: 0,
+      news2SystolicBpSelected: true,
+      news2HeartRate: 1,
+      news2HeartRateSelected: true,
+      news2Consciousness: 3,
+      news2ConsciousnessSelected: true,
+      qsofaRespiration: true,
+      qsofaRespirationSelected: true,
+      qsofaSystolicBp: false,
+      qsofaSystolicBpSelected: true,
+      qsofaConsciousness: true,
+      qsofaConsciousnessSelected: true,
+      sofaRespiration: 0,
+      sofaRespirationSelected: true,
+      sofaCoagulation: 1,
+      sofaCoagulationSelected: true,
+      sofaLiver: 2,
+      sofaLiverSelected: true,
+      sofaCardiovascular: 3,
+      sofaCardiovascularSelected: true,
+      sofaNeurologic: 4,
+      sofaNeurologicSelected: true,
+      sofaRenal: 0,
+      sofaRenalSelected: true,
+    );
+
+    recalculateClinicalAssessment(assessment);
+
+    expect(assessment.news2Total, 10);
+    expect(assessment.qsofaTotal, 2);
+    expect(assessment.sofaTotal, 10);
+    expect(assessment.news2Respiration, 0);
+    expect(assessment.news2RespirationSelected, isTrue);
+    expect(assessment.sofaRenal, 0);
+    expect(assessment.sofaRenalSelected, isTrue);
+    expect(assessment.sepsisDiagnosis, 'Có Nhiễm khuẩn huyết');
+  });
+
   test('SOFA sepsis helpers set diagnosis', () {
     final assessment = ClinicalAssessment(
       lactate: '4.2',

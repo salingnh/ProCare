@@ -31,6 +31,7 @@ class CrfExporter {
       '*Ghi chú: SpO2 Thang 2 chỉ dùng cho BN suy hô hấp tăng CO2 (COPD). Điểm 1, 2, 3 ở phía bên phải bảng điểm của Thang 2 chỉ áp dụng khi BN đang thở Oxy hỗ trợ.';
   static const _sofaTableNote =
       'Ghi chú đánh giá SOFA: Tăng ≥ 2 điểm so với điểm nền (nếu bệnh nhân không có bệnh nền suy tạng, mặc định điểm SOFA nền = 0).';
+  static const _quickModeValueText = 'Đánh giá nhanh';
 
   Future<File> export(
     ClinicalAssessment assessment,
@@ -457,7 +458,11 @@ class CrfExporter {
       ]),
       _news2Row([
         'Nhịp thở',
-        a.news2RespirationMeasured,
+        _news2ValueText(
+          a,
+          a.news2RespirationMeasured,
+          a.news2RespirationSelected,
+        ),
         '≤ 8',
         '',
         '9-11',
@@ -465,11 +470,21 @@ class CrfExporter {
         '',
         '21-24',
         '≥ 25',
-        _scoreIfPresent(a.news2Respiration, a.news2RespirationMeasured)
+        _scoreIfPresent(
+          a.news2Respiration,
+          a.news2RespirationMeasured,
+          selected: a.isQuickMode && a.news2RespirationSelected,
+        )
       ], boldIndex: _news2RespirationBoldIndex(a.news2RespirationMeasured)),
       _news2Row([
         'SpO2 T1',
-        a.news2Spo2Scale2 ? '' : a.news2Spo2Measured,
+        a.news2Spo2Scale2
+            ? ''
+            : _news2ValueText(
+                a,
+                a.news2Spo2Measured,
+                a.news2Spo2Selected,
+              ),
         '≤ 91',
         '92-93',
         '94-95',
@@ -479,14 +494,24 @@ class CrfExporter {
         '',
         a.news2Spo2Scale2
             ? ''
-            : _scoreIfPresent(a.news2Spo2, a.news2Spo2Measured)
+            : _scoreIfPresent(
+                a.news2Spo2,
+                a.news2Spo2Measured,
+                selected: a.isQuickMode && a.news2Spo2Selected,
+              )
       ],
           boldIndex: a.news2Spo2Scale2
               ? null
               : _news2Spo2Scale1BoldIndex(a.news2Spo2Measured)),
       _news2Row([
         'SpO2 T2',
-        a.news2Spo2Scale2 ? a.news2Spo2Measured : '',
+        a.news2Spo2Scale2
+            ? _news2ValueText(
+                a,
+                a.news2Spo2Measured,
+                a.news2Spo2Selected,
+              )
+            : '',
         '≤ 83',
         '84-85',
         '86-87',
@@ -495,7 +520,11 @@ class CrfExporter {
         '95-96',
         '≥ 97',
         a.news2Spo2Scale2
-            ? _scoreIfPresent(a.news2Spo2, a.news2Spo2Measured)
+            ? _scoreIfPresent(
+                a.news2Spo2,
+                a.news2Spo2Measured,
+                selected: a.isQuickMode && a.news2Spo2Selected,
+              )
             : ''
       ],
           boldIndex: a.news2Spo2Scale2
@@ -503,7 +532,11 @@ class CrfExporter {
               : null),
       _news2Row([
         'Thở oxy',
-        a.news2OxygenMeasured,
+        _news2ValueText(
+          a,
+          a.news2OxygenMeasured,
+          a.news2OxygenSelected,
+        ),
         '',
         'Có',
         '',
@@ -511,11 +544,19 @@ class CrfExporter {
         '',
         '',
         '',
-        _scoreIfPresent(a.news2Oxygen, a.news2OxygenMeasured)
+        _scoreIfPresent(
+          a.news2Oxygen,
+          a.news2OxygenMeasured,
+          selected: a.isQuickMode && a.news2OxygenSelected,
+        )
       ], boldIndex: _news2OxygenBoldIndex(a.news2OxygenMeasured)),
       _news2Row([
         'Nhiệt độ',
-        a.news2TemperatureMeasured,
+        _news2ValueText(
+          a,
+          a.news2TemperatureMeasured,
+          a.news2TemperatureSelected,
+        ),
         '≤ 35.0',
         '',
         '35.1-36',
@@ -523,11 +564,19 @@ class CrfExporter {
         '38.1-39',
         '≥ 39.1',
         '',
-        _scoreIfPresent(a.news2Temperature, a.news2TemperatureMeasured)
+        _scoreIfPresent(
+          a.news2Temperature,
+          a.news2TemperatureMeasured,
+          selected: a.isQuickMode && a.news2TemperatureSelected,
+        )
       ], boldIndex: _news2TemperatureBoldIndex(a.news2TemperatureMeasured)),
       _news2Row([
         'HA tâm thu',
-        a.news2SystolicBpMeasured,
+        _news2ValueText(
+          a,
+          a.news2SystolicBpMeasured,
+          a.news2SystolicBpSelected,
+        ),
         '≤ 90',
         '91-100',
         '101-110',
@@ -535,11 +584,19 @@ class CrfExporter {
         '',
         '',
         '≥ 220',
-        _scoreIfPresent(a.news2SystolicBp, a.news2SystolicBpMeasured)
+        _scoreIfPresent(
+          a.news2SystolicBp,
+          a.news2SystolicBpMeasured,
+          selected: a.isQuickMode && a.news2SystolicBpSelected,
+        )
       ], boldIndex: _news2SystolicBpBoldIndex(a.news2SystolicBpMeasured)),
       _news2Row([
         'Nhịp tim',
-        a.news2HeartRateMeasured,
+        _news2ValueText(
+          a,
+          a.news2HeartRateMeasured,
+          a.news2HeartRateSelected,
+        ),
         '≤ 40',
         '',
         '41-50',
@@ -547,11 +604,19 @@ class CrfExporter {
         '91-110',
         '111-130',
         '≥ 131',
-        _scoreIfPresent(a.news2HeartRate, a.news2HeartRateMeasured)
+        _scoreIfPresent(
+          a.news2HeartRate,
+          a.news2HeartRateMeasured,
+          selected: a.isQuickMode && a.news2HeartRateSelected,
+        )
       ], boldIndex: _news2HeartRateBoldIndex(a.news2HeartRateMeasured)),
       _news2Row([
         'Tri giác',
-        a.news2ConsciousnessMeasured,
+        _news2ValueText(
+          a,
+          a.news2ConsciousnessMeasured,
+          a.news2ConsciousnessSelected,
+        ),
         'K.Đ.Ư',
         'Đau',
         'Gọi hỏi',
@@ -559,7 +624,11 @@ class CrfExporter {
         '',
         '',
         '',
-        _scoreIfPresent(a.news2Consciousness, a.news2ConsciousnessMeasured)
+        _scoreIfPresent(
+          a.news2Consciousness,
+          a.news2ConsciousnessMeasured,
+          selected: a.isQuickMode && a.news2ConsciousnessSelected,
+        )
       ], boldIndex: _news2ConsciousnessBoldIndex(a.news2ConsciousnessMeasured)),
       _news2Row([
         'TỔNG ĐIỂM NEWS2',
@@ -773,20 +842,17 @@ class CrfExporter {
       [
         'Nhịp thở ≥ 22 lần/phút',
         '1',
-        _qsofaChoice(a.qsofaRespiration,
-            ClinicalValueParser.hasText(a.news2RespirationMeasured))
+        _qsofaChoice(a.qsofaRespiration, _qsofaRespirationCompleted(a))
       ],
       [
         'Huyết áp tâm thu ≤ 100 mmHg',
         '1',
-        _qsofaChoice(a.qsofaSystolicBp,
-            ClinicalValueParser.hasText(a.news2SystolicBpMeasured))
+        _qsofaChoice(a.qsofaSystolicBp, _qsofaSystolicBpCompleted(a))
       ],
       [
         'Rối loạn ý thức (GCS < 15)',
         '1',
-        _qsofaChoice(a.qsofaConsciousness,
-            ClinicalValueParser.hasText(a.news2ConsciousnessMeasured))
+        _qsofaChoice(a.qsofaConsciousness, _qsofaConsciousnessCompleted(a))
       ],
       [
         'TỔNG ĐIỂM qSOFA',
@@ -803,34 +869,57 @@ class CrfExporter {
       ['Cơ quan', 'Thông số / Kết quả thực tế', 'Điểm số'],
       [
         'Hô hấp',
-        'PaO2/FiO2: ${_dotsOrText(a.sofaRespirationMeasured)}',
-        _scoreIfPresent(a.sofaRespiration, a.sofaRespirationMeasured)
+        'PaO2/FiO2: ${_dotsOrQuickText(a, a.sofaRespirationMeasured, a.sofaRespirationSelected)}',
+        _scoreIfPresent(
+          a.sofaRespiration,
+          a.sofaRespirationMeasured,
+          selected: a.isQuickMode && a.sofaRespirationSelected,
+        )
       ],
       [
         'Đông máu',
-        'Tiểu cầu: ${_dotsOrText(a.sofaCoagulationMeasured)}',
-        _scoreIfPresent(a.sofaCoagulation, a.sofaCoagulationMeasured)
+        'Tiểu cầu: ${_dotsOrQuickText(a, a.sofaCoagulationMeasured, a.sofaCoagulationSelected)}',
+        _scoreIfPresent(
+          a.sofaCoagulation,
+          a.sofaCoagulationMeasured,
+          selected: a.isQuickMode && a.sofaCoagulationSelected,
+        )
       ],
       [
         'Gan',
-        'Bilirubin: ${_dotsOrTextWithUnit(a.sofaLiverMeasured, a.sofaLiverUnit)}',
-        _scoreIfPresent(a.sofaLiver, a.sofaLiverMeasured)
+        'Bilirubin: ${_dotsOrQuickTextWithUnit(a, a.sofaLiverMeasured, a.sofaLiverUnit, a.sofaLiverSelected)}',
+        _scoreIfPresent(
+          a.sofaLiver,
+          a.sofaLiverMeasured,
+          selected: a.isQuickMode && a.sofaLiverSelected,
+        )
       ],
       [
         'Tim mạch',
-        'MAP/Vận mạch: ${_dotsOrText(a.sofaCardiovascularMeasured)}',
-        _scoreIfPresent(a.sofaCardiovascular,
-            a.vasopressor ? 'vasopressor' : a.sofaCardiovascularMeasured)
+        'MAP/Vận mạch: ${_dotsOrQuickText(a, a.sofaCardiovascularMeasured, a.sofaCardiovascularSelected)}',
+        _scoreIfPresent(
+          a.sofaCardiovascular,
+          a.vasopressor ? 'vasopressor' : a.sofaCardiovascularMeasured,
+          selected: a.isQuickMode && a.sofaCardiovascularSelected,
+        )
       ],
       [
         'Thần kinh',
-        'GCS: ${_dotsOrText(a.sofaNeurologicMeasured)}',
-        _scoreIfPresent(a.sofaNeurologic, a.sofaNeurologicMeasured)
+        'GCS: ${_dotsOrQuickText(a, a.sofaNeurologicMeasured, a.sofaNeurologicSelected)}',
+        _scoreIfPresent(
+          a.sofaNeurologic,
+          a.sofaNeurologicMeasured,
+          selected: a.isQuickMode && a.sofaNeurologicSelected,
+        )
       ],
       [
         'Thận',
-        'Creatinin/nước tiểu: ${_renalValueWithUnit(a.sofaRenalMeasured, a.sofaRenalUnit)}',
-        _scoreIfPresent(a.sofaRenal, a.sofaRenalMeasured)
+        'Creatinin/nước tiểu: ${_renalValueWithUnit(a.sofaRenalMeasured, a.sofaRenalUnit, quickSelected: a.isQuickMode && a.sofaRenalSelected)}',
+        _scoreIfPresent(
+          a.sofaRenal,
+          a.sofaRenalMeasured,
+          selected: a.isQuickMode && a.sofaRenalSelected,
+        )
       ],
       [
         'TỔNG ĐIỂM SOFA',
@@ -918,11 +1007,24 @@ class CrfExporter {
     return '$time, ngày $date';
   }
 
-  static String _scoreIfPresent(int score, String value) {
-    return ClinicalValueParser.hasText(value) ? '$score' : '';
+  static String _scoreIfPresent(
+    int score,
+    String value, {
+    bool selected = false,
+  }) {
+    return selected || ClinicalValueParser.hasText(value) ? '$score' : '';
   }
 
   static bool _allNews2Completed(ClinicalAssessment a) {
+    if (a.isQuickMode) {
+      return a.news2RespirationSelected &&
+          a.news2Spo2Selected &&
+          a.news2OxygenSelected &&
+          a.news2TemperatureSelected &&
+          a.news2SystolicBpSelected &&
+          a.news2HeartRateSelected &&
+          a.news2ConsciousnessSelected;
+    }
     return ClinicalValueParser.hasText(a.news2RespirationMeasured) &&
         ClinicalValueParser.hasText(a.news2Spo2Measured) &&
         ClinicalValueParser.hasText(a.news2OxygenMeasured) &&
@@ -933,12 +1035,25 @@ class CrfExporter {
   }
 
   static bool _anyQsofaCompleted(ClinicalAssessment a) {
+    if (a.isQuickMode) {
+      return a.qsofaRespirationSelected ||
+          a.qsofaSystolicBpSelected ||
+          a.qsofaConsciousnessSelected;
+    }
     return ClinicalValueParser.hasText(a.news2RespirationMeasured) ||
         ClinicalValueParser.hasText(a.news2SystolicBpMeasured) ||
         ClinicalValueParser.hasText(a.news2ConsciousnessMeasured);
   }
 
   static bool _anySofaCompleted(ClinicalAssessment a) {
+    if (a.isQuickMode) {
+      return a.sofaRespirationSelected ||
+          a.sofaCoagulationSelected ||
+          a.sofaLiverSelected ||
+          a.sofaCardiovascularSelected ||
+          a.sofaNeurologicSelected ||
+          a.sofaRenalSelected;
+    }
     return ClinicalValueParser.hasText(a.sofaRespirationMeasured) ||
         ClinicalValueParser.hasText(a.sofaCoagulationMeasured) ||
         ClinicalValueParser.hasText(a.sofaLiverMeasured) ||
@@ -957,10 +1072,70 @@ class CrfExporter {
 
   static String _checked(bool checked) => checked ? '☑' : '☐';
 
+  static bool _qsofaRespirationCompleted(ClinicalAssessment a) {
+    return a.isQuickMode
+        ? a.qsofaRespirationSelected
+        : ClinicalValueParser.hasText(a.news2RespirationMeasured);
+  }
+
+  static bool _qsofaSystolicBpCompleted(ClinicalAssessment a) {
+    return a.isQuickMode
+        ? a.qsofaSystolicBpSelected
+        : ClinicalValueParser.hasText(a.news2SystolicBpMeasured);
+  }
+
+  static bool _qsofaConsciousnessCompleted(ClinicalAssessment a) {
+    return a.isQuickMode
+        ? a.qsofaConsciousnessSelected
+        : ClinicalValueParser.hasText(a.news2ConsciousnessMeasured);
+  }
+
+  static String _news2ValueText(
+    ClinicalAssessment assessment,
+    String value,
+    bool selected,
+  ) {
+    if (ClinicalValueParser.hasText(value)) {
+      return value.trim();
+    }
+    if (assessment.isQuickMode && selected) {
+      return _quickModeValueText;
+    }
+    return '';
+  }
+
+  static String _dotsOrQuickText(
+    ClinicalAssessment assessment,
+    String value,
+    bool selected,
+  ) {
+    if (ClinicalValueParser.hasText(value)) {
+      return value.trim();
+    }
+    if (assessment.isQuickMode && selected) {
+      return _quickModeValueText;
+    }
+    return '........................';
+  }
+
   static String _dotsOrText(String value) {
     return ClinicalValueParser.hasText(value)
         ? value.trim()
         : '........................';
+  }
+
+  static String _dotsOrQuickTextWithUnit(
+    ClinicalAssessment assessment,
+    String value,
+    String unit,
+    bool selected,
+  ) {
+    if (!ClinicalValueParser.hasText(value) &&
+        assessment.isQuickMode &&
+        selected) {
+      return _quickModeValueText;
+    }
+    return _dotsOrTextWithUnit(value, unit);
   }
 
   static String _dotsOrTextWithUnit(String value, String unit) {
@@ -974,8 +1149,15 @@ class CrfExporter {
     return '$text ${unit.trim()}';
   }
 
-  static String _renalValueWithUnit(String value, String unit) {
+  static String _renalValueWithUnit(
+    String value,
+    String unit, {
+    bool quickSelected = false,
+  }) {
     if (!ClinicalValueParser.hasText(value)) {
+      if (quickSelected) {
+        return _quickModeValueText;
+      }
       return '........................';
     }
     final text = value.trim();

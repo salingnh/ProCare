@@ -70,6 +70,54 @@ void main() {
     expect(_hasBoldRun(xml, '95-96'), isTrue);
   });
 
+  test('DOCX export includes quick-mode selected scores', () async {
+    final assessment = ClinicalAssessment(
+      assessmentMode: ClinicalAssessment.assessmentModeQuick,
+      news2Respiration: 0,
+      news2RespirationSelected: true,
+      news2Spo2: 1,
+      news2Spo2Selected: true,
+      news2Oxygen: 2,
+      news2OxygenSelected: true,
+      news2Temperature: 3,
+      news2TemperatureSelected: true,
+      news2SystolicBp: 0,
+      news2SystolicBpSelected: true,
+      news2HeartRate: 1,
+      news2HeartRateSelected: true,
+      news2Consciousness: 3,
+      news2ConsciousnessSelected: true,
+      qsofaRespiration: true,
+      qsofaRespirationSelected: true,
+      qsofaSystolicBp: false,
+      qsofaSystolicBpSelected: true,
+      qsofaConsciousness: true,
+      qsofaConsciousnessSelected: true,
+      sofaRespiration: 0,
+      sofaRespirationSelected: true,
+      sofaCoagulation: 1,
+      sofaCoagulationSelected: true,
+      sofaLiver: 2,
+      sofaLiverSelected: true,
+      sofaCardiovascular: 3,
+      sofaCardiovascularSelected: true,
+      sofaNeurologic: 4,
+      sofaNeurologicSelected: true,
+      sofaRenal: 0,
+      sofaRenalSelected: true,
+    );
+    recalculateClinicalAssessment(assessment);
+
+    final xml = await _buildDocxXml(assessment);
+
+    expect(xml, contains('Đánh giá nhanh'));
+    expect(xml, contains('10/21'));
+    expect(xml, contains('2 / 3 điểm'));
+    expect(xml, contains('10 / 24'));
+    expect(xml, contains('☑ Có (1 điểm)      ☐ Không (0 điểm)'));
+    expect(xml, contains('☐ Có (1 điểm)      ☑ Không (0 điểm)'));
+  });
+
   test('PDF export builds with Unicode note and checkbox fonts', () async {
     final assessment = ClinicalAssessment(
       news2ConsciousnessMeasured: 'C',

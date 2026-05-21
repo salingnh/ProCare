@@ -33,41 +33,64 @@ class ExportActionMenu extends StatelessWidget {
       enabled: enabled,
       tooltip: 'Tác vụ',
       icon: const Icon(Icons.more_vert),
+      constraints: const BoxConstraints(minWidth: 176, maxWidth: 260),
       onSelected: onSelected,
       itemBuilder: (context) => const [
         PopupMenuItem(
           value: ExportAction.saveDocx,
-          child: Row(
-            children: [
-              Icon(Icons.save_alt),
-              SizedBox(width: 12),
-              Text('Lưu DOCX'),
-            ],
+          child: _ExportMenuItem(
+            icon: Icons.save_alt,
+            label: 'Lưu DOCX',
           ),
         ),
         PopupMenuDivider(),
         PopupMenuItem(
           value: ExportAction.shareDocx,
-          child: Row(
-            children: [
-              Icon(Icons.ios_share),
-              SizedBox(width: 12),
-              Text('Chia sẻ DOCX'),
-            ],
+          child: _ExportMenuItem(
+            icon: Icons.ios_share,
+            label: 'Chia sẻ DOCX',
           ),
         ),
         PopupMenuDivider(),
         PopupMenuItem(
           value: ExportAction.printPdf,
-          child: Row(
-            children: [
-              Icon(Icons.print_outlined),
-              SizedBox(width: 12),
-              Text('In PDF'),
-            ],
+          child: _ExportMenuItem(
+            icon: Icons.print_outlined,
+            label: 'In PDF',
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ExportMenuItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _ExportMenuItem({
+    required this.icon,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 220),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon),
+          const SizedBox(width: 12),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

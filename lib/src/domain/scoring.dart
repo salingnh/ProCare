@@ -485,46 +485,71 @@ class SofaScoring {
 }
 
 void recalculateClinicalAssessment(ClinicalAssessment assessment) {
+  if (assessment.isQuickMode) {
+    _recalculateQuickClinicalAssessment(assessment);
+    return;
+  }
+
   assessment.news2Respiration = News2Scoring.scoreRespiration(
     ClinicalValueParser.parseInteger(assessment.news2RespirationMeasured),
     0,
   );
+  assessment.news2RespirationSelected =
+      ClinicalValueParser.hasText(assessment.news2RespirationMeasured);
   final spo2 = ClinicalValueParser.parseInteger(assessment.news2Spo2Measured);
   assessment.news2Spo2 = assessment.news2Spo2Scale2
       ? News2Scoring.scoreSpo2Scale2(spo2, 0)
       : News2Scoring.scoreSpo2Scale1(spo2, 0);
+  assessment.news2Spo2Selected =
+      ClinicalValueParser.hasText(assessment.news2Spo2Measured);
   assessment.news2Oxygen = News2Scoring.scoreOxygenText(
     assessment.news2OxygenMeasured,
     0,
   );
+  assessment.news2OxygenSelected =
+      ClinicalValueParser.hasText(assessment.news2OxygenMeasured);
   assessment.news2Temperature = News2Scoring.scoreTemperature(
     ClinicalValueParser.parseDouble(assessment.news2TemperatureMeasured),
     0,
   );
+  assessment.news2TemperatureSelected =
+      ClinicalValueParser.hasText(assessment.news2TemperatureMeasured);
   assessment.news2SystolicBp = News2Scoring.scoreSystolicBp(
     ClinicalValueParser.parseInteger(assessment.news2SystolicBpMeasured),
     0,
   );
+  assessment.news2SystolicBpSelected =
+      ClinicalValueParser.hasText(assessment.news2SystolicBpMeasured);
   assessment.news2HeartRate = News2Scoring.scoreHeartRate(
     ClinicalValueParser.parseInteger(assessment.news2HeartRateMeasured),
     0,
   );
+  assessment.news2HeartRateSelected =
+      ClinicalValueParser.hasText(assessment.news2HeartRateMeasured);
   assessment.news2Consciousness = News2Scoring.scoreConsciousness(
     assessment.news2ConsciousnessMeasured,
     0,
   );
+  assessment.news2ConsciousnessSelected =
+      ClinicalValueParser.hasText(assessment.news2ConsciousnessMeasured);
   assessment.news2Total = News2Scoring.total(assessment);
 
+  assessment.qsofaRespirationSelected =
+      ClinicalValueParser.hasText(assessment.news2RespirationMeasured);
   assessment.qsofaRespiration =
       (ClinicalValueParser.parseInteger(assessment.news2RespirationMeasured) ??
               0) >=
           22;
+  assessment.qsofaSystolicBpSelected =
+      ClinicalValueParser.hasText(assessment.news2SystolicBpMeasured);
   assessment.qsofaSystolicBp =
       (ClinicalValueParser.parseInteger(assessment.news2SystolicBpMeasured) ??
               999) <=
           100;
   final consciousness =
       assessment.news2ConsciousnessMeasured.trim().toUpperCase();
+  assessment.qsofaConsciousnessSelected =
+      ClinicalValueParser.hasText(consciousness);
   assessment.qsofaConsciousness = ClinicalValueParser.hasText(consciousness) &&
       consciousness != 'A' &&
       !consciousness.contains('TINH') &&
@@ -535,31 +560,134 @@ void recalculateClinicalAssessment(ClinicalAssessment assessment) {
     assessment.sofaRespirationMeasured,
     0,
   );
+  assessment.sofaRespirationSelected =
+      ClinicalValueParser.hasText(assessment.sofaRespirationMeasured);
   assessment.sofaCoagulation = SofaScoring.scoreCoagulation(
     assessment.sofaCoagulationMeasured,
     0,
   );
+  assessment.sofaCoagulationSelected =
+      ClinicalValueParser.hasText(assessment.sofaCoagulationMeasured);
   assessment.sofaLiver = SofaScoring.scoreLiver(
     assessment.sofaLiverMeasured,
     0,
     unit: assessment.sofaLiverUnit,
   );
+  assessment.sofaLiverSelected =
+      ClinicalValueParser.hasText(assessment.sofaLiverMeasured);
   assessment.sofaCardiovascular = SofaScoring.scoreCardiovascular(
     assessment.sofaCardiovascularMeasured,
     assessment.vasopressor,
     0,
   );
+  assessment.sofaCardiovascularSelected =
+      ClinicalValueParser.hasText(assessment.sofaCardiovascularMeasured) ||
+          assessment.vasopressor;
   assessment.sofaNeurologic = SofaScoring.scoreNeurologic(
     assessment.sofaNeurologicMeasured,
     0,
   );
+  assessment.sofaNeurologicSelected =
+      ClinicalValueParser.hasText(assessment.sofaNeurologicMeasured);
   assessment.sofaRenal = SofaScoring.scoreRenal(
     assessment.sofaRenalMeasured,
     0,
     creatinineUnit: assessment.sofaRenalUnit,
   );
+  assessment.sofaRenalSelected =
+      ClinicalValueParser.hasText(assessment.sofaRenalMeasured);
   assessment.sofaTotal = SofaScoring.total(assessment);
   assessment.sepsisDiagnosis = buildSepsisDiagnosis(assessment);
+}
+
+void _recalculateQuickClinicalAssessment(ClinicalAssessment assessment) {
+  assessment.news2Respiration = _scoreIfSelected(
+    assessment.news2Respiration,
+    assessment.news2RespirationSelected,
+    maxScore: 3,
+  );
+  assessment.news2Spo2 = _scoreIfSelected(
+    assessment.news2Spo2,
+    assessment.news2Spo2Selected,
+    maxScore: 3,
+  );
+  assessment.news2Oxygen = _scoreIfSelected(
+    assessment.news2Oxygen,
+    assessment.news2OxygenSelected,
+    maxScore: 3,
+  );
+  assessment.news2Temperature = _scoreIfSelected(
+    assessment.news2Temperature,
+    assessment.news2TemperatureSelected,
+    maxScore: 3,
+  );
+  assessment.news2SystolicBp = _scoreIfSelected(
+    assessment.news2SystolicBp,
+    assessment.news2SystolicBpSelected,
+    maxScore: 3,
+  );
+  assessment.news2HeartRate = _scoreIfSelected(
+    assessment.news2HeartRate,
+    assessment.news2HeartRateSelected,
+    maxScore: 3,
+  );
+  assessment.news2Consciousness = _scoreIfSelected(
+    assessment.news2Consciousness,
+    assessment.news2ConsciousnessSelected,
+    maxScore: 3,
+  );
+  assessment.news2Total = News2Scoring.total(assessment);
+
+  if (!assessment.qsofaRespirationSelected) {
+    assessment.qsofaRespiration = false;
+  }
+  if (!assessment.qsofaSystolicBpSelected) {
+    assessment.qsofaSystolicBp = false;
+  }
+  if (!assessment.qsofaConsciousnessSelected) {
+    assessment.qsofaConsciousness = false;
+  }
+  assessment.qsofaTotal = QsofaScoring.total(assessment);
+
+  assessment.sofaRespiration = _scoreIfSelected(
+    assessment.sofaRespiration,
+    assessment.sofaRespirationSelected,
+    maxScore: 4,
+  );
+  assessment.sofaCoagulation = _scoreIfSelected(
+    assessment.sofaCoagulation,
+    assessment.sofaCoagulationSelected,
+    maxScore: 4,
+  );
+  assessment.sofaLiver = _scoreIfSelected(
+    assessment.sofaLiver,
+    assessment.sofaLiverSelected,
+    maxScore: 4,
+  );
+  assessment.sofaCardiovascular = _scoreIfSelected(
+    assessment.sofaCardiovascular,
+    assessment.sofaCardiovascularSelected,
+    maxScore: 4,
+  );
+  assessment.sofaNeurologic = _scoreIfSelected(
+    assessment.sofaNeurologic,
+    assessment.sofaNeurologicSelected,
+    maxScore: 4,
+  );
+  assessment.sofaRenal = _scoreIfSelected(
+    assessment.sofaRenal,
+    assessment.sofaRenalSelected,
+    maxScore: 4,
+  );
+  assessment.sofaTotal = SofaScoring.total(assessment);
+  assessment.sepsisDiagnosis = buildSepsisDiagnosis(assessment);
+}
+
+int _scoreIfSelected(int score, bool selected, {required int maxScore}) {
+  if (!selected) {
+    return 0;
+  }
+  return score.clamp(0, maxScore).toInt();
 }
 
 String buildSepsisDiagnosis(ClinicalAssessment assessment) {

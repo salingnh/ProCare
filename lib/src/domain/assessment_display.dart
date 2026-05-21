@@ -96,9 +96,13 @@ class AssessmentFields {
   static const oxygen = 'news2Oxygen';
   static const temperature = 'news2Temperature';
   static const heartRate = 'news2HeartRate';
+  static const qsofaRespiration = 'qsofaRespiration';
+  static const qsofaSystolicBp = 'qsofaSystolicBp';
+  static const qsofaConsciousness = 'qsofaConsciousness';
   static const lactate = 'lactate';
   static const lactateSampleTime = 'lactateSampleTime';
   static const cardiovascular = 'sofaCardiovascular';
+  static const sofaCardiovascularScore = 'sofaCardiovascularScore';
   static const sofaRespiration = 'sofaRespiration';
   static const sofaCoagulation = 'sofaCoagulation';
   static const sofaLiver = 'sofaLiver';
@@ -115,8 +119,15 @@ class AssessmentDisplay {
     ClinicalAssessment assessment,
   ) {
     final items = <MissingDataItem>[];
-    void addIfMissing(String value, String id, String label, String fieldId) {
-      if (!_hasText(value)) {
+    void addIfMissing({
+      required String value,
+      required bool selected,
+      required String id,
+      required String label,
+      required String fieldId,
+    }) {
+      final completed = assessment.isQuickMode ? selected : _hasText(value);
+      if (!completed) {
         items.add(MissingDataItem(
           id: id,
           label: label,
@@ -128,46 +139,53 @@ class AssessmentDisplay {
     }
 
     addIfMissing(
-      assessment.news2RespirationMeasured,
-      'news2_respiration',
-      'Nhịp thở',
-      AssessmentFields.respiration,
+      value: assessment.news2RespirationMeasured,
+      selected: assessment.news2RespirationSelected,
+      id: 'news2_respiration',
+      label: 'Nhịp thở',
+      fieldId: AssessmentFields.respiration,
     );
     addIfMissing(
-      assessment.news2Spo2Measured,
-      'news2_spo2',
-      'SpO2',
-      AssessmentFields.spo2,
+      value: assessment.news2Spo2Measured,
+      selected: assessment.news2Spo2Selected,
+      id: 'news2_spo2',
+      label: 'SpO2',
+      fieldId: AssessmentFields.spo2,
     );
     addIfMissing(
-      assessment.news2OxygenMeasured,
-      'news2_oxygen',
-      'Oxy hỗ trợ',
-      AssessmentFields.oxygen,
+      value: assessment.news2OxygenMeasured,
+      selected: assessment.news2OxygenSelected,
+      id: 'news2_oxygen',
+      label: 'Oxy hỗ trợ',
+      fieldId: AssessmentFields.oxygen,
     );
     addIfMissing(
-      assessment.news2TemperatureMeasured,
-      'news2_temperature',
-      'Nhiệt độ',
-      AssessmentFields.temperature,
+      value: assessment.news2TemperatureMeasured,
+      selected: assessment.news2TemperatureSelected,
+      id: 'news2_temperature',
+      label: 'Nhiệt độ',
+      fieldId: AssessmentFields.temperature,
     );
     addIfMissing(
-      assessment.news2SystolicBpMeasured,
-      'news2_systolic_bp',
-      'HA tâm thu',
-      AssessmentFields.systolicBp,
+      value: assessment.news2SystolicBpMeasured,
+      selected: assessment.news2SystolicBpSelected,
+      id: 'news2_systolic_bp',
+      label: 'HA tâm thu',
+      fieldId: AssessmentFields.systolicBp,
     );
     addIfMissing(
-      assessment.news2HeartRateMeasured,
-      'news2_heart_rate',
-      'Nhịp tim',
-      AssessmentFields.heartRate,
+      value: assessment.news2HeartRateMeasured,
+      selected: assessment.news2HeartRateSelected,
+      id: 'news2_heart_rate',
+      label: 'Nhịp tim',
+      fieldId: AssessmentFields.heartRate,
     );
     addIfMissing(
-      assessment.news2ConsciousnessMeasured,
-      'news2_consciousness',
-      'Tri giác',
-      AssessmentFields.consciousness,
+      value: assessment.news2ConsciousnessMeasured,
+      selected: assessment.news2ConsciousnessSelected,
+      id: 'news2_consciousness',
+      label: 'Tri giác',
+      fieldId: AssessmentFields.consciousness,
     );
     return items;
   }
@@ -175,6 +193,34 @@ class AssessmentDisplay {
   static List<MissingDataItem> qsofaMissingItems(
     ClinicalAssessment assessment,
   ) {
+    if (assessment.isQuickMode) {
+      return [
+        if (!assessment.qsofaRespirationSelected)
+          const MissingDataItem(
+            id: 'qsofa_respiration',
+            label: 'Nhịp thở',
+            sectionId: AssessmentSections.news2,
+            fieldId: AssessmentFields.qsofaRespiration,
+            groupLabel: 'NEWS2/qSOFA',
+          ),
+        if (!assessment.qsofaSystolicBpSelected)
+          const MissingDataItem(
+            id: 'qsofa_systolic_bp',
+            label: 'HA tâm thu',
+            sectionId: AssessmentSections.news2,
+            fieldId: AssessmentFields.qsofaSystolicBp,
+            groupLabel: 'NEWS2/qSOFA',
+          ),
+        if (!assessment.qsofaConsciousnessSelected)
+          const MissingDataItem(
+            id: 'qsofa_consciousness',
+            label: 'Tri giác',
+            sectionId: AssessmentSections.news2,
+            fieldId: AssessmentFields.qsofaConsciousness,
+            groupLabel: 'NEWS2/qSOFA',
+          ),
+      ];
+    }
     final allNews2 = news2MissingItems(assessment);
     return allNews2
         .where((item) =>
@@ -195,8 +241,15 @@ class AssessmentDisplay {
     ClinicalAssessment assessment,
   ) {
     final items = <MissingDataItem>[];
-    void addIfMissing(String value, String id, String label, String fieldId) {
-      if (!_hasText(value)) {
+    void addIfMissing({
+      required String value,
+      required bool selected,
+      required String id,
+      required String label,
+      required String fieldId,
+    }) {
+      final completed = assessment.isQuickMode ? selected : _hasText(value);
+      if (!completed) {
         items.add(MissingDataItem(
           id: id,
           label: label,
@@ -208,44 +261,53 @@ class AssessmentDisplay {
     }
 
     addIfMissing(
-      assessment.sofaRespirationMeasured,
-      'sofa_respiration',
-      'Hô hấp',
-      AssessmentFields.sofaRespiration,
+      value: assessment.sofaRespirationMeasured,
+      selected: assessment.sofaRespirationSelected,
+      id: 'sofa_respiration',
+      label: 'Hô hấp',
+      fieldId: AssessmentFields.sofaRespiration,
     );
     addIfMissing(
-      assessment.sofaCoagulationMeasured,
-      'sofa_coagulation',
-      'Đông máu',
-      AssessmentFields.sofaCoagulation,
+      value: assessment.sofaCoagulationMeasured,
+      selected: assessment.sofaCoagulationSelected,
+      id: 'sofa_coagulation',
+      label: 'Đông máu',
+      fieldId: AssessmentFields.sofaCoagulation,
     );
     addIfMissing(
-      assessment.sofaLiverMeasured,
-      'sofa_liver',
-      'Gan',
-      AssessmentFields.sofaLiver,
+      value: assessment.sofaLiverMeasured,
+      selected: assessment.sofaLiverSelected,
+      id: 'sofa_liver',
+      label: 'Gan',
+      fieldId: AssessmentFields.sofaLiver,
     );
-    if (!_hasText(assessment.sofaCardiovascularMeasured) &&
-        !assessment.vasopressor) {
-      items.add(const MissingDataItem(
+    if (assessment.isQuickMode
+        ? !assessment.sofaCardiovascularSelected
+        : !_hasText(assessment.sofaCardiovascularMeasured) &&
+            !assessment.vasopressor) {
+      items.add(MissingDataItem(
         id: 'sofa_cardiovascular',
         label: 'Tim mạch',
         sectionId: AssessmentSections.lactate,
-        fieldId: AssessmentFields.cardiovascular,
+        fieldId: assessment.isQuickMode
+            ? AssessmentFields.sofaCardiovascularScore
+            : AssessmentFields.cardiovascular,
         groupLabel: 'SOFA',
       ));
     }
     addIfMissing(
-      assessment.sofaNeurologicMeasured,
-      'sofa_neurologic',
-      'Thần kinh',
-      AssessmentFields.sofaNeurologic,
+      value: assessment.sofaNeurologicMeasured,
+      selected: assessment.sofaNeurologicSelected,
+      id: 'sofa_neurologic',
+      label: 'Thần kinh',
+      fieldId: AssessmentFields.sofaNeurologic,
     );
     addIfMissing(
-      assessment.sofaRenalMeasured,
-      'sofa_renal',
-      'Thận',
-      AssessmentFields.sofaRenal,
+      value: assessment.sofaRenalMeasured,
+      selected: assessment.sofaRenalSelected,
+      id: 'sofa_renal',
+      label: 'Thận',
+      fieldId: AssessmentFields.sofaRenal,
     );
     return items;
   }
@@ -285,6 +347,7 @@ class AssessmentDisplay {
     final items = <MissingDataItem>[];
     for (final item in [
       ...news2MissingItems(assessment),
+      ...qsofaMissingItems(assessment),
       ...sofaMissingItems(assessment),
       ...shockMissingItems(assessment),
     ]) {
@@ -477,6 +540,7 @@ class AssessmentDisplay {
 
   static bool isIncompletePatient(ClinicalAssessment assessment) {
     return news2MissingItems(assessment).isNotEmpty ||
+        qsofaMissingItems(assessment).isNotEmpty ||
         sofaMissingItems(assessment).isNotEmpty ||
         shockMissingItems(assessment).isNotEmpty;
   }
