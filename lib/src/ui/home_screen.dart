@@ -178,7 +178,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final draft = await _repository.loadCurrentAssessment();
     final preferredAssessmentMode = await _repository.loadAssessmentMode();
     _logStartup('draft loaded', startupWatch);
-    recalculateClinicalAssessment(draft);
+    recalculateClinicalAssessment(draft, preserveExistingScores: true);
     final activeAssessment = _hasAnyClinicalData(draft)
         ? draft
         : _newAssessment(assessmentMode: preferredAssessmentMode);
@@ -572,7 +572,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _formDirty = true;
       _saveState = _SaveState.dirty;
       _saveError = null;
-      recalculateClinicalAssessment(_assessment);
+      recalculateClinicalAssessment(_assessment, preserveExistingScores: true);
     });
     _repository.saveCurrentAssessment(_assessment);
     _scheduleAutoSave();
@@ -597,7 +597,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     setState(() => _saving = true);
     try {
       final wasEditingSavedAssessment = _openedSavedAssessmentId != null;
-      recalculateClinicalAssessment(_assessment);
+      recalculateClinicalAssessment(_assessment, preserveExistingScores: true);
       final savedId = await _repository.saveAssessmentHistory(
         _assessment,
         id: _openedSavedAssessmentId,
@@ -650,7 +650,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _saveError = null;
     });
     try {
-      recalculateClinicalAssessment(_assessment);
+      recalculateClinicalAssessment(_assessment, preserveExistingScores: true);
       final savedId = await _repository.saveAssessmentHistory(
         _assessment,
         id: _openedSavedAssessmentId,
@@ -692,7 +692,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     setState(() => _exporting = true);
     try {
       final assessment = source.clone();
-      recalculateClinicalAssessment(assessment);
+      recalculateClinicalAssessment(assessment, preserveExistingScores: true);
       switch (action) {
         case ExportAction.saveDocx:
           await _saveExportedAssessment(assessment, action.exportFormat);
@@ -781,16 +781,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   void _openSaved(SavedAssessment saved) {
     final assessment = saved.assessment.clone();
-    recalculateClinicalAssessment(assessment);
-    final preferredAssessmentMode = _preferredAssessmentMode;
-    final keepQuickScores =
-        preferredAssessmentMode == ClinicalAssessment.assessmentModeDetailed &&
-            assessment.isQuickMode &&
-            _hasQuickScoreData(assessment);
-    if (!keepQuickScores &&
-        assessment.assessmentMode != preferredAssessmentMode) {
-      assessment.assessmentMode = preferredAssessmentMode;
-      recalculateClinicalAssessment(assessment);
+    recalculateClinicalAssessment(assessment, preserveExistingScores: true);
+    if (assessment.assessmentMode != _preferredAssessmentMode) {
+      assessment.assessmentMode = _preferredAssessmentMode;
+      recalculateClinicalAssessment(assessment, preserveExistingScores: true);
     }
     setState(() {
       _assessment = assessment;
@@ -868,7 +862,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
     final baseline = _formBaseline?.clone();
     if (baseline != null) {
-      recalculateClinicalAssessment(baseline);
+      recalculateClinicalAssessment(baseline, preserveExistingScores: true);
     }
     setState(() {
       if (baseline != null) {
@@ -4064,7 +4058,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       inputFormatters: inputFormatters,
       maxLines: maxLines,
       focusNode: fieldId == null ? null : _focusNode(fieldId),
-      onChanged: (newValue) => _mutate((_) => onChanged(newValue)),
+      onChanged: (newValue) => _mutate((assessment) {
+        onChanged(newValue);
+        if (fieldId != null && !ClinicalValueParser.hasText(newValue)) {
+          _clearSelectionForField(assessment, fieldId);
+        }
+      }),
     );
     if (fieldId == null) {
       return field;
@@ -4073,6 +4072,55 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       key: _fieldKey(fieldId),
       child: field,
     );
+  }
+
+  void _clearSelectionForField(ClinicalAssessment assessment, String fieldId) {
+    switch (fieldId) {
+      case AssessmentFields.respiration:
+        assessment.news2RespirationSelected = false;
+        assessment.qsofaRespirationSelected = false;
+        break;
+      case AssessmentFields.spo2:
+        assessment.news2Spo2Selected = false;
+        break;
+      case AssessmentFields.oxygen:
+        assessment.news2OxygenSelected = false;
+        break;
+      case AssessmentFields.temperature:
+        assessment.news2TemperatureSelected = false;
+        break;
+      case AssessmentFields.systolicBp:
+        assessment.news2SystolicBpSelected = false;
+        assessment.qsofaSystolicBpSelected = false;
+        break;
+      case AssessmentFields.heartRate:
+        assessment.news2HeartRateSelected = false;
+        break;
+      case AssessmentFields.consciousness:
+        assessment.news2ConsciousnessSelected = false;
+        assessment.qsofaConsciousnessSelected = false;
+        break;
+      case AssessmentFields.sofaRespiration:
+        assessment.sofaRespirationSelected = false;
+        break;
+      case AssessmentFields.sofaCoagulation:
+        assessment.sofaCoagulationSelected = false;
+        break;
+      case AssessmentFields.sofaLiver:
+        assessment.sofaLiverSelected = false;
+        break;
+      case AssessmentFields.cardiovascular:
+        if (!assessment.vasopressor) {
+          assessment.sofaCardiovascularSelected = false;
+        }
+        break;
+      case AssessmentFields.sofaNeurologic:
+        assessment.sofaNeurologicSelected = false;
+        break;
+      case AssessmentFields.sofaRenal:
+        assessment.sofaRenalSelected = false;
+        break;
+    }
   }
 
   Widget _sepsisDiagnosisOptions(ClinicalAssessment assessment) {

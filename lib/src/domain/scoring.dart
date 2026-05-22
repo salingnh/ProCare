@@ -484,118 +484,289 @@ class SofaScoring {
   }
 }
 
-void recalculateClinicalAssessment(ClinicalAssessment assessment) {
+void recalculateClinicalAssessment(
+  ClinicalAssessment assessment, {
+  bool preserveExistingScores = false,
+}) {
   if (assessment.isQuickMode) {
     _recalculateQuickClinicalAssessment(assessment);
     return;
   }
 
-  assessment.news2Respiration = News2Scoring.scoreRespiration(
-    ClinicalValueParser.parseInteger(assessment.news2RespirationMeasured),
-    0,
-  );
-  assessment.news2RespirationSelected =
+  final hasRespiration =
       ClinicalValueParser.hasText(assessment.news2RespirationMeasured);
+  if (hasRespiration) {
+    assessment.news2Respiration = News2Scoring.scoreRespiration(
+      ClinicalValueParser.parseInteger(assessment.news2RespirationMeasured),
+      0,
+    );
+    assessment.news2RespirationSelected = true;
+  } else if (!preserveExistingScores || !assessment.news2RespirationSelected) {
+    assessment.news2Respiration = 0;
+    assessment.news2RespirationSelected = false;
+  } else {
+    assessment.news2Respiration = _scoreIfSelected(
+      assessment.news2Respiration,
+      true,
+      maxScore: 3,
+    );
+  }
   final spo2 = ClinicalValueParser.parseInteger(assessment.news2Spo2Measured);
-  assessment.news2Spo2 = assessment.news2Spo2Scale2
-      ? News2Scoring.scoreSpo2Scale2(spo2, 0)
-      : News2Scoring.scoreSpo2Scale1(spo2, 0);
-  assessment.news2Spo2Selected =
-      ClinicalValueParser.hasText(assessment.news2Spo2Measured);
-  assessment.news2Oxygen = News2Scoring.scoreOxygenText(
-    assessment.news2OxygenMeasured,
-    0,
-  );
-  assessment.news2OxygenSelected =
-      ClinicalValueParser.hasText(assessment.news2OxygenMeasured);
-  assessment.news2Temperature = News2Scoring.scoreTemperature(
-    ClinicalValueParser.parseDouble(assessment.news2TemperatureMeasured),
-    0,
-  );
-  assessment.news2TemperatureSelected =
+  final hasSpo2 = ClinicalValueParser.hasText(assessment.news2Spo2Measured);
+  if (hasSpo2) {
+    assessment.news2Spo2 = assessment.news2Spo2Scale2
+        ? News2Scoring.scoreSpo2Scale2(spo2, 0)
+        : News2Scoring.scoreSpo2Scale1(spo2, 0);
+    assessment.news2Spo2Selected = true;
+  } else if (!preserveExistingScores || !assessment.news2Spo2Selected) {
+    assessment.news2Spo2 = 0;
+    assessment.news2Spo2Selected = false;
+  } else {
+    assessment.news2Spo2 = _scoreIfSelected(
+      assessment.news2Spo2,
+      true,
+      maxScore: 3,
+    );
+  }
+  final hasOxygen = ClinicalValueParser.hasText(assessment.news2OxygenMeasured);
+  if (hasOxygen) {
+    assessment.news2Oxygen = News2Scoring.scoreOxygenText(
+      assessment.news2OxygenMeasured,
+      0,
+    );
+    assessment.news2OxygenSelected = true;
+  } else if (!preserveExistingScores || !assessment.news2OxygenSelected) {
+    assessment.news2Oxygen = 0;
+    assessment.news2OxygenSelected = false;
+  } else {
+    assessment.news2Oxygen = _scoreIfSelected(
+      assessment.news2Oxygen,
+      true,
+      maxScore: 3,
+    );
+  }
+  final hasTemperature =
       ClinicalValueParser.hasText(assessment.news2TemperatureMeasured);
-  assessment.news2SystolicBp = News2Scoring.scoreSystolicBp(
-    ClinicalValueParser.parseInteger(assessment.news2SystolicBpMeasured),
-    0,
-  );
-  assessment.news2SystolicBpSelected =
+  if (hasTemperature) {
+    assessment.news2Temperature = News2Scoring.scoreTemperature(
+      ClinicalValueParser.parseDouble(assessment.news2TemperatureMeasured),
+      0,
+    );
+    assessment.news2TemperatureSelected = true;
+  } else if (!preserveExistingScores || !assessment.news2TemperatureSelected) {
+    assessment.news2Temperature = 0;
+    assessment.news2TemperatureSelected = false;
+  } else {
+    assessment.news2Temperature = _scoreIfSelected(
+      assessment.news2Temperature,
+      true,
+      maxScore: 3,
+    );
+  }
+  final hasSystolicBp =
       ClinicalValueParser.hasText(assessment.news2SystolicBpMeasured);
-  assessment.news2HeartRate = News2Scoring.scoreHeartRate(
-    ClinicalValueParser.parseInteger(assessment.news2HeartRateMeasured),
-    0,
-  );
-  assessment.news2HeartRateSelected =
+  if (hasSystolicBp) {
+    assessment.news2SystolicBp = News2Scoring.scoreSystolicBp(
+      ClinicalValueParser.parseInteger(assessment.news2SystolicBpMeasured),
+      0,
+    );
+    assessment.news2SystolicBpSelected = true;
+  } else if (!preserveExistingScores || !assessment.news2SystolicBpSelected) {
+    assessment.news2SystolicBp = 0;
+    assessment.news2SystolicBpSelected = false;
+  } else {
+    assessment.news2SystolicBp = _scoreIfSelected(
+      assessment.news2SystolicBp,
+      true,
+      maxScore: 3,
+    );
+  }
+  final hasHeartRate =
       ClinicalValueParser.hasText(assessment.news2HeartRateMeasured);
-  assessment.news2Consciousness = News2Scoring.scoreConsciousness(
-    assessment.news2ConsciousnessMeasured,
-    0,
-  );
-  assessment.news2ConsciousnessSelected =
+  if (hasHeartRate) {
+    assessment.news2HeartRate = News2Scoring.scoreHeartRate(
+      ClinicalValueParser.parseInteger(assessment.news2HeartRateMeasured),
+      0,
+    );
+    assessment.news2HeartRateSelected = true;
+  } else if (!preserveExistingScores || !assessment.news2HeartRateSelected) {
+    assessment.news2HeartRate = 0;
+    assessment.news2HeartRateSelected = false;
+  } else {
+    assessment.news2HeartRate = _scoreIfSelected(
+      assessment.news2HeartRate,
+      true,
+      maxScore: 3,
+    );
+  }
+  final hasConsciousness =
       ClinicalValueParser.hasText(assessment.news2ConsciousnessMeasured);
+  if (hasConsciousness) {
+    assessment.news2Consciousness = News2Scoring.scoreConsciousness(
+      assessment.news2ConsciousnessMeasured,
+      0,
+    );
+    assessment.news2ConsciousnessSelected = true;
+  } else if (!preserveExistingScores ||
+      !assessment.news2ConsciousnessSelected) {
+    assessment.news2Consciousness = 0;
+    assessment.news2ConsciousnessSelected = false;
+  } else {
+    assessment.news2Consciousness = _scoreIfSelected(
+      assessment.news2Consciousness,
+      true,
+      maxScore: 3,
+    );
+  }
   assessment.news2Total = News2Scoring.total(assessment);
 
-  assessment.qsofaRespirationSelected =
-      ClinicalValueParser.hasText(assessment.news2RespirationMeasured);
-  assessment.qsofaRespiration =
-      (ClinicalValueParser.parseInteger(assessment.news2RespirationMeasured) ??
-              0) >=
-          22;
-  assessment.qsofaSystolicBpSelected =
-      ClinicalValueParser.hasText(assessment.news2SystolicBpMeasured);
-  assessment.qsofaSystolicBp =
-      (ClinicalValueParser.parseInteger(assessment.news2SystolicBpMeasured) ??
-              999) <=
-          100;
+  if (hasRespiration) {
+    assessment.qsofaRespirationSelected = true;
+    assessment.qsofaRespiration = (ClinicalValueParser.parseInteger(
+                assessment.news2RespirationMeasured) ??
+            0) >=
+        22;
+  } else if (!preserveExistingScores || !assessment.qsofaRespirationSelected) {
+    assessment.qsofaRespirationSelected = false;
+    assessment.qsofaRespiration = false;
+  }
+  if (hasSystolicBp) {
+    assessment.qsofaSystolicBpSelected = true;
+    assessment.qsofaSystolicBp =
+        (ClinicalValueParser.parseInteger(assessment.news2SystolicBpMeasured) ??
+                999) <=
+            100;
+  } else if (!preserveExistingScores || !assessment.qsofaSystolicBpSelected) {
+    assessment.qsofaSystolicBpSelected = false;
+    assessment.qsofaSystolicBp = false;
+  }
   final consciousness =
       assessment.news2ConsciousnessMeasured.trim().toUpperCase();
-  assessment.qsofaConsciousnessSelected =
-      ClinicalValueParser.hasText(consciousness);
-  assessment.qsofaConsciousness = ClinicalValueParser.hasText(consciousness) &&
-      consciousness != 'A' &&
-      !consciousness.contains('TINH') &&
-      !consciousness.contains('TỈNH');
+  if (hasConsciousness) {
+    assessment.qsofaConsciousnessSelected = true;
+    assessment.qsofaConsciousness =
+        ClinicalValueParser.hasText(consciousness) &&
+            consciousness != 'A' &&
+            !consciousness.contains('TINH') &&
+            !consciousness.contains('TỈNH');
+  } else if (!preserveExistingScores ||
+      !assessment.qsofaConsciousnessSelected) {
+    assessment.qsofaConsciousnessSelected = false;
+    assessment.qsofaConsciousness = false;
+  }
   assessment.qsofaTotal = QsofaScoring.total(assessment);
 
-  assessment.sofaRespiration = SofaScoring.scoreRespiration(
-    assessment.sofaRespirationMeasured,
-    0,
-  );
-  assessment.sofaRespirationSelected =
+  final hasSofaRespiration =
       ClinicalValueParser.hasText(assessment.sofaRespirationMeasured);
-  assessment.sofaCoagulation = SofaScoring.scoreCoagulation(
-    assessment.sofaCoagulationMeasured,
-    0,
-  );
-  assessment.sofaCoagulationSelected =
+  if (hasSofaRespiration) {
+    assessment.sofaRespiration = SofaScoring.scoreRespiration(
+      assessment.sofaRespirationMeasured,
+      0,
+    );
+    assessment.sofaRespirationSelected = true;
+  } else if (!preserveExistingScores || !assessment.sofaRespirationSelected) {
+    assessment.sofaRespiration = 0;
+    assessment.sofaRespirationSelected = false;
+  } else {
+    assessment.sofaRespiration = _scoreIfSelected(
+      assessment.sofaRespiration,
+      true,
+      maxScore: 4,
+    );
+  }
+  final hasCoagulation =
       ClinicalValueParser.hasText(assessment.sofaCoagulationMeasured);
-  assessment.sofaLiver = SofaScoring.scoreLiver(
-    assessment.sofaLiverMeasured,
-    0,
-    unit: assessment.sofaLiverUnit,
-  );
-  assessment.sofaLiverSelected =
-      ClinicalValueParser.hasText(assessment.sofaLiverMeasured);
-  assessment.sofaCardiovascular = SofaScoring.scoreCardiovascular(
-    assessment.sofaCardiovascularMeasured,
-    assessment.vasopressor,
-    0,
-  );
-  assessment.sofaCardiovascularSelected =
+  if (hasCoagulation) {
+    assessment.sofaCoagulation = SofaScoring.scoreCoagulation(
+      assessment.sofaCoagulationMeasured,
+      0,
+    );
+    assessment.sofaCoagulationSelected = true;
+  } else if (!preserveExistingScores || !assessment.sofaCoagulationSelected) {
+    assessment.sofaCoagulation = 0;
+    assessment.sofaCoagulationSelected = false;
+  } else {
+    assessment.sofaCoagulation = _scoreIfSelected(
+      assessment.sofaCoagulation,
+      true,
+      maxScore: 4,
+    );
+  }
+  final hasLiver = ClinicalValueParser.hasText(assessment.sofaLiverMeasured);
+  if (hasLiver) {
+    assessment.sofaLiver = SofaScoring.scoreLiver(
+      assessment.sofaLiverMeasured,
+      0,
+      unit: assessment.sofaLiverUnit,
+    );
+    assessment.sofaLiverSelected = true;
+  } else if (!preserveExistingScores || !assessment.sofaLiverSelected) {
+    assessment.sofaLiver = 0;
+    assessment.sofaLiverSelected = false;
+  } else {
+    assessment.sofaLiver = _scoreIfSelected(
+      assessment.sofaLiver,
+      true,
+      maxScore: 4,
+    );
+  }
+  final hasCardiovascular =
       ClinicalValueParser.hasText(assessment.sofaCardiovascularMeasured) ||
           assessment.vasopressor;
-  assessment.sofaNeurologic = SofaScoring.scoreNeurologic(
-    assessment.sofaNeurologicMeasured,
-    0,
-  );
-  assessment.sofaNeurologicSelected =
+  if (hasCardiovascular) {
+    assessment.sofaCardiovascular = SofaScoring.scoreCardiovascular(
+      assessment.sofaCardiovascularMeasured,
+      assessment.vasopressor,
+      preserveExistingScores ? assessment.sofaCardiovascular : 0,
+    );
+    assessment.sofaCardiovascularSelected = true;
+  } else if (!preserveExistingScores ||
+      !assessment.sofaCardiovascularSelected) {
+    assessment.sofaCardiovascular = 0;
+    assessment.sofaCardiovascularSelected = false;
+  } else {
+    assessment.sofaCardiovascular = _scoreIfSelected(
+      assessment.sofaCardiovascular,
+      true,
+      maxScore: 4,
+    );
+  }
+  final hasNeurologic =
       ClinicalValueParser.hasText(assessment.sofaNeurologicMeasured);
-  assessment.sofaRenal = SofaScoring.scoreRenal(
-    assessment.sofaRenalMeasured,
-    0,
-    creatinineUnit: assessment.sofaRenalUnit,
-  );
-  assessment.sofaRenalSelected =
-      ClinicalValueParser.hasText(assessment.sofaRenalMeasured);
+  if (hasNeurologic) {
+    assessment.sofaNeurologic = SofaScoring.scoreNeurologic(
+      assessment.sofaNeurologicMeasured,
+      0,
+    );
+    assessment.sofaNeurologicSelected = true;
+  } else if (!preserveExistingScores || !assessment.sofaNeurologicSelected) {
+    assessment.sofaNeurologic = 0;
+    assessment.sofaNeurologicSelected = false;
+  } else {
+    assessment.sofaNeurologic = _scoreIfSelected(
+      assessment.sofaNeurologic,
+      true,
+      maxScore: 4,
+    );
+  }
+  final hasRenal = ClinicalValueParser.hasText(assessment.sofaRenalMeasured);
+  if (hasRenal) {
+    assessment.sofaRenal = SofaScoring.scoreRenal(
+      assessment.sofaRenalMeasured,
+      0,
+      creatinineUnit: assessment.sofaRenalUnit,
+    );
+    assessment.sofaRenalSelected = true;
+  } else if (!preserveExistingScores || !assessment.sofaRenalSelected) {
+    assessment.sofaRenal = 0;
+    assessment.sofaRenalSelected = false;
+  } else {
+    assessment.sofaRenal = _scoreIfSelected(
+      assessment.sofaRenal,
+      true,
+      maxScore: 4,
+    );
+  }
   assessment.sofaTotal = SofaScoring.total(assessment);
   assessment.sepsisDiagnosis = buildSepsisDiagnosis(assessment);
 }

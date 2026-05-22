@@ -375,6 +375,36 @@ void main() {
     expect(assessment.sepsisDiagnosis, 'Không Nhiễm khuẩn huyết');
   });
 
+  test('preserve mode keeps existing scores for untouched empty inputs', () {
+    final assessment = ClinicalAssessment(
+      news2Respiration: 3,
+      news2RespirationSelected: true,
+      news2Spo2: 2,
+      news2Spo2Selected: true,
+      qsofaRespiration: true,
+      qsofaRespirationSelected: true,
+      sofaNeurologic: 4,
+      sofaNeurologicSelected: true,
+      sofaRenal: 3,
+      sofaRenalSelected: true,
+    );
+
+    recalculateClinicalAssessment(assessment, preserveExistingScores: true);
+
+    expect(assessment.news2Respiration, 3);
+    expect(assessment.news2Spo2, 2);
+    expect(assessment.qsofaTotal, 1);
+    expect(assessment.sofaTotal, 7);
+
+    assessment.news2RespirationSelected = false;
+    recalculateClinicalAssessment(assessment, preserveExistingScores: true);
+
+    expect(assessment.news2Respiration, 0);
+    expect(assessment.news2Spo2, 2);
+    expect(assessment.qsofaTotal, 1);
+    expect(assessment.sofaTotal, 7);
+  });
+
   test('export filename sanitizes Vietnamese names', () {
     expect(
       CrfExporter.sanitizeFileName('Nguyễn Văn A / 01'),

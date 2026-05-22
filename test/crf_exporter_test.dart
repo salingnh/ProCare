@@ -111,14 +111,42 @@ void main() {
 
     final xml = await _buildDocxXml(assessment);
 
-    expect(xml, contains('Đánh giá nhanh'));
+    expect(xml, isNot(contains('Đánh giá nhanh')));
+    expect(xml, contains('12 - 20'));
+    expect(xml, contains('SpO2 T1'));
+    expect(xml, contains('94 - 95%'));
+    expect(_hasBoldRun(xml, '12-20'), isTrue);
+    expect(_hasBoldRun(xml, '94-95'), isTrue);
+    expect(_hasBoldRun(xml, 'Có'), isTrue);
     expect(xml, contains('10/21'));
     expect(xml, contains('2 / 3 điểm'));
     expect(xml, contains('10 / 24'));
-    expect(xml, contains('Nồng độ Lactate tĩnh mạch: Đánh giá nhanh'));
+    expect(xml, contains('Nồng độ Lactate tĩnh mạch: 2 - 3.9 mmol/L'));
     expect(xml, contains('☑ 2 - 3.9 mmol/L'));
+    expect(xml, contains('PaO2/FiO2: PaO2/FiO2 ≥ 400'));
+    expect(xml, contains('MAP/Vận mạch: Dopamine &gt; 5'));
+    expect(xml, contains('norepi/epi ≤ 0.1'));
     expect(xml, contains('☑ Có (1 điểm)      ☐ Không (0 điểm)'));
     expect(xml, contains('☐ Có (1 điểm)      ☑ Không (0 điểm)'));
+
+    assessment.assessmentMode = ClinicalAssessment.assessmentModeDetailed;
+    recalculateClinicalAssessment(assessment, preserveExistingScores: true);
+
+    final detailedXml = await _buildDocxXml(assessment);
+
+    expect(detailedXml, isNot(contains('Đánh giá nhanh')));
+    expect(detailedXml, contains('12 - 20'));
+    expect(detailedXml, contains('94 - 95%'));
+    expect(_hasBoldRun(detailedXml, '12-20'), isTrue);
+    expect(_hasBoldRun(detailedXml, '94-95'), isTrue);
+    expect(detailedXml, contains('10/21'));
+    expect(detailedXml, contains('2 / 3 điểm'));
+    expect(detailedXml, contains('10 / 24'));
+    expect(
+      detailedXml,
+      contains('Nồng độ Lactate tĩnh mạch: 2 - 3.9 mmol/L'),
+    );
+    expect(detailedXml, contains('PaO2/FiO2: PaO2/FiO2 ≥ 400'));
   });
 
   test('PDF export builds with Unicode note and checkbox fonts', () async {
