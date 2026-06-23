@@ -115,3 +115,106 @@ class _QuickChoiceOption {
 
   const _QuickChoiceOption(this.label, this.value, this.helper);
 }
+
+// Top-level constants lifted from _HomeScreenState.
+const _initialHistoryPageSize = 50;
+const _historyPageSize = 50;
+const _updateCheckInterval = Duration(hours: 6);
+const _resumeUpdateCheckCooldown = Duration(minutes: 15);
+const _androidFileChannel = MethodChannel('news2_l/android_files');
+final _integerInputFormatters = <TextInputFormatter>[
+  FilteringTextInputFormatter.digitsOnly,
+];
+final _decimalInputFormatters = <TextInputFormatter>[
+  FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]')),
+];
+final _dateInputFormatters = <TextInputFormatter>[
+  FilteringTextInputFormatter.allow(RegExp(r'[0-9/-]')),
+];
+final _timeInputFormatters = <TextInputFormatter>[
+  FilteringTextInputFormatter.allow(RegExp(r'[0-9:]')),
+];
+
+// Top-level helpers lifted from _HomeScreenState.
+ClinicalAssessment _newAssessment({
+  String assessmentMode = ClinicalAssessment.assessmentModeDetailed,
+}) {
+  final now = DateTime.now();
+  final assessment = ClinicalAssessment(
+    assessmentMode: ClinicalAssessment.normalizeAssessmentMode(
+      assessmentMode,
+    ),
+    admissionDate: _dateText(now),
+    admissionTime: _timeText(now),
+    admissionDateTime: '${_timeText(now)}, ngày ${_dateText(now)}',
+    createdAtMillis: now.millisecondsSinceEpoch,
+    modifiedAtMillis: now.millisecondsSinceEpoch,
+  );
+  recalculateClinicalAssessment(assessment);
+  return assessment;
+}
+
+bool _hasAnyClinicalData(ClinicalAssessment assessment) {
+  if (assessment.isQuickMode && _hasQuickScoreData(assessment)) {
+    return true;
+  }
+  return [
+    assessment.patientId,
+    assessment.fullName,
+    assessment.age,
+    assessment.admissionReason,
+    assessment.infectionOrgan,
+    assessment.lactateLevel,
+    assessment.news2RespirationMeasured,
+    assessment.news2Spo2Measured,
+    assessment.sofaRespirationMeasured,
+  ].any(ClinicalValueParser.hasText);
+}
+
+bool _hasQuickScoreData(ClinicalAssessment assessment) {
+  return ClinicalValueParser.hasText(assessment.lactateLevel) ||
+      assessment.news2RespirationSelected ||
+      assessment.news2Spo2Selected ||
+      assessment.news2OxygenSelected ||
+      assessment.news2TemperatureSelected ||
+      assessment.news2SystolicBpSelected ||
+      assessment.news2HeartRateSelected ||
+      assessment.news2ConsciousnessSelected ||
+      assessment.qsofaRespirationSelected ||
+      assessment.qsofaSystolicBpSelected ||
+      assessment.qsofaConsciousnessSelected ||
+      assessment.sofaRespirationSelected ||
+      assessment.sofaCoagulationSelected ||
+      assessment.sofaLiverSelected ||
+      assessment.sofaCardiovascularSelected ||
+      assessment.sofaNeurologicSelected ||
+      assessment.sofaRenalSelected;
+}
+
+String _buildAdmissionDateTime(ClinicalAssessment assessment) {
+  return '${assessment.admissionTime}, ngày ${assessment.admissionDate}';
+}
+
+String _lactateLevel(String value) {
+  final lactate = ClinicalValueParser.parseDouble(value);
+  if (lactate == null) {
+    return '';
+  }
+  if (lactate < 2) {
+    return '< 2 mmol/L';
+  }
+  if (lactate < 4) {
+    return '2 - 3.9 mmol/L';
+  }
+  return '≥ 4 mmol/L';
+}
+
+String _dateText(DateTime value) {
+  return '${value.year}-${_two(value.month)}-${_two(value.day)}';
+}
+
+String _timeText(DateTime value) {
+  return '${_two(value.hour)}:${_two(value.minute)}';
+}
+
+String _two(int value) => value.toString().padLeft(2, '0');
