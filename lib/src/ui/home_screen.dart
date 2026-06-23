@@ -29,23 +29,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
-  static const _initialHistoryPageSize = 50;
-  static const _historyPageSize = 50;
-  static const _updateCheckInterval = Duration(hours: 6);
-  static const _resumeUpdateCheckCooldown = Duration(minutes: 15);
-  static const _androidFileChannel = MethodChannel('news2_l/android_files');
-  static final _integerInputFormatters = <TextInputFormatter>[
-    FilteringTextInputFormatter.digitsOnly,
-  ];
-  static final _decimalInputFormatters = <TextInputFormatter>[
-    FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]')),
-  ];
-  static final _dateInputFormatters = <TextInputFormatter>[
-    FilteringTextInputFormatter.allow(RegExp(r'[0-9/-]')),
-  ];
-  static final _timeInputFormatters = <TextInputFormatter>[
-    FilteringTextInputFormatter.allow(RegExp(r'[0-9:]')),
-  ];
 
   final _repository = AssessmentRepository();
   final _exporter = const CrfExporter();
@@ -100,6 +83,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return _patientScrollController ??= ScrollController();
   }
 
+  // Wrapper so helper methods defined in part files (extensions) can
+  // request a rebuild without tripping invalid_use_of_protected_member.
+  void _rebuild(VoidCallback fn) {
+    setState(fn);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -137,7 +126,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (!mounted) {
         return;
       }
-      setState(() {
+      _rebuild(() {
         _assessment = _newAssessment(assessmentMode: preferredAssessmentMode);
         _formBaseline = _assessment.clone();
         _fieldUnitSelections.clear();
@@ -168,7 +157,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (!mounted) {
       return;
     }
-    setState(() {
+    _rebuild(() {
       _assessment = activeAssessment;
       _history = [];
       _filteredHistory = [];
@@ -196,7 +185,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _refreshHistory() async {
     final generation = ++_historyLoadGeneration;
     if (mounted) {
-      setState(() {
+      _rebuild(() {
         _historyLoading = true;
         _historyLoadedAll = false;
       });
@@ -211,7 +200,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         return;
       }
       final hasMore = history.length >= _initialHistoryPageSize;
-      setState(() {
+      _rebuild(() {
         _history = history;
         _historyLoadedAll = !hasMore;
         _historyLoading = false;
@@ -222,7 +211,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       }
     } catch (_) {
       if (mounted && generation == _historyLoadGeneration) {
-        setState(() {
+        _rebuild(() {
           _historyLoading = false;
           _historyLoadedAll = true;
         });
@@ -249,7 +238,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final openedSavedAssessmentId = _hasAnyClinicalData(_assessment)
           ? _savedIdForAssessment(_assessment, history)
           : null;
-      setState(() {
+      _rebuild(() {
         _history = history;
         _includePrereleaseUpdates = includePrereleaseUpdates;
         _openedSavedAssessmentId = openedSavedAssessmentId;
@@ -269,7 +258,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     } catch (error) {
       _logStartup('deferred startup load failed: $error', startupWatch);
       if (mounted && generation == _historyLoadGeneration) {
-        setState(() {
+        _rebuild(() {
           _historyLoading = false;
           _historyLoadedAll = true;
         });
@@ -296,7 +285,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
     final generation = expectedGeneration ?? _historyLoadGeneration;
     final offset = _history.length;
-    setState(() => _historyLoading = true);
+    _rebuild(() => _historyLoading = true);
     try {
       final nextPage = await _repository.loadAssessmentHistory(
         query: _searchQuery,
@@ -307,7 +296,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (!mounted || generation != _historyLoadGeneration) {
         return;
       }
-      setState(() {
+      _rebuild(() {
         final existingIds = _history.map((saved) => saved.id).toSet();
         _history = [
           ..._history,
@@ -319,7 +308,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       });
     } catch (_) {
       if (mounted && generation == _historyLoadGeneration) {
-        setState(() {
+        _rebuild(() {
           _historyLoading = false;
           _historyLoadedAll = true;
         });
@@ -369,7 +358,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (!mounted || update == null) {
         return;
       }
-      setState(() => _availableUpdate = update);
+      _rebuild(() => _availableUpdate = update);
     } finally {
       _checkingUpdate = false;
       if (_pendingUpdateCheck && mounted) {
@@ -380,7 +369,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _setIncludePrereleaseUpdates(bool enabled) async {
-    setState(() {
+    _rebuild(() {
       _includePrereleaseUpdates = enabled;
       _availableUpdate = null;
     });
@@ -525,14 +514,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (update == null || _downloadingUpdate) {
       return;
     }
-    setState(() {
+    _rebuild(() {
       _downloadingUpdate = true;
       _downloadProgress = 0;
     });
     try {
       final apk = await _updateService.downloadApk(update, (progress) {
         if (mounted) {
-          setState(() => _downloadProgress = progress);
+          _rebuild(() => _downloadProgress = progress);
         }
       });
       await _updateService.openAndroidInstaller(apk);
@@ -542,13 +531,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       }
     } finally {
       if (mounted) {
-        setState(() => _downloadingUpdate = false);
+        _rebuild(() => _downloadingUpdate = false);
       }
     }
   }
 
   void _mutate(void Function(ClinicalAssessment assessment) change) {
-    setState(() {
+    _rebuild(() {
       change(_assessment);
       _assessment.admissionDateTime = _buildAdmissionDateTime(_assessment);
       _assessment.modifiedAtMillis = DateTime.now().millisecondsSinceEpoch;
@@ -569,7 +558,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (!_hasMeaningfulHistoryData(_assessment)) {
       await _repository.saveCurrentAssessment(_assessment);
       if (mounted) {
-        setState(() {
+        _rebuild(() {
           _formDirty = false;
           _saveState = _SaveState.clean;
         });
@@ -577,7 +566,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       }
       return;
     }
-    setState(() => _saving = true);
+    _rebuild(() => _saving = true);
     try {
       final wasEditingSavedAssessment = _openedSavedAssessmentId != null;
       recalculateClinicalAssessment(_assessment, preserveExistingScores: true);
@@ -590,7 +579,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (!mounted) {
         return;
       }
-      setState(() {
+      _rebuild(() {
         _openedSavedAssessmentId = savedId;
         _formBaseline = _assessment.clone();
         _formDirty = false;
@@ -606,7 +595,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       );
     } finally {
       if (mounted) {
-        setState(() => _saving = false);
+        _rebuild(() => _saving = false);
       }
     }
   }
@@ -627,7 +616,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       await _repository.saveCurrentAssessment(_assessment);
       return;
     }
-    setState(() {
+    _rebuild(() {
       _saving = true;
       _saveState = _SaveState.saving;
       _saveError = null;
@@ -643,7 +632,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (!mounted) {
         return;
       }
-      setState(() {
+      _rebuild(() {
         _openedSavedAssessmentId = savedId;
         _formBaseline = _assessment.clone();
         _formDirty = false;
@@ -654,13 +643,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (!mounted) {
         return;
       }
-      setState(() {
+      _rebuild(() {
         _saveState = _SaveState.error;
         _saveError = error.toString();
       });
     } finally {
       if (mounted) {
-        setState(() => _saving = false);
+        _rebuild(() => _saving = false);
       }
     }
   }
@@ -672,7 +661,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (_exporting) {
       return;
     }
-    setState(() => _exporting = true);
+    _rebuild(() => _exporting = true);
     try {
       final assessment = source.clone();
       recalculateClinicalAssessment(assessment, preserveExistingScores: true);
@@ -693,7 +682,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       }
     } finally {
       if (mounted) {
-        setState(() => _exporting = false);
+        _rebuild(() => _exporting = false);
       }
     }
   }
@@ -769,7 +758,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       assessment.assessmentMode = _preferredAssessmentMode;
       recalculateClinicalAssessment(assessment, preserveExistingScores: true);
     }
-    setState(() {
+    _rebuild(() {
       _assessment = assessment;
       _openedSavedAssessmentId = saved.id;
       _fieldUnitSelections.clear();
@@ -789,7 +778,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   void _startNew() {
     final assessment = _newAssessment(assessmentMode: _preferredAssessmentMode);
-    setState(() {
+    _rebuild(() {
       _assessment = assessment;
       _openedSavedAssessmentId = null;
       _fieldUnitSelections.clear();
@@ -815,7 +804,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
     unawaited(_repository.saveAssessmentMode(normalized));
     if (_homeMode != _HomeMode.form) {
-      setState(() => _preferredAssessmentMode = normalized);
+      _rebuild(() => _preferredAssessmentMode = normalized);
       return;
     }
     _preferredAssessmentMode = normalized;
@@ -847,7 +836,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (baseline != null) {
       recalculateClinicalAssessment(baseline, preserveExistingScores: true);
     }
-    setState(() {
+    _rebuild(() {
       if (baseline != null) {
         _assessment = baseline;
         _fieldUnitSelections.clear();
@@ -1936,7 +1925,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (next == _sortMode) {
       return;
     }
-    setState(() {
+    _rebuild(() {
       _sortMode = next;
       _patientScrollBubble.value = const _PatientScrollBubbleState.hidden();
     });
@@ -2092,7 +2081,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (filter == _patientFilter) {
       return;
     }
-    setState(() {
+    _rebuild(() {
       _patientFilter = filter;
       _patientScrollBubble.value = const _PatientScrollBubbleState.hidden();
       _rebuildPatientCaches();
@@ -3839,7 +3828,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         progress: progress,
         initiallyExpanded: expanded,
         onExpansionChanged: (value) {
-          setState(() {
+          _rebuild(() {
             if (value) {
               _expandedSections.add(sectionId);
             } else {
@@ -4366,7 +4355,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   void _jumpToMissingItem(MissingDataItem item) {
-    setState(() {
+    _rebuild(() {
       _expandedSections.add(item.sectionId);
       _formVersion++;
     });
@@ -4387,7 +4376,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   void _scrollToSection(String sectionId) {
-    setState(() {
+    _rebuild(() {
       _expandedSections.add(sectionId);
       _formVersion++;
     });
@@ -4562,87 +4551,4 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ClinicalValueParser.hasText(assessment.sofaNeurologicMeasured) ||
         ClinicalValueParser.hasText(assessment.treatmentOutcome);
   }
-
-  static ClinicalAssessment _newAssessment({
-    String assessmentMode = ClinicalAssessment.assessmentModeDetailed,
-  }) {
-    final now = DateTime.now();
-    final assessment = ClinicalAssessment(
-      assessmentMode: ClinicalAssessment.normalizeAssessmentMode(
-        assessmentMode,
-      ),
-      admissionDate: _dateText(now),
-      admissionTime: _timeText(now),
-      admissionDateTime: '${_timeText(now)}, ngày ${_dateText(now)}',
-      createdAtMillis: now.millisecondsSinceEpoch,
-      modifiedAtMillis: now.millisecondsSinceEpoch,
-    );
-    recalculateClinicalAssessment(assessment);
-    return assessment;
-  }
-
-  static bool _hasAnyClinicalData(ClinicalAssessment assessment) {
-    if (assessment.isQuickMode && _hasQuickScoreData(assessment)) {
-      return true;
-    }
-    return [
-      assessment.patientId,
-      assessment.fullName,
-      assessment.age,
-      assessment.admissionReason,
-      assessment.infectionOrgan,
-      assessment.lactateLevel,
-      assessment.news2RespirationMeasured,
-      assessment.news2Spo2Measured,
-      assessment.sofaRespirationMeasured,
-    ].any(ClinicalValueParser.hasText);
-  }
-
-  static bool _hasQuickScoreData(ClinicalAssessment assessment) {
-    return ClinicalValueParser.hasText(assessment.lactateLevel) ||
-        assessment.news2RespirationSelected ||
-        assessment.news2Spo2Selected ||
-        assessment.news2OxygenSelected ||
-        assessment.news2TemperatureSelected ||
-        assessment.news2SystolicBpSelected ||
-        assessment.news2HeartRateSelected ||
-        assessment.news2ConsciousnessSelected ||
-        assessment.qsofaRespirationSelected ||
-        assessment.qsofaSystolicBpSelected ||
-        assessment.qsofaConsciousnessSelected ||
-        assessment.sofaRespirationSelected ||
-        assessment.sofaCoagulationSelected ||
-        assessment.sofaLiverSelected ||
-        assessment.sofaCardiovascularSelected ||
-        assessment.sofaNeurologicSelected ||
-        assessment.sofaRenalSelected;
-  }
-
-  static String _buildAdmissionDateTime(ClinicalAssessment assessment) {
-    return '${assessment.admissionTime}, ngày ${assessment.admissionDate}';
-  }
-
-  static String _lactateLevel(String value) {
-    final lactate = ClinicalValueParser.parseDouble(value);
-    if (lactate == null) {
-      return '';
-    }
-    if (lactate < 2) {
-      return '< 2 mmol/L';
-    }
-    if (lactate < 4) {
-      return '2 - 3.9 mmol/L';
-    }
-    return '≥ 4 mmol/L';
-  }
-
-  static String _dateText(DateTime value) {
-    return '${value.year}-${_two(value.month)}-${_two(value.day)}';
-  }
-
-  static String _timeText(DateTime value) {
-    return '${_two(value.hour)}:${_two(value.minute)}';
-  }
-
-  static String _two(int value) => value.toString().padLeft(2, '0');
 }
