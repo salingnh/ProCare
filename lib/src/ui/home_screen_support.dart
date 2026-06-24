@@ -5,23 +5,6 @@ enum _HomeMode {
   form,
 }
 
-class _PatientScrollBubbleState {
-  final bool visible;
-  final String label;
-  final double fraction;
-
-  const _PatientScrollBubbleState({
-    required this.visible,
-    required this.label,
-    required this.fraction,
-  });
-
-  const _PatientScrollBubbleState.hidden()
-      : visible = false,
-        label = '',
-        fraction = 0;
-}
-
 class _FullWidth extends StatelessWidget {
   final Widget child;
 
