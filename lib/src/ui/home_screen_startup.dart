@@ -87,15 +87,4 @@ extension _HsStartup on _HomeScreenState {
       showMessage: _showMessage,
     );
   }
-
-  Future<void> _downloadUpdate() async {
-    if (_updateController.downloadingUpdate ||
-        _updateController.availableUpdate == null) {
-      return;
-    }
-    final ok = await _updateController.downloadAndInstall();
-    if (!ok && mounted) {
-      _showMessage('Không tải hoặc mở được bản cập nhật.');
-    }
-  }
 }
