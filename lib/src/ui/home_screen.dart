@@ -14,7 +14,7 @@ import '../domain/clinical_value_parser.dart';
 import '../domain/scale_guidance_config.dart';
 import '../domain/scoring.dart';
 import '../export/crf_exporter.dart';
-import '../services/update_service.dart';
+import '../services/update_controller.dart';
 import 'clinical_components.dart' as clinical_ui;
 import 'clinical_theme.dart';
 import 'export_action_menu.dart';
@@ -38,8 +38,8 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final _repository = AssessmentRepository();
+  late final UpdateController _updateController;
   final _exporter = const CrfExporter();
-  final _updateService = const UpdateService();
   ScrollController? _patientScrollController;
   final ScrollController _formScrollController = ScrollController();
   final ValueNotifier<_PatientScrollBubbleState> _patientScrollBubble =
@@ -70,18 +70,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _saving = false;
   bool _formDirty = false;
   bool _exporting = false;
-  bool _downloadingUpdate = false;
-  bool _checkingUpdate = false;
-  bool _pendingUpdateCheck = false;
   bool _historyLoading = false;
   bool _historyLoadedAll = true;
-  bool _includePrereleaseUpdates = false;
-  double _downloadProgress = 0;
   int _historyLoadGeneration = 0;
-  int _lastUpdateCheckAtMillis = 0;
-  UpdateInfo? _availableUpdate;
   Timer? _patientScrollBubbleTimer;
-  Timer? _updateCheckTimer;
 
   ClinicalTones get _clinicalTones =>
       Theme.of(context).extension<ClinicalTones>()!;
@@ -96,17 +88,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     setState(fn);
   }
 
+  void _onUpdateChanged() {
+    if (mounted) {
+      _rebuild(() {});
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _updateController = UpdateController(repository: _repository)
+      ..addListener(_onUpdateChanged);
     _load();
   }
 
   @override
   void dispose() {
     _autoSaveTimer?.cancel();
-    _updateCheckTimer?.cancel();
     _patientScrollBubbleTimer?.cancel();
     _patientScrollBubble.dispose();
     _patientScrollController?.dispose();
@@ -114,6 +113,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     for (final node in _fieldFocusNodes.values) {
       node.dispose();
     }
+    _updateController.removeListener(_onUpdateChanged);
+    _updateController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -121,7 +122,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _checkUpdateAfterResume();
+      _updateController.checkAfterResume();
     }
   }
 
@@ -134,7 +135,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ? const Center(child: CircularProgressIndicator())
             : Column(
                 children: [
-                  if (_availableUpdate != null) _buildUpdateBanner(),
+                  if (_updateController.availableUpdate != null) _buildUpdateBanner(),
                   if (isForm) _clinicalDashboard(_assessment),
                   Expanded(
                     child: isForm
