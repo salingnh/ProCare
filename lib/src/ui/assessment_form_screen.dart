@@ -272,19 +272,33 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
               title: Text(_formAppBarTitle()),
               actions: _appBarActions(constraints.maxWidth),
             ),
-            body: Column(
-              children: [
-                UpdateBanner(controller: widget.updateController),
-                _clinicalDashboard(assessment),
-                Expanded(
-                  child: KeyedSubtree(
-                    key: ValueKey(_formVersion),
-                    child: assessment.isQuickMode
-                        ? _buildQuickAssessmentForm()
-                        : _buildAssessmentForm(),
-                  ),
-                ),
-              ],
+            body: LayoutBuilder(
+              builder: (context, bodyConstraints) {
+                // Keep the dashboard a fixed header on normal screens, but let
+                // it scroll internally on very short viewports so the body
+                // column never overflows (the missing-data panel can be tall).
+                final dashboardMaxHeight =
+                    (bodyConstraints.maxHeight - 140).clamp(0.0, double.infinity);
+                return Column(
+                  children: [
+                    UpdateBanner(controller: widget.updateController),
+                    ConstrainedBox(
+                      constraints: BoxConstraints(maxHeight: dashboardMaxHeight),
+                      child: SingleChildScrollView(
+                        child: _clinicalDashboard(assessment),
+                      ),
+                    ),
+                    Expanded(
+                      child: KeyedSubtree(
+                        key: ValueKey(_formVersion),
+                        child: assessment.isQuickMode
+                            ? _buildQuickAssessmentForm()
+                            : _buildAssessmentForm(),
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         );
