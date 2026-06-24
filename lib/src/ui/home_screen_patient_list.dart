@@ -2,10 +2,10 @@ part of 'home_screen.dart';
 
 extension _HsPatientList on _HomeScreenState {
   Widget _buildPatientList() {
-    final patients = _filteredHistory;
-    final showHeader = _history.isNotEmpty ||
-        _searchQuery.trim().isNotEmpty ||
-        _patientFilter != _PatientFilter.all;
+    final patients = _listController.filteredHistory;
+    final showHeader = _listController.history.isNotEmpty ||
+        _listController.searchQuery.trim().isNotEmpty ||
+        _listController.filter != PatientListFilter.all;
     return Column(
       children: [
         if (showHeader)
@@ -28,8 +28,7 @@ extension _HsPatientList on _HomeScreenState {
                         EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   ),
                   onChanged: (value) {
-                    _searchQuery = value;
-                    _refreshHistory();
+                    _listController.setSearchQuery(value);
                   },
                 );
                 if (compact) {
@@ -37,8 +36,8 @@ extension _HsPatientList on _HomeScreenState {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       searchField,
-                      if (_history.isNotEmpty ||
-                          _patientFilter != _PatientFilter.all) ...[
+                      if (_listController.history.isNotEmpty ||
+                          _listController.filter != PatientListFilter.all) ...[
                         const SizedBox(height: 8),
                         Row(
                           children: [
@@ -52,7 +51,7 @@ extension _HsPatientList on _HomeScreenState {
                       ],
                       if (patients.isNotEmpty) ...[
                         const SizedBox(height: 8),
-                        _patientSummaryStrip(_patientSummary, compact: true),
+                        _patientSummaryStrip(_listController.summary, compact: true),
                       ],
                     ],
                   );
@@ -76,11 +75,11 @@ extension _HsPatientList on _HomeScreenState {
                         runSpacing: 8,
                         children: [
                           _patientFilterChips(),
-                          _patientSummaryStrip(_patientSummary),
+                          _patientSummaryStrip(_listController.summary),
                         ],
                       ),
-                    ] else if (_history.isNotEmpty ||
-                        _patientFilter != _PatientFilter.all) ...[
+                    ] else if (_listController.history.isNotEmpty ||
+                        _listController.filter != PatientListFilter.all) ...[
                       const SizedBox(height: 10),
                       _patientFilterChips(),
                     ],
@@ -91,7 +90,7 @@ extension _HsPatientList on _HomeScreenState {
           ),
         Expanded(
           child: patients.isEmpty
-              ? (_historyLoading
+              ? (_listController.loading
                   ? _patientListLoadingState()
                   : _emptyPatientState())
               : LayoutBuilder(
@@ -109,7 +108,7 @@ extension _HsPatientList on _HomeScreenState {
                             mainAxisSpacing: 12,
                             crossAxisSpacing: 12,
                             itemCount:
-                                patients.length + (_historyLoading ? 1 : 0),
+                                patients.length + (_listController.loading ? 1 : 0),
                             itemBuilder: (context, index) {
                               if (index == patients.length) {
                                 return _patientPageLoadingTile();
@@ -149,7 +148,7 @@ extension _HsPatientList on _HomeScreenState {
   Widget _patientSortControl({bool compact = false}) {
     if (compact) {
       return PopupMenuButton<PatientSortMode>(
-        initialValue: _sortMode,
+        initialValue: _listController.sortMode,
         tooltip: 'Sắp xếp',
         onSelected: _selectPatientSort,
         itemBuilder: (context) => [
@@ -159,7 +158,7 @@ extension _HsPatientList on _HomeScreenState {
         ],
         child: _patientListMenuButton(
           icon: Icons.sort,
-          label: _patientSortLabel(_sortMode, compact: true),
+          label: _patientSortLabel(_listController.sortMode, compact: true),
         ),
       );
     }
@@ -168,7 +167,7 @@ extension _HsPatientList on _HomeScreenState {
       style: SegmentedButton.styleFrom(
         visualDensity: VisualDensity.compact,
       ),
-      selected: {_sortMode},
+      selected: {_listController.sortMode},
       segments: const [
         ButtonSegment(
           value: PatientSortMode.name,
@@ -193,7 +192,7 @@ extension _HsPatientList on _HomeScreenState {
   }
 
   PopupMenuItem<PatientSortMode> _patientSortMenuItem(PatientSortMode mode) {
-    final selected = _sortMode == mode;
+    final selected = _listController.sortMode == mode;
     return PopupMenuItem(
       value: mode,
       child: Row(
@@ -215,37 +214,14 @@ extension _HsPatientList on _HomeScreenState {
   }
 
   void _selectPatientSort(PatientSortMode next) {
-    if (next == _sortMode) {
+    if (next == _listController.sortMode) {
       return;
     }
-    _rebuild(() {
-      _sortMode = next;
-      _patientScrollBubble.value = const _PatientScrollBubbleState.hidden();
-    });
+    _patientScrollBubble.value = const _PatientScrollBubbleState.hidden();
     if (_patientScrollControllerOrCreate.hasClients) {
       _patientScrollControllerOrCreate.jumpTo(0);
     }
-    _refreshHistory();
-  }
-
-  List<SavedAssessment> _filteredPatients(List<SavedAssessment> source) {
-    return source.where((saved) {
-      final assessment = saved.assessment;
-      return switch (_patientFilter) {
-        _PatientFilter.all => true,
-        _PatientFilter.incomplete =>
-          AssessmentDisplay.isIncompletePatient(assessment),
-        _PatientFilter.highRisk =>
-          AssessmentDisplay.isHighRiskPatient(assessment),
-        _PatientFilter.septicShock =>
-          AssessmentDisplay.isSepticShockPatient(assessment),
-      };
-    }).toList();
-  }
-
-  void _rebuildPatientCaches() {
-    _filteredHistory = _filteredPatients(_history);
-    _patientSummary = _PatientSummary.from(_history);
+    _listController.setSortMode(next);
   }
 
   Widget _patientFilterChips() {
@@ -253,34 +229,34 @@ extension _HsPatientList on _HomeScreenState {
       spacing: 6,
       runSpacing: 6,
       children: [
-        _patientFilterChip(_PatientFilter.all, 'Tất cả'),
-        _patientFilterChip(_PatientFilter.incomplete, 'Chưa đủ dữ liệu'),
-        _patientFilterChip(_PatientFilter.highRisk, 'Nguy cơ cao'),
-        _patientFilterChip(_PatientFilter.septicShock, 'Sốc NK'),
+        _patientFilterChip(PatientListFilter.all, 'Tất cả'),
+        _patientFilterChip(PatientListFilter.incomplete, 'Chưa đủ dữ liệu'),
+        _patientFilterChip(PatientListFilter.highRisk, 'Nguy cơ cao'),
+        _patientFilterChip(PatientListFilter.septicShock, 'Sốc NK'),
       ],
     );
   }
 
   Widget _patientFilterMenu() {
-    return PopupMenuButton<_PatientFilter>(
-      initialValue: _patientFilter,
+    return PopupMenuButton<PatientListFilter>(
+      initialValue: _listController.filter,
       tooltip: 'Lọc danh sách',
       onSelected: _selectPatientFilter,
       itemBuilder: (context) => [
-        _patientFilterMenuItem(_PatientFilter.all),
-        _patientFilterMenuItem(_PatientFilter.incomplete),
-        _patientFilterMenuItem(_PatientFilter.highRisk),
-        _patientFilterMenuItem(_PatientFilter.septicShock),
+        _patientFilterMenuItem(PatientListFilter.all),
+        _patientFilterMenuItem(PatientListFilter.incomplete),
+        _patientFilterMenuItem(PatientListFilter.highRisk),
+        _patientFilterMenuItem(PatientListFilter.septicShock),
       ],
       child: _patientListMenuButton(
         icon: Icons.filter_list,
-        label: _patientFilterLabel(_patientFilter, compact: true),
+        label: _patientFilterLabel(_listController.filter, compact: true),
       ),
     );
   }
 
-  PopupMenuItem<_PatientFilter> _patientFilterMenuItem(_PatientFilter filter) {
-    final selected = _patientFilter == filter;
+  PopupMenuItem<PatientListFilter> _patientFilterMenuItem(PatientListFilter filter) {
+    final selected = _listController.filter == filter;
     return PopupMenuItem(
       value: filter,
       child: Row(
@@ -332,23 +308,23 @@ extension _HsPatientList on _HomeScreenState {
     );
   }
 
-  String _patientFilterLabel(_PatientFilter filter, {bool compact = false}) {
+  String _patientFilterLabel(PatientListFilter filter, {bool compact = false}) {
     return switch (filter) {
-      _PatientFilter.all => 'Tất cả',
-      _PatientFilter.incomplete => compact ? 'Chưa đủ' : 'Chưa đủ dữ liệu',
-      _PatientFilter.highRisk => 'Nguy cơ cao',
-      _PatientFilter.septicShock => 'Sốc NK',
+      PatientListFilter.all => 'Tất cả',
+      PatientListFilter.incomplete => compact ? 'Chưa đủ' : 'Chưa đủ dữ liệu',
+      PatientListFilter.highRisk => 'Nguy cơ cao',
+      PatientListFilter.septicShock => 'Sốc NK',
     };
   }
 
-  Widget _patientFilterChip(_PatientFilter filter, String label) {
+  Widget _patientFilterChip(PatientListFilter filter, String label) {
     final theme = Theme.of(context);
-    final selected = _patientFilter == filter;
+    final selected = _listController.filter == filter;
     final status = switch (filter) {
-      _PatientFilter.all => ClinicalStatus.normal,
-      _PatientFilter.incomplete => ClinicalStatus.missing,
-      _PatientFilter.highRisk => ClinicalStatus.warning,
-      _PatientFilter.septicShock => ClinicalStatus.danger,
+      PatientListFilter.all => ClinicalStatus.normal,
+      PatientListFilter.incomplete => ClinicalStatus.missing,
+      PatientListFilter.highRisk => ClinicalStatus.warning,
+      PatientListFilter.septicShock => ClinicalStatus.danger,
     };
     final style = clinical_ui.clinicalStatusStyle(context, status);
     return FilterChip(
@@ -370,22 +346,19 @@ extension _HsPatientList on _HomeScreenState {
     );
   }
 
-  void _selectPatientFilter(_PatientFilter filter) {
-    if (filter == _patientFilter) {
+  void _selectPatientFilter(PatientListFilter filter) {
+    if (filter == _listController.filter) {
       return;
     }
-    _rebuild(() {
-      _patientFilter = filter;
-      _patientScrollBubble.value = const _PatientScrollBubbleState.hidden();
-      _rebuildPatientCaches();
-    });
+    _patientScrollBubble.value = const _PatientScrollBubbleState.hidden();
+    _listController.setFilter(filter);
     if (_patientScrollControllerOrCreate.hasClients) {
       _patientScrollControllerOrCreate.jumpTo(0);
     }
   }
 
   Widget _patientSummaryStrip(
-    _PatientSummary summary, {
+    PatientSummary summary, {
     bool compact = false,
   }) {
     final badges = [
@@ -460,7 +433,7 @@ extension _HsPatientList on _HomeScreenState {
   Widget _emptyPatientState() {
     final theme = Theme.of(context);
     final activeFilter =
-        _searchQuery.trim().isNotEmpty || _patientFilter != _PatientFilter.all;
+        _listController.searchQuery.trim().isNotEmpty || _listController.filter != PatientListFilter.all;
     return Center(
       child: clinical_ui.ClinicalSurfaceCard(
         margin: const EdgeInsets.all(24),
@@ -604,7 +577,7 @@ extension _HsPatientList on _HomeScreenState {
   }
 
   String _patientSortTimestampText(ClinicalAssessment assessment) {
-    final millis = _sortMode == PatientSortMode.createdAt
+    final millis = _listController.sortMode == PatientSortMode.createdAt
         ? assessment.createdAtMillis
         : assessment.modifiedAtMillis;
     return _formatRelativeTime(millis);
@@ -665,7 +638,7 @@ extension _HsPatientList on _HomeScreenState {
       return false;
     }
     if (notification.metrics.extentAfter < 720) {
-      unawaited(_loadMoreHistory());
+      unawaited(_listController.loadMore());
     }
     final label = _patientScrollLabel(notification.metrics, patients);
     final fraction = _patientScrollFraction(notification.metrics);
@@ -709,10 +682,10 @@ extension _HsPatientList on _HomeScreenState {
         .round()
         .clamp(0, patients.length - 1);
     final assessment = patients[index].assessment;
-    if (_sortMode == PatientSortMode.name) {
+    if (_listController.sortMode == PatientSortMode.name) {
       return _patientNameIndex(assessment);
     }
-    final millis = _sortMode == PatientSortMode.createdAt
+    final millis = _listController.sortMode == PatientSortMode.createdAt
         ? assessment.createdAtMillis
         : assessment.modifiedAtMillis;
     return _formatPatientDate(millis);

@@ -15,6 +15,7 @@ import '../domain/scale_guidance_config.dart';
 import '../domain/scoring.dart';
 import '../export/crf_exporter.dart';
 import '../services/update_controller.dart';
+import 'patient_list_controller.dart';
 import 'clinical_components.dart' as clinical_ui;
 import 'clinical_theme.dart';
 import 'export_action_menu.dart';
@@ -39,6 +40,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final _repository = AssessmentRepository();
   late final UpdateController _updateController;
+  late final PatientListController _listController;
   final _exporter = const CrfExporter();
   ScrollController? _patientScrollController;
   final ScrollController _formScrollController = ScrollController();
@@ -46,17 +48,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ValueNotifier(const _PatientScrollBubbleState.hidden());
 
   ClinicalAssessment _assessment = _newAssessment();
-  List<SavedAssessment> _history = [];
-  List<SavedAssessment> _filteredHistory = [];
-  _PatientSummary _patientSummary = const _PatientSummary.empty();
   final Map<String, GlobalKey> _sectionKeys = {};
   final Map<String, GlobalKey> _fieldKeys = {};
   final Map<String, FocusNode> _fieldFocusNodes = {};
   final Map<String, String> _fieldUnitSelections = {};
   final Set<String> _expandedSections = {};
-  PatientSortMode _sortMode = PatientSortMode.updatedAt;
-  _PatientFilter _patientFilter = _PatientFilter.all;
-  String _searchQuery = '';
   String _preferredAssessmentMode = ClinicalAssessment.assessmentModeDetailed;
   int? _openedSavedAssessmentId;
   _HomeMode _homeMode = _HomeMode.list;
@@ -70,9 +66,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _saving = false;
   bool _formDirty = false;
   bool _exporting = false;
-  bool _historyLoading = false;
-  bool _historyLoadedAll = true;
-  int _historyLoadGeneration = 0;
   Timer? _patientScrollBubbleTimer;
 
   ClinicalTones get _clinicalTones =>
@@ -88,7 +81,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     setState(fn);
   }
 
-  void _onUpdateChanged() {
+  void _onControllerChanged() {
     if (mounted) {
       _rebuild(() {});
     }
@@ -99,7 +92,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _updateController = UpdateController(repository: _repository)
-      ..addListener(_onUpdateChanged);
+      ..addListener(_onControllerChanged);
+    _listController = PatientListController(repository: _repository)
+      ..addListener(_onControllerChanged);
     _load();
   }
 
@@ -113,8 +108,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     for (final node in _fieldFocusNodes.values) {
       node.dispose();
     }
-    _updateController.removeListener(_onUpdateChanged);
+    _updateController.removeListener(_onControllerChanged);
     _updateController.dispose();
+    _listController.removeListener(_onControllerChanged);
+    _listController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -172,7 +169,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
             body: content,
             floatingActionButton:
-                !_loading && !isForm && _filteredHistory.isNotEmpty
+                !_loading && !isForm && _listController.filteredHistory.isNotEmpty
                     ? FloatingActionButton.extended(
                         onPressed: _startNew,
                         icon: const Icon(Icons.add),
