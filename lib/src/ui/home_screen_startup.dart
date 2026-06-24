@@ -16,12 +16,7 @@ extension _HsStartup on _HomeScreenState {
         ),
       );
       _listController.resetEmpty();
-      _rebuild(() {
-        _fieldUnitSelections.clear();
-        _homeMode = _HomeMode.list;
-        _loading = false;
-        _formVersion++;
-      });
+      _rebuild(() => _loading = false);
       _logStartup('web ready', startupWatch);
       return;
     }
@@ -40,12 +35,7 @@ extension _HsStartup on _HomeScreenState {
     _assessmentController.setPreferredAssessmentMode(preferredAssessmentMode);
     _assessmentController.adoptAssessment(activeAssessment);
     _listController.beginInitialLoad();
-    _rebuild(() {
-      _fieldUnitSelections.clear();
-      _homeMode = _HomeMode.list;
-      _loading = false;
-      _formVersion++;
-    });
+    _rebuild(() => _loading = false);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _logStartup('first frame after draft', startupWatch);
       unawaited(_loadDeferredStartupData(startupWatch));
@@ -82,8 +72,8 @@ extension _HsStartup on _HomeScreenState {
     showAppSettingsDialog(
       context: context,
       updateController: _updateController,
-      assessmentMode: _preferredAssessmentMode,
-      onAssessmentModeChanged: _setAssessmentMode,
+      assessmentMode: _assessmentController.preferredAssessmentMode,
+      onAssessmentModeChanged: _assessmentController.setPreferredAssessmentMode,
       showMessage: _showMessage,
     );
   }
