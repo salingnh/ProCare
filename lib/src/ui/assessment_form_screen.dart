@@ -10,7 +10,7 @@ import '../domain/scoring.dart';
 import '../export/assessment_exporter.dart';
 import '../export/export_action.dart';
 import '../services/update_controller.dart';
-import 'app_settings_dialog.dart';
+import 'settings_screen.dart';
 import 'assessment_controller.dart';
 import 'clinical_components.dart' as clinical_ui;
 import 'clinical_display_helpers.dart';
@@ -165,12 +165,14 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
   }
 
   void _showAppSettings() {
-    showAppSettingsDialog(
-      context: context,
-      updateController: widget.updateController,
-      assessmentMode: _preferredAssessmentMode,
-      onAssessmentModeChanged: _setAssessmentMode,
-      showMessage: _showMessage,
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => SettingsScreen(
+          updateController: widget.updateController,
+          assessmentMode: _preferredAssessmentMode,
+          onAssessmentModeChanged: _setAssessmentMode,
+        ),
+      ),
     );
   }
 
