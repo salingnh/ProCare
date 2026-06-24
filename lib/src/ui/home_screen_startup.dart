@@ -9,20 +9,19 @@ extension _HsStartup on _HomeScreenState {
       if (!mounted) {
         return;
       }
+      _assessmentController.setPreferredAssessmentMode(preferredAssessmentMode);
+      _assessmentController.adoptAssessment(
+        AssessmentController.newAssessment(
+          assessmentMode: preferredAssessmentMode,
+        ),
+      );
+      _listController.resetEmpty();
       _rebuild(() {
-        _assessment = _newAssessment(assessmentMode: preferredAssessmentMode);
-        _formBaseline = _assessment.clone();
         _fieldUnitSelections.clear();
-        _preferredAssessmentMode = preferredAssessmentMode;
         _homeMode = _HomeMode.list;
-        _formDirty = false;
-        _saveState = _SaveState.clean;
-        _lastSavedAtMillis = 0;
-        _saveError = null;
         _loading = false;
         _formVersion++;
       });
-      _listController.resetEmpty();
       _logStartup('web ready', startupWatch);
       return;
     }
@@ -30,27 +29,23 @@ extension _HsStartup on _HomeScreenState {
     final preferredAssessmentMode = await _repository.loadAssessmentMode();
     _logStartup('draft loaded', startupWatch);
     recalculateClinicalAssessment(draft, preserveExistingScores: true);
-    final activeAssessment = _hasAnyClinicalData(draft)
+    final activeAssessment = AssessmentController.hasAnyClinicalData(draft)
         ? draft
-        : _newAssessment(assessmentMode: preferredAssessmentMode);
+        : AssessmentController.newAssessment(
+            assessmentMode: preferredAssessmentMode,
+          );
     if (!mounted) {
       return;
     }
+    _assessmentController.setPreferredAssessmentMode(preferredAssessmentMode);
+    _assessmentController.adoptAssessment(activeAssessment);
+    _listController.beginInitialLoad();
     _rebuild(() {
-      _assessment = activeAssessment;
-      _preferredAssessmentMode = preferredAssessmentMode;
       _fieldUnitSelections.clear();
-      _openedSavedAssessmentId = null;
-      _formBaseline = activeAssessment.clone();
       _homeMode = _HomeMode.list;
-      _formDirty = false;
-      _saveState = _SaveState.clean;
-      _lastSavedAtMillis = activeAssessment.savedAtMillis;
-      _saveError = null;
       _loading = false;
       _formVersion++;
     });
-    _listController.beginInitialLoad();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _logStartup('first frame after draft', startupWatch);
       unawaited(_loadDeferredStartupData(startupWatch));
@@ -67,12 +62,11 @@ extension _HsStartup on _HomeScreenState {
       if (!mounted) {
         return;
       }
-      final openedSavedAssessmentId = _hasAnyClinicalData(_assessment)
-          ? _savedIdForAssessment(_assessment, _listController.history)
-          : null;
-      _rebuild(() {
-        _openedSavedAssessmentId = openedSavedAssessmentId;
-      });
+      final openedSavedAssessmentId =
+          AssessmentController.hasAnyClinicalData(_assessment)
+              ? _savedIdForAssessment(_assessment, _listController.history)
+              : null;
+      _assessmentController.setOpenedSavedAssessmentId(openedSavedAssessmentId);
       _logStartup('startup data committed', startupWatch);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _logStartup('initial history frame rendered', startupWatch);

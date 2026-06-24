@@ -16,6 +16,7 @@ import '../domain/scoring.dart';
 import '../export/crf_exporter.dart';
 import '../services/update_controller.dart';
 import 'patient_list_controller.dart';
+import 'assessment_controller.dart';
 import 'clinical_components.dart' as clinical_ui;
 import 'clinical_theme.dart';
 import 'export_action_menu.dart';
@@ -41,32 +42,34 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final _repository = AssessmentRepository();
   late final UpdateController _updateController;
   late final PatientListController _listController;
+  late final AssessmentController _assessmentController;
   final _exporter = const CrfExporter();
   ScrollController? _patientScrollController;
   final ScrollController _formScrollController = ScrollController();
   final ValueNotifier<_PatientScrollBubbleState> _patientScrollBubble =
       ValueNotifier(const _PatientScrollBubbleState.hidden());
 
-  ClinicalAssessment _assessment = _newAssessment();
   final Map<String, GlobalKey> _sectionKeys = {};
   final Map<String, GlobalKey> _fieldKeys = {};
   final Map<String, FocusNode> _fieldFocusNodes = {};
   final Map<String, String> _fieldUnitSelections = {};
   final Set<String> _expandedSections = {};
-  String _preferredAssessmentMode = ClinicalAssessment.assessmentModeDetailed;
-  int? _openedSavedAssessmentId;
   _HomeMode _homeMode = _HomeMode.list;
-  ClinicalAssessment? _formBaseline;
   int _formVersion = 0;
-  _SaveState _saveState = _SaveState.clean;
-  Timer? _autoSaveTimer;
-  int _lastSavedAtMillis = 0;
-  String? _saveError;
   bool _loading = true;
-  bool _saving = false;
-  bool _formDirty = false;
   bool _exporting = false;
   Timer? _patientScrollBubbleTimer;
+
+  ClinicalAssessment get _assessment => _assessmentController.assessment;
+  int? get _openedSavedAssessmentId =>
+      _assessmentController.openedSavedAssessmentId;
+  String get _preferredAssessmentMode =>
+      _assessmentController.preferredAssessmentMode;
+  SaveState get _saveState => _assessmentController.saveState;
+  String? get _saveError => _assessmentController.saveError;
+  int get _lastSavedAtMillis => _assessmentController.lastSavedAtMillis;
+  bool get _saving => _assessmentController.saving;
+  bool get _formDirty => _assessmentController.formDirty;
 
   ClinicalTones get _clinicalTones =>
       Theme.of(context).extension<ClinicalTones>()!;
@@ -95,12 +98,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ..addListener(_onControllerChanged);
     _listController = PatientListController(repository: _repository)
       ..addListener(_onControllerChanged);
+    _assessmentController = AssessmentController(repository: _repository)
+      ..onPersisted = _listController.refresh
+      ..canAutoSave = (() => _homeMode == _HomeMode.form)
+      ..addListener(_onControllerChanged);
     _load();
   }
 
   @override
   void dispose() {
-    _autoSaveTimer?.cancel();
     _patientScrollBubbleTimer?.cancel();
     _patientScrollBubble.dispose();
     _patientScrollController?.dispose();
@@ -112,6 +118,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _updateController.dispose();
     _listController.removeListener(_onControllerChanged);
     _listController.dispose();
+    _assessmentController.removeListener(_onControllerChanged);
+    _assessmentController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }

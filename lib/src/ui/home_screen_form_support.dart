@@ -206,16 +206,4 @@ extension _HsFormSupport on _HomeScreenState {
     final value = DateTime.fromMillisecondsSinceEpoch(millis);
     return '${_two(value.hour)}:${_two(value.minute)}';
   }
-
-  bool _hasMeaningfulHistoryData(ClinicalAssessment assessment) {
-    return _hasAnyClinicalData(assessment) ||
-        _hasQuickScoreData(assessment) ||
-        ClinicalValueParser.hasText(assessment.lactateLevel) ||
-        ClinicalValueParser.hasText(assessment.news2RespirationMeasured) ||
-        ClinicalValueParser.hasText(assessment.news2SystolicBpMeasured) ||
-        ClinicalValueParser.hasText(assessment.news2HeartRateMeasured) ||
-        ClinicalValueParser.hasText(assessment.lactate) ||
-        ClinicalValueParser.hasText(assessment.sofaNeurologicMeasured) ||
-        ClinicalValueParser.hasText(assessment.treatmentOutcome);
-  }
 }
