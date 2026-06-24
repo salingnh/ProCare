@@ -19,49 +19,7 @@ extension _HsDashboard on _AssessmentFormScreenState {
           ),
         ),
         padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final compact = constraints.maxWidth < 760;
-            if (compact) {
-              return _compactClinicalDashboard(displays, missingItems);
-            }
-            final cards = [
-              for (final display in displays)
-                SizedBox(
-                  width: (constraints.maxWidth - 24) / 3,
-                  child: clinical_ui.ClinicalSummaryCard(
-                    display: display,
-                    onTap: () => _scrollToSection(_sectionForDisplay(display)),
-                  ),
-                ),
-            ];
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      for (var i = 0; i < cards.length; i++) ...[
-                        cards[i],
-                        if (i < cards.length - 1) const SizedBox(width: 12),
-                      ],
-                    ],
-                  ),
-                ),
-                if (missingItems.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  clinical_ui.MissingDataPanel(
-                    items: missingItems,
-                    onItemTap: _jumpToMissingItem,
-                  ),
-                ],
-              ],
-            );
-          },
-        ),
+        child: _compactClinicalDashboard(displays, missingItems),
       ),
     );
   }

@@ -152,7 +152,7 @@ extension _HsFormShell on _AssessmentFormScreenState {
                     unitOptions: const ['lần/phút'],
                     scoreText: _scoreText(
                       assessment.news2RespirationMeasured,
-                      'Điểm NEWS2: ${assessment.news2Respiration}',
+                      'NEWS2 +${assessment.news2Respiration}',
                     ),
                     scoreStatus: _scoreStatus(assessment.news2Respiration),
                     warningText: _rangeWarning(
@@ -171,7 +171,7 @@ extension _HsFormShell on _AssessmentFormScreenState {
                     unitOptions: const ['mmHg'],
                     scoreText: _scoreText(
                       assessment.news2SystolicBpMeasured,
-                      'Điểm NEWS2: ${assessment.news2SystolicBp}',
+                      'NEWS2 +${assessment.news2SystolicBp}',
                     ),
                     scoreStatus: _scoreStatus(assessment.news2SystolicBp),
                     warningText: _rangeWarning(
@@ -224,7 +224,7 @@ extension _HsFormShell on _AssessmentFormScreenState {
                     unitOptions: const ['%'],
                     scoreText: _scoreText(
                       assessment.news2Spo2Measured,
-                      'Điểm NEWS2: ${assessment.news2Spo2}',
+                      'NEWS2 +${assessment.news2Spo2}',
                     ),
                     scoreStatus: _scoreStatus(assessment.news2Spo2),
                     warningText: _rangeWarning(
@@ -255,7 +255,7 @@ extension _HsFormShell on _AssessmentFormScreenState {
                     unitOptions: const ['°C'],
                     scoreText: _scoreText(
                       assessment.news2TemperatureMeasured,
-                      'Điểm NEWS2: ${assessment.news2Temperature}',
+                      'NEWS2 +${assessment.news2Temperature}',
                     ),
                     scoreStatus: _scoreStatus(assessment.news2Temperature),
                     warningText: _rangeWarning(
@@ -274,7 +274,7 @@ extension _HsFormShell on _AssessmentFormScreenState {
                     unitOptions: const ['lần/phút'],
                     scoreText: _scoreText(
                       assessment.news2HeartRateMeasured,
-                      'Điểm NEWS2: ${assessment.news2HeartRate}',
+                      'NEWS2 +${assessment.news2HeartRate}',
                     ),
                     scoreStatus: _scoreStatus(assessment.news2HeartRate),
                     warningText: _rangeWarning(
@@ -390,7 +390,7 @@ extension _HsFormShell on _AssessmentFormScreenState {
                     fieldId: AssessmentFields.cardiovascular,
                     scoreText: _scoreText(
                       assessment.sofaCardiovascularMeasured,
-                      'Điểm SOFA tim mạch: ${assessment.sofaCardiovascular}',
+                      'SOFA +${assessment.sofaCardiovascular}',
                     ),
                     scoreStatus: _scoreStatus(assessment.sofaCardiovascular),
                     hint: 'VD: MAP 65 hoặc norepi 0.2'),
@@ -434,7 +434,7 @@ extension _HsFormShell on _AssessmentFormScreenState {
                     unitOptions: const ['mmHg'],
                     scoreText: _scoreText(
                       assessment.sofaRespirationMeasured,
-                      'Điểm SOFA hô hấp: ${assessment.sofaRespiration}',
+                      'SOFA +${assessment.sofaRespiration}',
                     ),
                     scoreStatus: _scoreStatus(assessment.sofaRespiration),
                     hint: 'VD: 180 hoặc 180 thở máy'),
@@ -447,7 +447,7 @@ extension _HsFormShell on _AssessmentFormScreenState {
                     unitOptions: const ['10³/µL'],
                     scoreText: _scoreText(
                       assessment.sofaCoagulationMeasured,
-                      'Điểm SOFA đông máu: ${assessment.sofaCoagulation}',
+                      'SOFA +${assessment.sofaCoagulation}',
                     ),
                     scoreStatus: _scoreStatus(assessment.sofaCoagulation),
                     hint: 'VD: 120',
@@ -470,7 +470,7 @@ extension _HsFormShell on _AssessmentFormScreenState {
                     fieldId: AssessmentFields.sofaLiver,
                     scoreText: _scoreText(
                       assessment.sofaLiverMeasured,
-                      'Điểm SOFA gan: ${assessment.sofaLiver}',
+                      'SOFA +${assessment.sofaLiver}',
                     ),
                     scoreStatus: _scoreStatus(assessment.sofaLiver),
                     helperText: 'Đơn vị được lưu cùng chỉ số',
@@ -503,7 +503,7 @@ extension _HsFormShell on _AssessmentFormScreenState {
                     fieldId: AssessmentFields.sofaNeurologic,
                     scoreText: _scoreText(
                       assessment.sofaNeurologicMeasured,
-                      'Điểm SOFA thần kinh: ${assessment.sofaNeurologic}',
+                      'SOFA +${assessment.sofaNeurologic}',
                     ),
                     scoreStatus: _scoreStatus(assessment.sofaNeurologic),
                     unitOptions: const ['điểm'],
@@ -531,7 +531,7 @@ extension _HsFormShell on _AssessmentFormScreenState {
                     fieldId: AssessmentFields.sofaRenal,
                     scoreText: _scoreText(
                       assessment.sofaRenalMeasured,
-                      'Điểm SOFA thận: ${assessment.sofaRenal}',
+                      'SOFA +${assessment.sofaRenal}',
                     ),
                     scoreStatus: _scoreStatus(assessment.sofaRenal),
                     helperText: 'Đơn vị được lưu cùng chỉ số',
