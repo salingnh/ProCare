@@ -24,8 +24,7 @@ class UpdateInfo {
 class UpdateService {
   static const _channel = MethodChannel('news2_l/android_update');
   static const _releaseApis = [
-    'https://api.github.com/repos/sangnvnkl/ProCare/releases',
-    'https://api.github.com/repos/sangnv/ProCare/releases',
+    'https://api.github.com/repos/salingnh/ProCare/releases',
   ];
 
   const UpdateService();
