@@ -59,7 +59,6 @@ class _QuickChoiceOption {
 }
 
 // Top-level constants lifted from _HomeScreenState.
-const _androidFileChannel = MethodChannel('news2_l/android_files');
 final _integerInputFormatters = <TextInputFormatter>[
   FilteringTextInputFormatter.digitsOnly,
 ];

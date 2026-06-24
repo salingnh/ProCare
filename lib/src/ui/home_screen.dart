@@ -4,8 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
-import 'package:printing/printing.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../data/assessment_repository.dart';
 import '../domain/assessment_display.dart';
@@ -13,7 +11,8 @@ import '../domain/clinical_assessment.dart';
 import '../domain/clinical_value_parser.dart';
 import '../domain/scale_guidance_config.dart';
 import '../domain/scoring.dart';
-import '../export/crf_exporter.dart';
+import '../export/assessment_exporter.dart';
+import '../export/export_action.dart';
 import '../services/update_controller.dart';
 import 'patient_list_controller.dart';
 import 'assessment_controller.dart';
@@ -43,7 +42,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   late final UpdateController _updateController;
   late final PatientListController _listController;
   late final AssessmentController _assessmentController;
-  final _exporter = const CrfExporter();
+  final _assessmentExporter = const AssessmentExporter();
   ScrollController? _patientScrollController;
   final ScrollController _formScrollController = ScrollController();
   final ValueNotifier<_PatientScrollBubbleState> _patientScrollBubble =
