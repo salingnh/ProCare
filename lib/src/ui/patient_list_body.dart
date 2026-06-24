@@ -1,6 +1,6 @@
-part of 'home_screen.dart';
+part of 'patient_list_view.dart';
 
-extension _HsPatientList on _HomeScreenState {
+extension _HsPatientList on _PatientListViewState {
   Widget _buildPatientList() {
     final patients = _listController.filteredHistory;
     final showHeader = _listController.history.isNotEmpty ||
@@ -467,7 +467,7 @@ extension _HsPatientList on _HomeScreenState {
             ),
             const SizedBox(height: 16),
             FilledButton.icon(
-              onPressed: _startNew,
+              onPressed: widget.onNewForm,
               icon: const Icon(Icons.add),
               label: const Text('Phiếu mới'),
             ),
@@ -512,7 +512,7 @@ extension _HsPatientList on _HomeScreenState {
           : 'Kết quả điều trị: $treatmentOutcome',
       treatmentOutcomeStatus: _treatmentOutcomeStatus(treatmentOutcome),
       actionMenu: _patientActionMenu(assessment),
-      onTap: () => _openSaved(saved),
+      onTap: () => widget.onOpenForm(saved),
     );
   }
 
