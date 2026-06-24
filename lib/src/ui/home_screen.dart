@@ -16,6 +16,7 @@ import '../export/export_action.dart';
 import '../services/update_controller.dart';
 import 'patient_list_controller.dart';
 import 'assessment_controller.dart';
+import 'app_settings_dialog.dart';
 import 'clinical_components.dart' as clinical_ui;
 import 'clinical_theme.dart';
 import 'export_action_menu.dart';
