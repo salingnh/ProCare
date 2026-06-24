@@ -40,7 +40,7 @@ extension _HsActions on _HomeScreenState {
         id: _openedSavedAssessmentId,
       );
       await _repository.saveCurrentAssessment(_assessment);
-      await _refreshHistory();
+      await _listController.refresh();
       if (!mounted) {
         return;
       }
@@ -93,7 +93,7 @@ extension _HsActions on _HomeScreenState {
         id: _openedSavedAssessmentId,
       );
       await _repository.saveCurrentAssessment(_assessment);
-      await _refreshHistory();
+      await _listController.refresh();
       if (!mounted) {
         return;
       }

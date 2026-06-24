@@ -13,11 +13,6 @@ extension _HsStartup on _HomeScreenState {
         _assessment = _newAssessment(assessmentMode: preferredAssessmentMode);
         _formBaseline = _assessment.clone();
         _fieldUnitSelections.clear();
-        _history = [];
-        _filteredHistory = [];
-        _patientSummary = const _PatientSummary.empty();
-        _historyLoading = false;
-        _historyLoadedAll = true;
         _preferredAssessmentMode = preferredAssessmentMode;
         _homeMode = _HomeMode.list;
         _formDirty = false;
@@ -27,6 +22,7 @@ extension _HsStartup on _HomeScreenState {
         _loading = false;
         _formVersion++;
       });
+      _listController.resetEmpty();
       _logStartup('web ready', startupWatch);
       return;
     }
@@ -42,9 +38,6 @@ extension _HsStartup on _HomeScreenState {
     }
     _rebuild(() {
       _assessment = activeAssessment;
-      _history = [];
-      _filteredHistory = [];
-      _patientSummary = const _PatientSummary.empty();
       _preferredAssessmentMode = preferredAssessmentMode;
       _fieldUnitSelections.clear();
       _openedSavedAssessmentId = null;
@@ -54,141 +47,40 @@ extension _HsStartup on _HomeScreenState {
       _saveState = _SaveState.clean;
       _lastSavedAtMillis = activeAssessment.savedAtMillis;
       _saveError = null;
-      _historyLoading = true;
-      _historyLoadedAll = false;
       _loading = false;
       _formVersion++;
     });
+    _listController.beginInitialLoad();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _logStartup('first frame after draft', startupWatch);
       unawaited(_loadDeferredStartupData(startupWatch));
     });
   }
 
-  Future<void> _refreshHistory() async {
-    final generation = ++_historyLoadGeneration;
-    if (mounted) {
-      _rebuild(() {
-        _historyLoading = true;
-        _historyLoadedAll = false;
-      });
-    }
-    try {
-      final history = await _repository.loadAssessmentHistory(
-        query: _searchQuery,
-        sortMode: _sortMode,
-        limit: _initialHistoryPageSize,
-      );
-      if (!mounted || generation != _historyLoadGeneration) {
-        return;
-      }
-      final hasMore = history.length >= _initialHistoryPageSize;
-      _rebuild(() {
-        _history = history;
-        _historyLoadedAll = !hasMore;
-        _historyLoading = false;
-        _rebuildPatientCaches();
-      });
-      if (hasMore) {
-        unawaited(_loadRemainingHistory(generation));
-      }
-    } catch (_) {
-      if (mounted && generation == _historyLoadGeneration) {
-        _rebuild(() {
-          _historyLoading = false;
-          _historyLoadedAll = true;
-        });
-      }
-    }
-  }
-
   Future<void> _loadDeferredStartupData(Stopwatch startupWatch) async {
-    final generation = ++_historyLoadGeneration;
     try {
-      final history = await _repository.loadAssessmentHistory(
-        sortMode: _sortMode,
-        limit: _initialHistoryPageSize,
+      await _listController.refresh();
+      _logStartup(
+        'initial history loaded (${_listController.history.length})',
+        startupWatch,
       );
-      _logStartup('initial history loaded (${history.length})', startupWatch);
-      if (!mounted || generation != _historyLoadGeneration) {
+      if (!mounted) {
         return;
       }
-      final hasMore = history.length >= _initialHistoryPageSize;
       final openedSavedAssessmentId = _hasAnyClinicalData(_assessment)
-          ? _savedIdForAssessment(_assessment, history)
+          ? _savedIdForAssessment(_assessment, _listController.history)
           : null;
       _rebuild(() {
-        _history = history;
         _openedSavedAssessmentId = openedSavedAssessmentId;
-        _historyLoadedAll = !hasMore;
-        _historyLoading = false;
-        _rebuildPatientCaches();
       });
       _logStartup('startup data committed', startupWatch);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _logStartup('initial history frame rendered', startupWatch);
       });
       unawaited(_updateController.start());
-      if (hasMore) {
-        unawaited(_loadRemainingHistory(generation));
-      }
     } catch (error) {
       _logStartup('deferred startup load failed: $error', startupWatch);
-      if (mounted && generation == _historyLoadGeneration) {
-        _rebuild(() {
-          _historyLoading = false;
-          _historyLoadedAll = true;
-        });
-      }
       unawaited(_updateController.start());
-    }
-  }
-
-  Future<void> _loadRemainingHistory(int generation) async {
-    while (
-        mounted && generation == _historyLoadGeneration && !_historyLoadedAll) {
-      await Future<void>.delayed(const Duration(milliseconds: 16));
-      if (_historyLoading) {
-        continue;
-      }
-      await _loadMoreHistory(expectedGeneration: generation);
-    }
-  }
-
-  Future<void> _loadMoreHistory({int? expectedGeneration}) async {
-    if (_historyLoading || _historyLoadedAll) {
-      return;
-    }
-    final generation = expectedGeneration ?? _historyLoadGeneration;
-    final offset = _history.length;
-    _rebuild(() => _historyLoading = true);
-    try {
-      final nextPage = await _repository.loadAssessmentHistory(
-        query: _searchQuery,
-        sortMode: _sortMode,
-        limit: _historyPageSize,
-        offset: offset,
-      );
-      if (!mounted || generation != _historyLoadGeneration) {
-        return;
-      }
-      _rebuild(() {
-        final existingIds = _history.map((saved) => saved.id).toSet();
-        _history = [
-          ..._history,
-          ...nextPage.where((saved) => existingIds.add(saved.id)),
-        ];
-        _historyLoadedAll = nextPage.length < _historyPageSize;
-        _historyLoading = false;
-        _rebuildPatientCaches();
-      });
-    } catch (_) {
-      if (mounted && generation == _historyLoadGeneration) {
-        _rebuild(() {
-          _historyLoading = false;
-          _historyLoadedAll = true;
-        });
-      }
     }
   }
 
