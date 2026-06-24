@@ -66,18 +66,18 @@ extension _HsFormShell on _HomeScreenState {
 
   Widget _saveStatusIndicator({bool compact = false}) {
     final label = switch (_saveState) {
-      _SaveState.clean => _lastSavedAtMillis > 0
+      SaveState.clean => _lastSavedAtMillis > 0
           ? 'Đã lưu ${_formatClock(_lastSavedAtMillis)}'
           : 'Đã lưu nháp',
-      _SaveState.dirty => 'Chưa lưu',
-      _SaveState.saving => 'Đang lưu...',
-      _SaveState.error => 'Lỗi lưu',
+      SaveState.dirty => 'Chưa lưu',
+      SaveState.saving => 'Đang lưu...',
+      SaveState.error => 'Lỗi lưu',
     };
     final status = switch (_saveState) {
-      _SaveState.clean => ClinicalStatus.normal,
-      _SaveState.dirty => ClinicalStatus.watch,
-      _SaveState.saving => ClinicalStatus.watch,
-      _SaveState.error => ClinicalStatus.danger,
+      SaveState.clean => ClinicalStatus.normal,
+      SaveState.dirty => ClinicalStatus.watch,
+      SaveState.saving => ClinicalStatus.watch,
+      SaveState.error => ClinicalStatus.danger,
     };
     return Padding(
       padding: EdgeInsets.only(right: compact ? 4 : 0),

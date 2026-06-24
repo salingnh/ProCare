@@ -2,120 +2,23 @@ part of 'home_screen.dart';
 
 extension _HsActions on _HomeScreenState {
   void _mutate(void Function(ClinicalAssessment assessment) change) {
-    _rebuild(() {
-      change(_assessment);
-      _assessment.admissionDateTime = _buildAdmissionDateTime(_assessment);
-      _assessment.modifiedAtMillis = DateTime.now().millisecondsSinceEpoch;
-      _formDirty = true;
-      _saveState = _SaveState.dirty;
-      _saveError = null;
-      recalculateClinicalAssessment(_assessment, preserveExistingScores: true);
-    });
-    _repository.saveCurrentAssessment(_assessment);
-    _scheduleAutoSave();
+    _assessmentController.mutate(change);
   }
 
   Future<void> _savePatient() async {
-    if (_saving) {
+    final outcome = await _assessmentController.save();
+    if (outcome == null || !mounted) {
       return;
     }
-    _autoSaveTimer?.cancel();
-    if (!_hasMeaningfulHistoryData(_assessment)) {
-      await _repository.saveCurrentAssessment(_assessment);
-      if (mounted) {
-        _rebuild(() {
-          _formDirty = false;
-          _saveState = _SaveState.clean;
-        });
+    switch (outcome) {
+      case SaveOutcome.empty:
         _showMessage('Chưa có dữ liệu để lưu phiếu.');
-      }
-      return;
-    }
-    _rebuild(() => _saving = true);
-    try {
-      final wasEditingSavedAssessment = _openedSavedAssessmentId != null;
-      recalculateClinicalAssessment(_assessment, preserveExistingScores: true);
-      final savedId = await _repository.saveAssessmentHistory(
-        _assessment,
-        id: _openedSavedAssessmentId,
-      );
-      await _repository.saveCurrentAssessment(_assessment);
-      await _listController.refresh();
-      if (!mounted) {
-        return;
-      }
-      _rebuild(() {
-        _openedSavedAssessmentId = savedId;
-        _formBaseline = _assessment.clone();
-        _formDirty = false;
-        _saveState = _SaveState.clean;
-        _lastSavedAtMillis = _assessment.savedAtMillis;
-        _saveError = null;
-        _homeMode = _HomeMode.list;
-      });
-      _showMessage(
-        wasEditingSavedAssessment
-            ? 'Đã cập nhật bệnh nhân.'
-            : 'Đã lưu bệnh nhân.',
-      );
-    } finally {
-      if (mounted) {
-        _rebuild(() => _saving = false);
-      }
-    }
-  }
-
-  void _scheduleAutoSave() {
-    _autoSaveTimer?.cancel();
-    _autoSaveTimer = Timer(
-      const Duration(milliseconds: 800),
-      () => _autoSaveAssessment(),
-    );
-  }
-
-  Future<void> _autoSaveAssessment() async {
-    if (_saving || _homeMode != _HomeMode.form || !_formDirty) {
-      return;
-    }
-    if (!_hasMeaningfulHistoryData(_assessment)) {
-      await _repository.saveCurrentAssessment(_assessment);
-      return;
-    }
-    _rebuild(() {
-      _saving = true;
-      _saveState = _SaveState.saving;
-      _saveError = null;
-    });
-    try {
-      recalculateClinicalAssessment(_assessment, preserveExistingScores: true);
-      final savedId = await _repository.saveAssessmentHistory(
-        _assessment,
-        id: _openedSavedAssessmentId,
-      );
-      await _repository.saveCurrentAssessment(_assessment);
-      await _listController.refresh();
-      if (!mounted) {
-        return;
-      }
-      _rebuild(() {
-        _openedSavedAssessmentId = savedId;
-        _formBaseline = _assessment.clone();
-        _formDirty = false;
-        _saveState = _SaveState.clean;
-        _lastSavedAtMillis = _assessment.savedAtMillis;
-      });
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      _rebuild(() {
-        _saveState = _SaveState.error;
-        _saveError = error.toString();
-      });
-    } finally {
-      if (mounted) {
-        _rebuild(() => _saving = false);
-      }
+      case SaveOutcome.saved:
+        _rebuild(() => _homeMode = _HomeMode.list);
+        _showMessage('Đã lưu bệnh nhân.');
+      case SaveOutcome.updated:
+        _rebuild(() => _homeMode = _HomeMode.list);
+        _showMessage('Đã cập nhật bệnh nhân.');
     }
   }
 
@@ -217,48 +120,27 @@ extension _HsActions on _HomeScreenState {
   }
 
   void _openSaved(SavedAssessment saved) {
-    final assessment = saved.assessment.clone();
-    recalculateClinicalAssessment(assessment, preserveExistingScores: true);
-    if (assessment.assessmentMode != _preferredAssessmentMode) {
-      assessment.assessmentMode = _preferredAssessmentMode;
-      recalculateClinicalAssessment(assessment, preserveExistingScores: true);
-    }
+    final assessment = _assessmentController.openSaved(saved);
     _rebuild(() {
-      _assessment = assessment;
-      _openedSavedAssessmentId = saved.id;
       _fieldUnitSelections.clear();
-      _formBaseline = assessment.clone();
-      _formDirty = false;
-      _saveState = _SaveState.clean;
-      _lastSavedAtMillis = assessment.savedAtMillis;
-      _saveError = null;
       _homeMode = _HomeMode.form;
       _expandedSections
         ..clear()
         ..add(_defaultOpenSection(assessment));
       _formVersion++;
     });
-    _repository.saveCurrentAssessment(assessment);
   }
 
   void _startNew() {
-    final assessment = _newAssessment(assessmentMode: _preferredAssessmentMode);
+    final assessment = _assessmentController.startNew();
     _rebuild(() {
-      _assessment = assessment;
-      _openedSavedAssessmentId = null;
       _fieldUnitSelections.clear();
-      _formBaseline = assessment.clone();
-      _formDirty = false;
-      _saveState = _SaveState.clean;
-      _lastSavedAtMillis = 0;
-      _saveError = null;
       _homeMode = _HomeMode.form;
       _expandedSections
         ..clear()
         ..add(_defaultOpenSection(assessment));
       _formVersion++;
     });
-    _repository.saveCurrentAssessment(assessment);
   }
 
   void _setAssessmentMode(String mode) {
@@ -269,10 +151,11 @@ extension _HsActions on _HomeScreenState {
     }
     unawaited(_repository.saveAssessmentMode(normalized));
     if (_homeMode != _HomeMode.form) {
-      _rebuild(() => _preferredAssessmentMode = normalized);
+      _assessmentController.setPreferredAssessmentMode(normalized);
+      _rebuild(() {});
       return;
     }
-    _preferredAssessmentMode = normalized;
+    _assessmentController.setPreferredAssessmentMode(normalized);
     _mutate((assessment) {
       assessment.assessmentMode = normalized;
     });
@@ -282,11 +165,11 @@ extension _HsActions on _HomeScreenState {
     if (_homeMode != _HomeMode.form) {
       return;
     }
-    _autoSaveTimer?.cancel();
-    if (_formDirty && _saveState != _SaveState.error) {
-      await _autoSaveAssessment();
+    _assessmentController.cancelAutoSave();
+    if (_formDirty && _saveState != SaveState.error) {
+      await _assessmentController.autoSave();
     }
-    if (_saveState == _SaveState.error) {
+    if (_saveState == SaveState.error) {
       final leave = await _confirmLeaveAfterSaveError();
       if (!leave || !mounted) {
         return;
@@ -297,23 +180,17 @@ extension _HsActions on _HomeScreenState {
         return;
       }
     }
-    final baseline = _formBaseline?.clone();
-    if (baseline != null) {
-      recalculateClinicalAssessment(baseline, preserveExistingScores: true);
+    final baseline = await _assessmentController.restoreBaseline();
+    if (!mounted) {
+      return;
     }
     _rebuild(() {
       if (baseline != null) {
-        _assessment = baseline;
         _fieldUnitSelections.clear();
         _formVersion++;
       }
-      _formDirty = false;
-      _saveState = _SaveState.clean;
       _homeMode = _HomeMode.list;
     });
-    if (baseline != null) {
-      await _repository.saveCurrentAssessment(baseline);
-    }
   }
 
   Future<bool> _confirmLeaveAfterSaveError() async {
