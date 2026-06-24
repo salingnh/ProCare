@@ -14,71 +14,92 @@ extension _HsFormShell on _AssessmentFormScreenState {
   }
 
   List<Widget> _appBarActions(double width) {
-    if (width >= 520) {
-      return [
-        Padding(
-          padding: const EdgeInsets.only(right: 8),
-          child: Center(child: _saveStatusIndicator()),
-        ),
-        Padding(
-          padding: const EdgeInsets.only(right: 4),
-          child: FilledButton.icon(
-            onPressed: _saving ? null : _savePatient,
-            icon: const Icon(Icons.save_outlined),
-            label: const Text('Lưu'),
-          ),
-        ),
-        _formExportMenu(),
-        IconButton(
-          tooltip: 'Cài đặt app',
-          onPressed: _showAppSettings,
-          icon: const Icon(Icons.settings_outlined),
-        ),
-        const SizedBox(width: 4),
-      ];
-    }
     return [
-      Center(child: _saveStatusIndicator(compact: true)),
-      IconButton.filledTonal(
-        tooltip: 'Lưu bệnh nhân',
-        onPressed: _saving ? null : _savePatient,
-        icon: const Icon(Icons.save_outlined),
+      Padding(
+        padding: const EdgeInsets.only(right: 4),
+        child: Center(child: _saveControl()),
       ),
-      _formExportMenu(),
-      IconButton(
-        tooltip: 'Cài đặt app',
-        onPressed: _showAppSettings,
-        icon: const Icon(Icons.settings_outlined),
-      ),
+      _formOverflowMenu(),
       const SizedBox(width: 4),
     ];
   }
 
-  Widget _saveStatusIndicator({bool compact = false}) {
-    final label = switch (_saveState) {
-      SaveState.clean => _lastSavedAtMillis > 0
-          ? 'Đã lưu ${_formatClock(_lastSavedAtMillis)}'
-          : 'Đã lưu nháp',
-      SaveState.dirty => 'Chưa lưu',
-      SaveState.saving => 'Đang lưu...',
-      SaveState.error => 'Lỗi lưu',
-    };
-    final status = switch (_saveState) {
-      SaveState.clean => ClinicalStatus.normal,
-      SaveState.dirty => ClinicalStatus.watch,
-      SaveState.saving => ClinicalStatus.watch,
-      SaveState.error => ClinicalStatus.danger,
-    };
-    return Padding(
-      padding: EdgeInsets.only(right: compact ? 4 : 0),
-      child: clinical_ui.SaveStatusIndicator(label: label, status: status),
+  Widget _saveControl() {
+    if (_saveState == SaveState.dirty || _saveState == SaveState.error) {
+      return FilledButton.icon(
+        onPressed: _saving ? null : _savePatient,
+        icon: const Icon(Icons.save_outlined, size: 18),
+        label: const Text('Lưu'),
+      );
+    }
+    final saving = _saveState == SaveState.saving;
+    final label = saving
+        ? 'Đang lưu...'
+        : (_lastSavedAtMillis > 0
+            ? 'Đã lưu ${_formatClock(_lastSavedAtMillis)}'
+            : 'Đã lưu nháp');
+    return clinical_ui.SaveStatusIndicator(
+      label: label,
+      status: saving ? ClinicalStatus.watch : ClinicalStatus.normal,
     );
   }
 
-  Widget _formExportMenu() {
-    return ExportActionMenu(
+  Widget _formOverflowMenu() {
+    return PopupMenuButton<_FormMenuAction>(
       enabled: !_exporting,
-      onSelected: (action) => _handleExportAction(_assessment, action),
+      tooltip: 'Thêm',
+      icon: const Icon(Icons.more_vert),
+      onSelected: (action) {
+        switch (action) {
+          case _FormMenuAction.saveDocx:
+            _handleExportAction(_assessment, ExportAction.saveDocx);
+          case _FormMenuAction.shareDocx:
+            _handleExportAction(_assessment, ExportAction.shareDocx);
+          case _FormMenuAction.printPdf:
+            _handleExportAction(_assessment, ExportAction.printPdf);
+          case _FormMenuAction.settings:
+            _showAppSettings();
+        }
+      },
+      itemBuilder: (context) => const [
+        PopupMenuItem(
+          value: _FormMenuAction.saveDocx,
+          child: ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.save_alt),
+            title: Text('Lưu DOCX'),
+          ),
+        ),
+        PopupMenuItem(
+          value: _FormMenuAction.shareDocx,
+          child: ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.ios_share),
+            title: Text('Chia sẻ DOCX'),
+          ),
+        ),
+        PopupMenuItem(
+          value: _FormMenuAction.printPdf,
+          child: ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.print_outlined),
+            title: Text('In PDF'),
+          ),
+        ),
+        PopupMenuDivider(),
+        PopupMenuItem(
+          value: _FormMenuAction.settings,
+          child: ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.settings_outlined),
+            title: Text('Cài đặt'),
+          ),
+        ),
+      ],
     );
   }
 
@@ -152,7 +173,7 @@ extension _HsFormShell on _AssessmentFormScreenState {
                     unitOptions: const ['lần/phút'],
                     scoreText: _scoreText(
                       assessment.news2RespirationMeasured,
-                      'Điểm NEWS2: ${assessment.news2Respiration}',
+                      'NEWS2 +${assessment.news2Respiration}',
                     ),
                     scoreStatus: _scoreStatus(assessment.news2Respiration),
                     warningText: _rangeWarning(
@@ -171,7 +192,7 @@ extension _HsFormShell on _AssessmentFormScreenState {
                     unitOptions: const ['mmHg'],
                     scoreText: _scoreText(
                       assessment.news2SystolicBpMeasured,
-                      'Điểm NEWS2: ${assessment.news2SystolicBp}',
+                      'NEWS2 +${assessment.news2SystolicBp}',
                     ),
                     scoreStatus: _scoreStatus(assessment.news2SystolicBp),
                     warningText: _rangeWarning(
@@ -224,7 +245,7 @@ extension _HsFormShell on _AssessmentFormScreenState {
                     unitOptions: const ['%'],
                     scoreText: _scoreText(
                       assessment.news2Spo2Measured,
-                      'Điểm NEWS2: ${assessment.news2Spo2}',
+                      'NEWS2 +${assessment.news2Spo2}',
                     ),
                     scoreStatus: _scoreStatus(assessment.news2Spo2),
                     warningText: _rangeWarning(
@@ -255,7 +276,7 @@ extension _HsFormShell on _AssessmentFormScreenState {
                     unitOptions: const ['°C'],
                     scoreText: _scoreText(
                       assessment.news2TemperatureMeasured,
-                      'Điểm NEWS2: ${assessment.news2Temperature}',
+                      'NEWS2 +${assessment.news2Temperature}',
                     ),
                     scoreStatus: _scoreStatus(assessment.news2Temperature),
                     warningText: _rangeWarning(
@@ -274,7 +295,7 @@ extension _HsFormShell on _AssessmentFormScreenState {
                     unitOptions: const ['lần/phút'],
                     scoreText: _scoreText(
                       assessment.news2HeartRateMeasured,
-                      'Điểm NEWS2: ${assessment.news2HeartRate}',
+                      'NEWS2 +${assessment.news2HeartRate}',
                     ),
                     scoreStatus: _scoreStatus(assessment.news2HeartRate),
                     warningText: _rangeWarning(
@@ -390,7 +411,7 @@ extension _HsFormShell on _AssessmentFormScreenState {
                     fieldId: AssessmentFields.cardiovascular,
                     scoreText: _scoreText(
                       assessment.sofaCardiovascularMeasured,
-                      'Điểm SOFA tim mạch: ${assessment.sofaCardiovascular}',
+                      'SOFA +${assessment.sofaCardiovascular}',
                     ),
                     scoreStatus: _scoreStatus(assessment.sofaCardiovascular),
                     hint: 'VD: MAP 65 hoặc norepi 0.2'),
@@ -434,7 +455,7 @@ extension _HsFormShell on _AssessmentFormScreenState {
                     unitOptions: const ['mmHg'],
                     scoreText: _scoreText(
                       assessment.sofaRespirationMeasured,
-                      'Điểm SOFA hô hấp: ${assessment.sofaRespiration}',
+                      'SOFA +${assessment.sofaRespiration}',
                     ),
                     scoreStatus: _scoreStatus(assessment.sofaRespiration),
                     hint: 'VD: 180 hoặc 180 thở máy'),
@@ -447,7 +468,7 @@ extension _HsFormShell on _AssessmentFormScreenState {
                     unitOptions: const ['10³/µL'],
                     scoreText: _scoreText(
                       assessment.sofaCoagulationMeasured,
-                      'Điểm SOFA đông máu: ${assessment.sofaCoagulation}',
+                      'SOFA +${assessment.sofaCoagulation}',
                     ),
                     scoreStatus: _scoreStatus(assessment.sofaCoagulation),
                     hint: 'VD: 120',
@@ -470,7 +491,7 @@ extension _HsFormShell on _AssessmentFormScreenState {
                     fieldId: AssessmentFields.sofaLiver,
                     scoreText: _scoreText(
                       assessment.sofaLiverMeasured,
-                      'Điểm SOFA gan: ${assessment.sofaLiver}',
+                      'SOFA +${assessment.sofaLiver}',
                     ),
                     scoreStatus: _scoreStatus(assessment.sofaLiver),
                     helperText: 'Đơn vị được lưu cùng chỉ số',
@@ -503,7 +524,7 @@ extension _HsFormShell on _AssessmentFormScreenState {
                     fieldId: AssessmentFields.sofaNeurologic,
                     scoreText: _scoreText(
                       assessment.sofaNeurologicMeasured,
-                      'Điểm SOFA thần kinh: ${assessment.sofaNeurologic}',
+                      'SOFA +${assessment.sofaNeurologic}',
                     ),
                     scoreStatus: _scoreStatus(assessment.sofaNeurologic),
                     unitOptions: const ['điểm'],
@@ -531,7 +552,7 @@ extension _HsFormShell on _AssessmentFormScreenState {
                     fieldId: AssessmentFields.sofaRenal,
                     scoreText: _scoreText(
                       assessment.sofaRenalMeasured,
-                      'Điểm SOFA thận: ${assessment.sofaRenal}',
+                      'SOFA +${assessment.sofaRenal}',
                     ),
                     scoreStatus: _scoreStatus(assessment.sofaRenal),
                     helperText: 'Đơn vị được lưu cùng chỉ số',
