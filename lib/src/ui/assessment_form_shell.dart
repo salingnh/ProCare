@@ -14,71 +14,92 @@ extension _HsFormShell on _AssessmentFormScreenState {
   }
 
   List<Widget> _appBarActions(double width) {
-    if (width >= 520) {
-      return [
-        Padding(
-          padding: const EdgeInsets.only(right: 8),
-          child: Center(child: _saveStatusIndicator()),
-        ),
-        Padding(
-          padding: const EdgeInsets.only(right: 4),
-          child: FilledButton.icon(
-            onPressed: _saving ? null : _savePatient,
-            icon: const Icon(Icons.save_outlined),
-            label: const Text('Lưu'),
-          ),
-        ),
-        _formExportMenu(),
-        IconButton(
-          tooltip: 'Cài đặt app',
-          onPressed: _showAppSettings,
-          icon: const Icon(Icons.settings_outlined),
-        ),
-        const SizedBox(width: 4),
-      ];
-    }
     return [
-      Center(child: _saveStatusIndicator(compact: true)),
-      IconButton.filledTonal(
-        tooltip: 'Lưu bệnh nhân',
-        onPressed: _saving ? null : _savePatient,
-        icon: const Icon(Icons.save_outlined),
+      Padding(
+        padding: const EdgeInsets.only(right: 4),
+        child: Center(child: _saveControl()),
       ),
-      _formExportMenu(),
-      IconButton(
-        tooltip: 'Cài đặt app',
-        onPressed: _showAppSettings,
-        icon: const Icon(Icons.settings_outlined),
-      ),
+      _formOverflowMenu(),
       const SizedBox(width: 4),
     ];
   }
 
-  Widget _saveStatusIndicator({bool compact = false}) {
-    final label = switch (_saveState) {
-      SaveState.clean => _lastSavedAtMillis > 0
-          ? 'Đã lưu ${_formatClock(_lastSavedAtMillis)}'
-          : 'Đã lưu nháp',
-      SaveState.dirty => 'Chưa lưu',
-      SaveState.saving => 'Đang lưu...',
-      SaveState.error => 'Lỗi lưu',
-    };
-    final status = switch (_saveState) {
-      SaveState.clean => ClinicalStatus.normal,
-      SaveState.dirty => ClinicalStatus.watch,
-      SaveState.saving => ClinicalStatus.watch,
-      SaveState.error => ClinicalStatus.danger,
-    };
-    return Padding(
-      padding: EdgeInsets.only(right: compact ? 4 : 0),
-      child: clinical_ui.SaveStatusIndicator(label: label, status: status),
+  Widget _saveControl() {
+    if (_saveState == SaveState.dirty || _saveState == SaveState.error) {
+      return FilledButton.icon(
+        onPressed: _saving ? null : _savePatient,
+        icon: const Icon(Icons.save_outlined, size: 18),
+        label: const Text('Lưu'),
+      );
+    }
+    final saving = _saveState == SaveState.saving;
+    final label = saving
+        ? 'Đang lưu...'
+        : (_lastSavedAtMillis > 0
+            ? 'Đã lưu ${_formatClock(_lastSavedAtMillis)}'
+            : 'Đã lưu nháp');
+    return clinical_ui.SaveStatusIndicator(
+      label: label,
+      status: saving ? ClinicalStatus.watch : ClinicalStatus.normal,
     );
   }
 
-  Widget _formExportMenu() {
-    return ExportActionMenu(
+  Widget _formOverflowMenu() {
+    return PopupMenuButton<_FormMenuAction>(
       enabled: !_exporting,
-      onSelected: (action) => _handleExportAction(_assessment, action),
+      tooltip: 'Thêm',
+      icon: const Icon(Icons.more_vert),
+      onSelected: (action) {
+        switch (action) {
+          case _FormMenuAction.saveDocx:
+            _handleExportAction(_assessment, ExportAction.saveDocx);
+          case _FormMenuAction.shareDocx:
+            _handleExportAction(_assessment, ExportAction.shareDocx);
+          case _FormMenuAction.printPdf:
+            _handleExportAction(_assessment, ExportAction.printPdf);
+          case _FormMenuAction.settings:
+            _showAppSettings();
+        }
+      },
+      itemBuilder: (context) => const [
+        PopupMenuItem(
+          value: _FormMenuAction.saveDocx,
+          child: ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.save_alt),
+            title: Text('Lưu DOCX'),
+          ),
+        ),
+        PopupMenuItem(
+          value: _FormMenuAction.shareDocx,
+          child: ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.ios_share),
+            title: Text('Chia sẻ DOCX'),
+          ),
+        ),
+        PopupMenuItem(
+          value: _FormMenuAction.printPdf,
+          child: ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.print_outlined),
+            title: Text('In PDF'),
+          ),
+        ),
+        PopupMenuDivider(),
+        PopupMenuItem(
+          value: _FormMenuAction.settings,
+          child: ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.settings_outlined),
+            title: Text('Cài đặt'),
+          ),
+        ),
+      ],
     );
   }
 
