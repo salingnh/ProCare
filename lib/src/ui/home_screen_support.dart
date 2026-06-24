@@ -119,8 +119,6 @@ class _QuickChoiceOption {
 // Top-level constants lifted from _HomeScreenState.
 const _initialHistoryPageSize = 50;
 const _historyPageSize = 50;
-const _updateCheckInterval = Duration(hours: 6);
-const _resumeUpdateCheckCooldown = Duration(minutes: 15);
 const _androidFileChannel = MethodChannel('news2_l/android_files');
 final _integerInputFormatters = <TextInputFormatter>[
   FilteringTextInputFormatter.digitsOnly,
