@@ -340,14 +340,14 @@ extension _HsQuickForm on _HomeScreenState {
         ]),
         _readOnlyLine(
           'Kết luận NEWS2',
-          _news2ConclusionText(assessment),
-          tone: _news2Tone(assessment),
+          news2ConclusionText(assessment),
+          tone: news2Tone(assessment, _clinicalTones),
           maxLines: 9,
         ),
         _readOnlyLine(
           'Kết luận qSOFA',
-          _qsofaConclusionText(assessment),
-          tone: _qsofaTone(assessment),
+          qsofaConclusionText(assessment),
+          tone: qsofaTone(assessment, _clinicalTones),
           maxLines: 5,
         ),
       ],
@@ -398,7 +398,7 @@ extension _HsQuickForm on _HomeScreenState {
           assessment.lactateLevel.isEmpty
               ? 'Chưa nhập lactate'
               : assessment.lactateLevel,
-          tone: _lactateComplete(assessment) ? null : _clinicalTones.muted,
+          tone: lactateComplete(assessment) ? null : _clinicalTones.muted,
         ),
       ],
     );
@@ -589,15 +589,15 @@ extension _HsQuickForm on _HomeScreenState {
         ]),
         _readOnlyLine(
           'Ngưỡng Sepsis-3',
-          _sofaComplete(assessment)
+          sofaComplete(assessment)
               ? sofaThresholdText(assessment)
               : _missingSentence(AssessmentDisplay.sofaProgress(assessment)),
-          tone: _sofaThresholdTone(assessment),
+          tone: sofaThresholdTone(assessment, _clinicalTones),
         ),
         _readOnlyLine(
           'Kết luận SOFA',
-          _sofaConclusionText(assessment),
-          tone: _sofaTone(assessment),
+          sofaConclusionText(assessment),
+          tone: sofaTone(assessment, _clinicalTones),
           maxLines: 5,
         ),
       ],
@@ -895,7 +895,7 @@ extension _HsQuickForm on _HomeScreenState {
   }) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final tone = selected ? _componentScoreTone(option.score) : null;
+    final tone = selected ? componentScoreTone(option.score, _clinicalTones) : null;
     return clinical_ui.ClinicalSurfaceCard(
       color: tone?.background ?? scheme.surfaceContainerLowest,
       borderColor: tone?.border ?? scheme.outlineVariant,
