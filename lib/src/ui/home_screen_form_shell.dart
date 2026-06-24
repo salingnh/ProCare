@@ -92,31 +92,6 @@ extension _HsFormShell on _HomeScreenState {
     );
   }
 
-  Widget _buildUpdateBanner() {
-    final update = _updateController.availableUpdate!;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-      child: clinical_ui.ClinicalInfoBanner(
-        icon: Icons.system_update_alt,
-        title: 'Có bản cập nhật NEWS2-L ${update.version}'
-            '${update.prerelease ? ' (thử nghiệm)' : ''}',
-        message: 'Tải APK mới để cập nhật ứng dụng trên thiết bị này.',
-        status: ClinicalStatus.watch,
-        progress: _updateController.downloadingUpdate
-            ? LinearProgressIndicator(
-                value: _updateController.downloadProgress)
-            : null,
-        trailing: FilledButton.icon(
-          onPressed:
-              _updateController.downloadingUpdate ? null : _downloadUpdate,
-          icon: const Icon(Icons.download),
-          label: Text(
-              _updateController.downloadingUpdate ? 'Đang tải' : 'Tải'),
-        ),
-      ),
-    );
-  }
-
   Widget _buildAssessmentForm() {
     final assessment = _assessment;
     return LayoutBuilder(
