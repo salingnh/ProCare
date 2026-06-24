@@ -478,50 +478,249 @@ extension _HsPatientList on _PatientListViewState {
   }
 
   Widget _patientCard(SavedAssessment saved) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final tones = _clinicalTones;
     final assessment = saved.assessment;
-    final treatmentOutcome = assessment.treatmentOutcome.trim();
-    final badges = <Widget>[
-      _scoreBadge(AssessmentDisplay.news2ScoreDisplay(assessment)),
-      _scoreBadge(AssessmentDisplay.qsofaScoreDisplay(assessment)),
-      _scoreBadge(AssessmentDisplay.sofaScoreDisplay(assessment)),
-      if (ClinicalValueParser.hasText(assessment.lactate))
-        clinical_ui.StatusBadge(
-          status: SofaScoring.lactateAtLeastTwo(assessment)
-              ? ClinicalStatus.warning
-              : ClinicalStatus.normal,
-          label: 'Lactate: ${assessment.lactate.trim()}',
-          dense: true,
+
+    final shock = AssessmentDisplay.isSepticShockPatient(assessment);
+    final highRisk = AssessmentDisplay.isHighRiskPatient(assessment);
+    final incomplete = AssessmentDisplay.isIncompletePatient(assessment);
+
+    final RiskTone lead;
+    final String leadText;
+    if (shock) {
+      lead = tones.danger;
+      leadText = 'Nguy cơ cao · nghi sốc nhiễm khuẩn';
+    } else if (highRisk) {
+      lead = tones.danger;
+      leadText = 'Nguy cơ cao';
+    } else if (incomplete) {
+      lead = tones.muted;
+      leadText = 'Chưa đủ dữ liệu để kết luận';
+    } else {
+      lead = tones.success;
+      leadText = 'Chưa thấy nguy cơ cao';
+    }
+
+    final identity = _patientIdentityLine(assessment);
+    final outcome = assessment.treatmentOutcome.trim();
+    final missingCount = AssessmentDisplay.allMissingItems(assessment).length;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Material(
+        color: scheme.surfaceContainerLowest,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: scheme.outlineVariant),
         ),
-      if (AssessmentDisplay.isSepticShockPatient(assessment))
-        const clinical_ui.StatusBadge(
-          status: ClinicalStatus.danger,
-          label: 'Sốc NK',
-          dense: true,
+        child: InkWell(
+          onTap: () => widget.onOpenForm(saved),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(width: 5, color: lead.foreground),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 13, 8, 13),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _displayName(assessment),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: theme.textTheme.titleMedium?.copyWith(
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  if (identity.isNotEmpty) ...[
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      identity,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: theme.textTheme.bodySmall?.copyWith(
+                                        color: scheme.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ],
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    _patientAdmissionLine(assessment),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: scheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            _patientActionMenu(assessment),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 11,
+                            vertical: 7,
+                          ),
+                          decoration: BoxDecoration(
+                            color: lead.background,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: lead.border),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(lead.icon, size: 16, color: lead.foreground),
+                              const SizedBox(width: 7),
+                              Flexible(
+                                child: Text(
+                                  leadText,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.labelLarge?.copyWith(
+                                    color: lead.foreground,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 11),
+                        Wrap(
+                          spacing: 16,
+                          runSpacing: 6,
+                          children: [
+                            _compactScore(
+                              AssessmentDisplay.news2ScoreDisplay(assessment),
+                            ),
+                            _compactScore(
+                              AssessmentDisplay.qsofaScoreDisplay(assessment),
+                            ),
+                            _compactScore(
+                              AssessmentDisplay.sofaScoreDisplay(assessment),
+                            ),
+                            if (ClinicalValueParser.hasText(assessment.lactate))
+                              _compactScoreRaw(
+                                'Lactate',
+                                assessment.lactate.trim(),
+                                hot: SofaScoring.lactateAtLeastTwo(assessment),
+                              ),
+                          ],
+                        ),
+                        if (incomplete && missingCount > 0) ...[
+                          const SizedBox(height: 9),
+                          Text(
+                            '↳ Còn thiếu $missingCount dữ liệu',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 11),
+                        Row(
+                          children: [
+                            if (outcome.isNotEmpty)
+                              clinical_ui.StatusBadge(
+                                status: _treatmentOutcomeStatus(outcome),
+                                label: outcome,
+                                dense: true,
+                              ),
+                            const Spacer(),
+                            Padding(
+                              padding: const EdgeInsets.only(right: 6),
+                              child: Text(
+                                _patientSortTimestampText(assessment),
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: scheme.outline,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
-    ];
-    return clinical_ui.PatientCard(
-      name: assessment.fullName.trim().isEmpty
-          ? 'Chưa nhập tên bệnh nhân'
-          : assessment.fullName.trim(),
-      identityLine: _patientIdentityLine(assessment),
-      admissionLine: _patientAdmissionLine(assessment),
-      updatedText: _patientSortTimestampText(assessment),
-      badges: badges,
-      treatmentOutcomeLine: treatmentOutcome.isEmpty
-          ? null
-          : 'Kết quả điều trị: $treatmentOutcome',
-      treatmentOutcomeStatus: _treatmentOutcomeStatus(treatmentOutcome),
-      actionMenu: _patientActionMenu(assessment),
-      onTap: () => widget.onOpenForm(saved),
+      ),
     );
   }
 
-  Widget _scoreBadge(ScoreDisplay display) {
-    final value = display.scoreText == '-' ? '' : ' ${display.scoreText}';
-    return clinical_ui.StatusBadge(
-      status: display.status,
-      label: '${display.title}:$value ${display.statusLabel}',
-      dense: true,
+  String _displayName(ClinicalAssessment assessment) {
+    final raw = assessment.fullName.trim();
+    if (raw.isEmpty) {
+      return 'Chưa nhập tên bệnh nhân';
+    }
+    return raw
+        .split(RegExp(r'\s+'))
+        .map((w) => w.isEmpty
+            ? w
+            : '${w[0].toUpperCase()}${w.substring(1)}')
+        .join(' ');
+  }
+
+  Widget _compactScore(ScoreDisplay display) {
+    final hot = display.status == ClinicalStatus.danger ||
+        display.status == ClinicalStatus.warning;
+    final na = display.scoreText == '-';
+    return _compactScoreRaw(
+      display.title,
+      na ? '–' : display.scoreText,
+      hot: hot,
+      na: na,
+    );
+  }
+
+  Widget _compactScoreRaw(
+    String label,
+    String value, {
+    required bool hot,
+    bool na = false,
+  }) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label.toUpperCase(),
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: scheme.onSurfaceVariant,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.3,
+          ),
+        ),
+        const SizedBox(width: 5),
+        Text(
+          value,
+          style: theme.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w900,
+            color: na
+                ? scheme.outline
+                : hot
+                    ? _clinicalTones.danger.foreground
+                    : scheme.onSurface,
+          ),
+        ),
+      ],
     );
   }
 
