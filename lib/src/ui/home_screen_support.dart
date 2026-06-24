@@ -5,62 +5,11 @@ enum _HomeMode {
   form,
 }
 
-enum _PatientFilter {
-  all,
-  incomplete,
-  highRisk,
-  septicShock,
-}
-
 enum _SaveState {
   clean,
   dirty,
   saving,
   error,
-}
-
-class _PatientSummary {
-  final int total;
-  final int incomplete;
-  final int highRisk;
-  final int shock;
-
-  const _PatientSummary({
-    required this.total,
-    required this.incomplete,
-    required this.highRisk,
-    required this.shock,
-  });
-
-  const _PatientSummary.empty()
-      : total = 0,
-        incomplete = 0,
-        highRisk = 0,
-        shock = 0;
-
-  factory _PatientSummary.from(List<SavedAssessment> patients) {
-    var incomplete = 0;
-    var highRisk = 0;
-    var shock = 0;
-    for (final saved in patients) {
-      final assessment = saved.assessment;
-      if (AssessmentDisplay.isIncompletePatient(assessment)) {
-        incomplete++;
-      }
-      if (AssessmentDisplay.isHighRiskPatient(assessment)) {
-        highRisk++;
-      }
-      if (AssessmentDisplay.isSepticShockPatient(assessment)) {
-        shock++;
-      }
-    }
-    return _PatientSummary(
-      total: patients.length,
-      incomplete: incomplete,
-      highRisk: highRisk,
-      shock: shock,
-    );
-  }
 }
 
 class _PatientScrollBubbleState {
@@ -117,8 +66,6 @@ class _QuickChoiceOption {
 }
 
 // Top-level constants lifted from _HomeScreenState.
-const _initialHistoryPageSize = 50;
-const _historyPageSize = 50;
 const _androidFileChannel = MethodChannel('news2_l/android_files');
 final _integerInputFormatters = <TextInputFormatter>[
   FilteringTextInputFormatter.digitsOnly,
