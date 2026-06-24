@@ -31,18 +31,9 @@ extension _HsActions on _HomeScreenState {
     }
     _rebuild(() => _exporting = true);
     try {
-      final assessment = source.clone();
-      recalculateClinicalAssessment(assessment, preserveExistingScores: true);
-      switch (action) {
-        case ExportAction.saveDocx:
-          await _saveExportedAssessment(assessment, action.exportFormat);
-          break;
-        case ExportAction.shareDocx:
-          await _shareExportedAssessment(assessment, action.exportFormat);
-          break;
-        case ExportAction.printPdf:
-          await _printPdfAssessment(assessment);
-          break;
+      final message = await _assessmentExporter.run(source, action);
+      if (message != null && mounted) {
+        _showMessage(message);
       }
     } catch (_) {
       if (mounted) {
@@ -52,70 +43,6 @@ extension _HsActions on _HomeScreenState {
       if (mounted) {
         _rebuild(() => _exporting = false);
       }
-    }
-  }
-
-  Future<void> _saveExportedAssessment(
-    ClinicalAssessment assessment,
-    CrfExportFormat format,
-  ) async {
-    final file = await _exporter.export(assessment, format);
-    final fileName = file.uri.pathSegments.last;
-    final savedToDownloads = await _saveExportToDownloads(
-      sourcePath: file.path,
-      fileName: fileName,
-      mimeType: format.mimeType,
-    );
-    if (!mounted) {
-      return;
-    }
-    _showMessage(
-      savedToDownloads
-          ? 'Đã lưu vào Downloads/NEWS2-L: $fileName'
-          : 'Đã lưu trong thư mục xuất của app: $fileName',
-    );
-  }
-
-  Future<void> _shareExportedAssessment(
-    ClinicalAssessment assessment,
-    CrfExportFormat format,
-  ) async {
-    final file = await _exporter.export(assessment, format);
-    await SharePlus.instance.share(
-      ShareParams(
-        files: [XFile(file.path, mimeType: format.mimeType)],
-        subject: 'NEWS2-L CRF',
-        text: file.uri.pathSegments.last,
-      ),
-    );
-  }
-
-  Future<void> _printPdfAssessment(ClinicalAssessment assessment) async {
-    final bytes = await _exporter.buildPdfBytes(assessment);
-    final fileName = CrfExporter.buildFileName(assessment, CrfExportFormat.pdf);
-    await Printing.layoutPdf(
-      name: fileName,
-      onLayout: (_) async => bytes,
-    );
-  }
-
-  Future<bool> _saveExportToDownloads({
-    required String sourcePath,
-    required String fileName,
-    required String mimeType,
-  }) async {
-    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
-      return false;
-    }
-    try {
-      await _androidFileChannel.invokeMethod<String>('saveToDownloads', {
-        'sourcePath': sourcePath,
-        'fileName': fileName,
-        'mimeType': mimeType,
-      });
-      return true;
-    } catch (_) {
-      return false;
     }
   }
 

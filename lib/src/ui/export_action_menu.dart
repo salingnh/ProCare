@@ -1,21 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../export/crf_exporter.dart';
-
-enum ExportAction {
-  saveDocx,
-  shareDocx,
-  printPdf,
-}
-
-extension ExportActionFormat on ExportAction {
-  CrfExportFormat get exportFormat {
-    return switch (this) {
-      ExportAction.saveDocx || ExportAction.shareDocx => CrfExportFormat.docx,
-      ExportAction.printPdf => CrfExportFormat.pdf,
-    };
-  }
-}
+import '../export/export_action.dart';
 
 class ExportActionMenu extends StatelessWidget {
   final bool enabled;
