@@ -739,20 +739,4 @@ extension _HsPatientList on _HomeScreenState {
     return '${_two(value.day)}/${_two(value.month)}';
   }
 
-  RiskTone _news2Tone(ClinicalAssessment assessment) {
-    final tones = _clinicalTones;
-    if (!_news2Complete(assessment)) {
-      return tones.muted;
-    }
-    if (assessment.news2Total >= 7) {
-      return tones.danger;
-    }
-    if (assessment.news2Total >= 5) {
-      return tones.warning;
-    }
-    if (News2Scoring.hasSingleThreeScore(assessment)) {
-      return tones.attention;
-    }
-    return tones.success;
-  }
 }
