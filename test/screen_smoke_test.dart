@@ -158,4 +158,29 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('Thông tin bệnh nhân'), findsOneWidget);
   });
+
+  testWidgets('Form does not overflow on a short, wide viewport (quick mode)',
+      (tester) async {
+    // 800x600 triggers the full (non-compact) dashboard with a tall
+    // missing-data panel on a short screen — the dashboard must scroll
+    // internally instead of overflowing the body column.
+    final repo = _FakeRepository();
+    final controller = AssessmentController(
+      repository: repo,
+      preferredAssessmentMode: ClinicalAssessment.assessmentModeQuick,
+    );
+    final updateController = UpdateController(repository: repo);
+    addTearDown(controller.dispose);
+    addTearDown(updateController.dispose);
+    await tester.binding.setSurfaceSize(const Size(800, 600));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(_wrap(AssessmentFormScreen(
+      controller: controller,
+      updateController: updateController,
+    )));
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+  });
 }
