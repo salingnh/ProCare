@@ -105,15 +105,11 @@ extension _HsStartup on _HomeScreenState {
   Future<void> _loadDeferredStartupData(Stopwatch startupWatch) async {
     final generation = ++_historyLoadGeneration;
     try {
-      final includePrereleaseFuture =
-          _repository.loadIncludePrereleaseUpdates();
       final history = await _repository.loadAssessmentHistory(
         sortMode: _sortMode,
         limit: _initialHistoryPageSize,
       );
       _logStartup('initial history loaded (${history.length})', startupWatch);
-      final includePrereleaseUpdates = await includePrereleaseFuture;
-      _logStartup('update settings loaded', startupWatch);
       if (!mounted || generation != _historyLoadGeneration) {
         return;
       }
@@ -123,7 +119,6 @@ extension _HsStartup on _HomeScreenState {
           : null;
       _rebuild(() {
         _history = history;
-        _includePrereleaseUpdates = includePrereleaseUpdates;
         _openedSavedAssessmentId = openedSavedAssessmentId;
         _historyLoadedAll = !hasMore;
         _historyLoading = false;
@@ -133,8 +128,7 @@ extension _HsStartup on _HomeScreenState {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _logStartup('initial history frame rendered', startupWatch);
       });
-      _checkUpdate();
-      _startUpdateCheckTimer();
+      unawaited(_updateController.start());
       if (hasMore) {
         unawaited(_loadRemainingHistory(generation));
       }
@@ -146,8 +140,7 @@ extension _HsStartup on _HomeScreenState {
           _historyLoadedAll = true;
         });
       }
-      _checkUpdate();
-      _startUpdateCheckTimer();
+      unawaited(_updateController.start());
     }
   }
 
@@ -199,69 +192,8 @@ extension _HsStartup on _HomeScreenState {
     }
   }
 
-  void _startUpdateCheckTimer() {
-    if (kIsWeb) {
-      return;
-    }
-    _updateCheckTimer?.cancel();
-    _updateCheckTimer = Timer.periodic(
-      _updateCheckInterval,
-      (_) => _checkUpdate(),
-    );
-  }
-
-  void _checkUpdateAfterResume() {
-    if (kIsWeb) {
-      return;
-    }
-    final now = DateTime.now().millisecondsSinceEpoch;
-    final lastCheck = _lastUpdateCheckAtMillis;
-    if (lastCheck == 0 ||
-        now - lastCheck >= _resumeUpdateCheckCooldown.inMilliseconds) {
-      _checkUpdate();
-    }
-  }
-
-  Future<void> _checkUpdate({bool force = false}) async {
-    if (kIsWeb) {
-      return;
-    }
-    if (_checkingUpdate) {
-      if (force) {
-        _pendingUpdateCheck = true;
-      }
-      return;
-    }
-    _checkingUpdate = true;
-    _lastUpdateCheckAtMillis = DateTime.now().millisecondsSinceEpoch;
-    try {
-      final update = await _updateService.checkForUpdate(
-        includePrerelease: _includePrereleaseUpdates,
-      );
-      if (!mounted || update == null) {
-        return;
-      }
-      _rebuild(() => _availableUpdate = update);
-    } finally {
-      _checkingUpdate = false;
-      if (_pendingUpdateCheck && mounted) {
-        _pendingUpdateCheck = false;
-        _checkUpdate(force: true);
-      }
-    }
-  }
-
-  Future<void> _setIncludePrereleaseUpdates(bool enabled) async {
-    _rebuild(() {
-      _includePrereleaseUpdates = enabled;
-      _availableUpdate = null;
-    });
-    await _repository.saveIncludePrereleaseUpdates(enabled);
-    await _checkUpdate(force: true);
-  }
-
   void _showUpdateSettings() {
-    var includePrereleaseUpdates = _includePrereleaseUpdates;
+    var includePrereleaseUpdates = _updateController.includePrereleaseUpdates;
     var assessmentMode = ClinicalAssessment.normalizeAssessmentMode(
       _preferredAssessmentMode,
     );
@@ -293,7 +225,7 @@ extension _HsStartup on _HomeScreenState {
                           onChanged: (value) {
                             setDialogState(
                                 () => includePrereleaseUpdates = value);
-                            _setIncludePrereleaseUpdates(value);
+                            _updateController.setIncludePrerelease(value);
                           },
                           contentPadding:
                               const EdgeInsets.symmetric(horizontal: 12),
@@ -312,7 +244,7 @@ extension _HsStartup on _HomeScreenState {
                         status: ClinicalStatus.missing,
                         trailing: OutlinedButton.icon(
                           onPressed: () {
-                            _checkUpdate(force: true);
+                            _updateController.checkForUpdate(force: true);
                             _showMessage('Đang kiểm tra cập nhật...');
                           },
                           icon: const Icon(Icons.sync, size: 18),
@@ -393,29 +325,13 @@ extension _HsStartup on _HomeScreenState {
   }
 
   Future<void> _downloadUpdate() async {
-    final update = _availableUpdate;
-    if (update == null || _downloadingUpdate) {
+    if (_updateController.downloadingUpdate ||
+        _updateController.availableUpdate == null) {
       return;
     }
-    _rebuild(() {
-      _downloadingUpdate = true;
-      _downloadProgress = 0;
-    });
-    try {
-      final apk = await _updateService.downloadApk(update, (progress) {
-        if (mounted) {
-          _rebuild(() => _downloadProgress = progress);
-        }
-      });
-      await _updateService.openAndroidInstaller(apk);
-    } catch (_) {
-      if (mounted) {
-        _showMessage('Không tải hoặc mở được bản cập nhật.');
-      }
-    } finally {
-      if (mounted) {
-        _rebuild(() => _downloadingUpdate = false);
-      }
+    final ok = await _updateController.downloadAndInstall();
+    if (!ok && mounted) {
+      _showMessage('Không tải hoặc mở được bản cập nhật.');
     }
   }
 }
