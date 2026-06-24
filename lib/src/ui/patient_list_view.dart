@@ -11,6 +11,7 @@ import '../domain/scoring.dart';
 import '../export/assessment_exporter.dart';
 import '../export/export_action.dart';
 import 'clinical_components.dart' as clinical_ui;
+import 'clinical_theme.dart';
 import 'export_action_menu.dart';
 import 'patient_list_controller.dart';
 
@@ -48,6 +49,9 @@ class _PatientListViewState extends State<PatientListView> {
   ScrollController get _patientScrollControllerOrCreate {
     return _patientScrollController ??= ScrollController();
   }
+
+  ClinicalTones get _clinicalTones =>
+      Theme.of(context).extension<ClinicalTones>()!;
 
   void _rebuild(VoidCallback fn) {
     setState(fn);

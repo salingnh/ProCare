@@ -286,84 +286,100 @@ extension _HsDetailedForm on _AssessmentFormScreenState {
 
   Widget _sepsisDiagnosisOptions(ClinicalAssessment assessment) {
     final theme = Theme.of(context);
-    final tone = diagnosisTone(assessment, _clinicalTones);
     final sofaIsComplete = sofaComplete(assessment);
-    final hasSepsis = sofaIsComplete && SofaScoring.hasSepsisBySofa(assessment);
-    final hasNoSepsis = sofaIsComplete && !hasSepsis;
-    final hasShock = SofaScoring.hasSepticShock(assessment);
-    final requirement = diagnosisRequirementText(assessment);
+    final shockIncomplete = shockInputsIncomplete(assessment);
+
+    final ClinicalStatus sepsisStatus;
+    final String sepsisBadge;
+    if (!sofaIsComplete) {
+      sepsisStatus = ClinicalStatus.watch;
+      sepsisBadge = 'Chưa đủ';
+    } else if (SofaScoring.hasSepsisBySofa(assessment)) {
+      sepsisStatus = ClinicalStatus.danger;
+      sepsisBadge = 'Đạt';
+    } else {
+      sepsisStatus = ClinicalStatus.normal;
+      sepsisBadge = 'Không';
+    }
+
+    final ClinicalStatus shockStatus;
+    final String shockBadge;
+    final String shockHint;
+    if (shockIncomplete) {
+      shockStatus = ClinicalStatus.watch;
+      shockBadge = 'Chưa đủ';
+      shockHint = ' — cần MAP và lactate';
+    } else if (SofaScoring.hasSepticShock(assessment)) {
+      shockStatus = ClinicalStatus.danger;
+      shockBadge = 'Đạt';
+      shockHint = '';
+    } else if (assessment.vasopressor) {
+      shockStatus = ClinicalStatus.normal;
+      shockBadge = 'Không';
+      shockHint = '';
+    } else {
+      shockStatus = ClinicalStatus.missing;
+      shockBadge = '—';
+      shockHint = '';
+    }
 
     return clinical_ui.ClinicalSurfaceCard(
-      color: tone.background,
-      borderColor: tone.border,
-      radius: 14,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Chẩn đoán xác định (Theo Sepsis-3)',
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: tone.foreground,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 8),
-          _diagnosisCheckboxRow(
-            'Có Nhiễm khuẩn huyết (SOFA ≥ 2)',
-            checked: hasSepsis,
-            tone: tone,
-          ),
-          _diagnosisCheckboxRow(
-            'Không Nhiễm khuẩn huyết (SOFA < 2)',
-            checked: hasNoSepsis,
-            tone: tone,
-          ),
-          _diagnosisCheckboxRow(
-            'Sốc nhiễm khuẩn (Dùng vận mạch duy trì MAP ≥ 65 và Lactate ≥ 2 mmol/L dù đã bù dịch)',
-            checked: hasShock,
-            tone: tone,
-          ),
-          if (requirement != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              requirement,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: tone.foreground,
-                fontWeight: FontWeight.w700,
-                height: 1.25,
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Chẩn đoán Sepsis-3',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
               ),
-            ),
-          ],
+              Text(
+                'TỰ ĐỘNG',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          _diagnosisStatusRow(
+            sepsisStatus,
+            sepsisBadge,
+            'Nhiễm khuẩn huyết (SOFA ≥ 2)',
+          ),
+          _diagnosisStatusRow(
+            shockStatus,
+            shockBadge,
+            'Sốc nhiễm khuẩn$shockHint',
+          ),
         ],
       ),
     );
   }
 
-  Widget _diagnosisCheckboxRow(
-    String label, {
-    required bool checked,
-    required RiskTone tone,
-  }) {
+  Widget _diagnosisStatusRow(
+    ClinicalStatus status,
+    String badge,
+    String label,
+  ) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
+      padding: const EdgeInsets.symmetric(vertical: 7),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            checked ? Icons.check_box : Icons.check_box_outline_blank,
-            size: 18,
-            color: tone.foreground,
-          ),
-          const SizedBox(width: 8),
+          clinical_ui.StatusBadge(status: status, label: badge, dense: true),
+          const SizedBox(width: 10),
           Expanded(
             child: Text(
               label,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: tone.foreground,
-                height: 1.25,
-              ),
+              style: theme.textTheme.bodyMedium?.copyWith(height: 1.25),
             ),
           ),
         ],
