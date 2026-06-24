@@ -245,8 +245,8 @@ extension _HsFormShell on _HomeScreenState {
                       const SizedBox(height: 8),
                       _readOnlyLine(
                         'Kết luận qSOFA',
-                        _qsofaConclusionText(assessment),
-                        tone: _qsofaTone(assessment),
+                        qsofaConclusionText(assessment),
+                        tone: qsofaTone(assessment, _clinicalTones),
                         maxLines: 5,
                       ),
                     ],
@@ -376,8 +376,8 @@ extension _HsFormShell on _HomeScreenState {
                 _fullWidth(
                   _readOnlyLine(
                     'Kết luận NEWS2',
-                    _news2ConclusionText(assessment),
-                    tone: _news2Tone(assessment),
+                    news2ConclusionText(assessment),
+                    tone: news2Tone(assessment, _clinicalTones),
                     maxLines: 9,
                   ),
                 ),
@@ -445,19 +445,19 @@ extension _HsFormShell on _HomeScreenState {
                 _fullWidth(
                   _readOnlyLine(
                     'Ngưỡng Sepsis-3',
-                    _sofaComplete(assessment)
+                    sofaComplete(assessment)
                         ? sofaThresholdText(assessment)
                         : _missingSentence(
                             AssessmentDisplay.sofaProgress(assessment),
                           ),
-                    tone: _sofaThresholdTone(assessment),
+                    tone: sofaThresholdTone(assessment, _clinicalTones),
                   ),
                 ),
                 _fullWidth(
                   _readOnlyLine(
                     'Kết luận SOFA',
-                    _sofaConclusionText(assessment),
-                    tone: _sofaTone(assessment),
+                    sofaConclusionText(assessment),
+                    tone: sofaTone(assessment, _clinicalTones),
                     maxLines: 5,
                   ),
                 ),
@@ -618,7 +618,7 @@ extension _HsFormShell on _HomeScreenState {
                     _ScoreItem(
                       'Tim mạch',
                       assessment.sofaCardiovascular,
-                      completed: _sofaCardiovascularComplete(assessment),
+                      completed: sofaCardiovascularComplete(assessment),
                     ),
                     _ScoreItem(
                       'Thần kinh',

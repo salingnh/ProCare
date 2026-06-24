@@ -286,12 +286,12 @@ extension _HsDetailedForm on _HomeScreenState {
 
   Widget _sepsisDiagnosisOptions(ClinicalAssessment assessment) {
     final theme = Theme.of(context);
-    final tone = _diagnosisTone(assessment);
-    final sofaComplete = _sofaComplete(assessment);
-    final hasSepsis = sofaComplete && SofaScoring.hasSepsisBySofa(assessment);
-    final hasNoSepsis = sofaComplete && !hasSepsis;
+    final tone = diagnosisTone(assessment, _clinicalTones);
+    final sofaIsComplete = sofaComplete(assessment);
+    final hasSepsis = sofaIsComplete && SofaScoring.hasSepsisBySofa(assessment);
+    final hasNoSepsis = sofaIsComplete && !hasSepsis;
     final hasShock = SofaScoring.hasSepticShock(assessment);
-    final requirement = _diagnosisRequirementText(assessment);
+    final requirement = diagnosisRequirementText(assessment);
 
     return clinical_ui.ClinicalSurfaceCard(
       color: tone.background,
@@ -500,7 +500,7 @@ extension _HsDetailedForm on _HomeScreenState {
       children: scores.map(
         (score) {
           final tone = score.completed
-              ? _componentScoreTone(score.score)
+              ? componentScoreTone(score.score, _clinicalTones)
               : _clinicalTones.muted;
           return Chip(
             avatar: Icon(tone.icon, size: 16, color: tone.foreground),
