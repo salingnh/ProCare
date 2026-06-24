@@ -1,6 +1,6 @@
-part of 'home_screen.dart';
+part of 'assessment_form_screen.dart';
 
-extension _HsQuickForm on _HomeScreenState {
+extension _HsQuickForm on _AssessmentFormScreenState {
   Widget _quickSectionCard(
     String title, {
     required List<Widget> children,
