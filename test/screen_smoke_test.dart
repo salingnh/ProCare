@@ -11,6 +11,9 @@ import 'package:news2_l/src/ui/patient_list_view.dart';
 import 'package:news2_l/src/ui/settings_screen.dart';
 
 class _FakeRepository extends AssessmentRepository {
+  final List<SavedAssessment> items;
+  _FakeRepository({this.items = const []});
+
   @override
   Future<ClinicalAssessment> loadCurrentAssessment() async =>
       ClinicalAssessment();
@@ -33,7 +36,7 @@ class _FakeRepository extends AssessmentRepository {
     int? limit,
     int offset = 0,
   }) async =>
-      const [];
+      items;
 }
 
 Widget _wrap(Widget child) {
@@ -44,7 +47,7 @@ Widget _wrap(Widget child) {
       useMaterial3: true,
       extensions: [ClinicalTones.fromColorScheme(colorScheme)],
     ),
-    home: child,
+    home: Scaffold(body: child),
   );
 }
 
@@ -70,6 +73,33 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('Chưa có phiếu theo dõi'), findsOneWidget);
+  });
+
+  testWidgets('PatientListView renders redesigned cards (incomplete = neutral)',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1100, 850));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final repo = _FakeRepository(items: [
+      SavedAssessment(
+        id: 1,
+        assessment: ClinicalAssessment(fullName: 'nguyễn văn a'),
+      ),
+    ]);
+    final controller = PatientListController(repository: repo);
+    addTearDown(controller.dispose);
+    await controller.refresh();
+
+    await tester.pumpWidget(_wrap(PatientListView(
+      listController: controller,
+      onOpenForm: (_) {},
+      onNewForm: () {},
+    )));
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    // Title-cased name + neutral lead pill (no false danger badge).
+    expect(find.text('Nguyễn Văn A'), findsOneWidget);
+    expect(find.text('Chưa đủ dữ liệu để kết luận'), findsOneWidget);
   });
 
   testWidgets('AssessmentFormScreen (detailed) renders all sections',

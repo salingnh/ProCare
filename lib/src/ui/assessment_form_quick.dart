@@ -382,7 +382,7 @@ extension _HsQuickForm on _AssessmentFormScreenState {
                 fieldId: AssessmentFields.cardiovascular,
                 scoreText: _scoreText(
                   assessment.sofaCardiovascularMeasured,
-                  'Điểm SOFA tim mạch: ${assessment.sofaCardiovascular}',
+                  'SOFA +${assessment.sofaCardiovascular}',
                 ),
                 scoreStatus: _scoreStatus(assessment.sofaCardiovascular),
                 hint: 'VD: MAP 65 hoặc norepi 0.2'),
