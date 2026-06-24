@@ -69,12 +69,15 @@ extension _HsStartup on _HomeScreenState {
   }
 
   void _showUpdateSettings() {
-    showAppSettingsDialog(
-      context: context,
-      updateController: _updateController,
-      assessmentMode: _assessmentController.preferredAssessmentMode,
-      onAssessmentModeChanged: _assessmentController.setPreferredAssessmentMode,
-      showMessage: _showMessage,
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => SettingsScreen(
+          updateController: _updateController,
+          assessmentMode: _assessmentController.preferredAssessmentMode,
+          onAssessmentModeChanged:
+              _assessmentController.setPreferredAssessmentMode,
+        ),
+      ),
     );
   }
 }

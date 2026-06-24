@@ -7,7 +7,7 @@ import '../data/assessment_repository.dart';
 import '../domain/clinical_assessment.dart';
 import '../domain/scoring.dart';
 import '../services/update_controller.dart';
-import 'app_settings_dialog.dart';
+import 'settings_screen.dart';
 import 'assessment_controller.dart';
 import 'assessment_form_screen.dart';
 import 'patient_list_controller.dart';

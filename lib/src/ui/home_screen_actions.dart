@@ -44,11 +44,6 @@ extension _HsActions on _HomeScreenState {
     return null;
   }
 
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
-  }
-
   void _logStartup(String message, Stopwatch stopwatch) {
     if (kReleaseMode) {
       return;
