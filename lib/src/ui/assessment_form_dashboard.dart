@@ -1,6 +1,6 @@
-part of 'home_screen.dart';
+part of 'assessment_form_screen.dart';
 
-extension _HsDashboard on _HomeScreenState {
+extension _HsDashboard on _AssessmentFormScreenState {
   Widget _clinicalDashboard(ClinicalAssessment assessment) {
     final theme = Theme.of(context);
     final displays = [

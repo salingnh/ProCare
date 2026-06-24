@@ -1,6 +1,6 @@
-part of 'home_screen.dart';
+part of 'assessment_form_screen.dart';
 
-extension _HsDetailedForm on _HomeScreenState {
+extension _HsDetailedForm on _AssessmentFormScreenState {
   Widget _section(
     String title, {
     required String sectionId,

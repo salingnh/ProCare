@@ -1,6 +1,6 @@
-part of 'home_screen.dart';
+part of 'assessment_form_screen.dart';
 
-extension _HsFormShell on _HomeScreenState {
+extension _HsFormShell on _AssessmentFormScreenState {
   String _formAppBarTitle() {
     final fullName = _assessment.fullName.trim();
     if (fullName.isNotEmpty) {
@@ -14,16 +14,6 @@ extension _HsFormShell on _HomeScreenState {
   }
 
   List<Widget> _appBarActions(double width) {
-    if (_homeMode == _HomeMode.list) {
-      return [
-        IconButton(
-          tooltip: 'Cài đặt app',
-          onPressed: _showUpdateSettings,
-          icon: const Icon(Icons.settings_outlined),
-        ),
-        const SizedBox(width: 4),
-      ];
-    }
     if (width >= 520) {
       return [
         Padding(
@@ -41,7 +31,7 @@ extension _HsFormShell on _HomeScreenState {
         _formExportMenu(),
         IconButton(
           tooltip: 'Cài đặt app',
-          onPressed: _showUpdateSettings,
+          onPressed: _showAppSettings,
           icon: const Icon(Icons.settings_outlined),
         ),
         const SizedBox(width: 4),
@@ -57,7 +47,7 @@ extension _HsFormShell on _HomeScreenState {
       _formExportMenu(),
       IconButton(
         tooltip: 'Cài đặt app',
-        onPressed: _showUpdateSettings,
+        onPressed: _showAppSettings,
         icon: const Icon(Icons.settings_outlined),
       ),
       const SizedBox(width: 4),

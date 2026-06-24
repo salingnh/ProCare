@@ -61,6 +61,7 @@ class AssessmentController extends ChangeNotifier {
 
   void setPreferredAssessmentMode(String mode) {
     _preferredAssessmentMode = ClinicalAssessment.normalizeAssessmentMode(mode);
+    unawaited(_repository.saveAssessmentMode(_preferredAssessmentMode));
   }
 
   /// Installs an assessment (loaded draft or fresh) as the current one and

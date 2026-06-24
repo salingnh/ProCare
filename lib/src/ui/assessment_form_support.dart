@@ -1,6 +1,6 @@
-part of 'home_screen.dart';
+part of 'assessment_form_screen.dart';
 
-extension _HsFormSupport on _HomeScreenState {
+extension _HsFormSupport on _AssessmentFormScreenState {
   GlobalKey _sectionKey(String sectionId) {
     return _sectionKeys.putIfAbsent(sectionId, GlobalKey.new);
   }
