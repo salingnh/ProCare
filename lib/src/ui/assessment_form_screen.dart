@@ -15,7 +15,6 @@ import 'assessment_controller.dart';
 import 'clinical_components.dart' as clinical_ui;
 import 'clinical_display_helpers.dart';
 import 'clinical_theme.dart';
-import 'export_action_menu.dart';
 import 'update_banner.dart';
 
 part 'assessment_form_shell.dart';
@@ -306,6 +305,8 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
     );
   }
 }
+
+enum _FormMenuAction { saveDocx, shareDocx, printPdf, settings }
 
 final _integerInputFormatters = <TextInputFormatter>[
   FilteringTextInputFormatter.digitsOnly,
