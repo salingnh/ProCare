@@ -8,6 +8,7 @@ import 'package:news2_l/src/ui/assessment_form_screen.dart';
 import 'package:news2_l/src/ui/clinical_theme.dart';
 import 'package:news2_l/src/ui/patient_list_controller.dart';
 import 'package:news2_l/src/ui/patient_list_view.dart';
+import 'package:news2_l/src/ui/settings_screen.dart';
 
 class _FakeRepository extends AssessmentRepository {
   @override
@@ -182,5 +183,26 @@ void main() {
     await tester.pump();
 
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('SettingsScreen renders grouped sections without errors',
+      (tester) async {
+    final repo = _FakeRepository();
+    final updateController = UpdateController(repository: repo);
+    addTearDown(updateController.dispose);
+    await tester.binding.setSurfaceSize(const Size(1100, 850));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(_wrap(SettingsScreen(
+      updateController: updateController,
+      assessmentMode: ClinicalAssessment.assessmentModeDetailed,
+      onAssessmentModeChanged: (_) {},
+    )));
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Chế độ nhập liệu'), findsOneWidget);
+    expect(find.text('Nhận bản thử nghiệm'), findsOneWidget);
+    expect(find.text('Tác giả'), findsOneWidget);
   });
 }
