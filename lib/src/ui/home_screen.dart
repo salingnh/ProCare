@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 
 import '../data/assessment_repository.dart';
 import '../domain/assessment_display.dart';
@@ -14,6 +13,7 @@ import '../export/assessment_exporter.dart';
 import '../export/export_action.dart';
 import '../services/update_controller.dart';
 import 'patient_list_controller.dart';
+import 'patient_list_view.dart';
 import 'assessment_controller.dart';
 import 'app_settings_dialog.dart';
 import 'clinical_display_helpers.dart';
@@ -25,7 +25,6 @@ part 'home_screen_support.dart';
 part 'home_screen_startup.dart';
 part 'home_screen_actions.dart';
 part 'home_screen_form_shell.dart';
-part 'home_screen_patient_list.dart';
 part 'home_screen_dashboard.dart';
 part 'home_screen_quick_form.dart';
 part 'home_screen_detailed_form.dart';
@@ -44,10 +43,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   late final PatientListController _listController;
   late final AssessmentController _assessmentController;
   final _assessmentExporter = const AssessmentExporter();
-  ScrollController? _patientScrollController;
   final ScrollController _formScrollController = ScrollController();
-  final ValueNotifier<_PatientScrollBubbleState> _patientScrollBubble =
-      ValueNotifier(const _PatientScrollBubbleState.hidden());
 
   final Map<String, GlobalKey> _sectionKeys = {};
   final Map<String, GlobalKey> _fieldKeys = {};
@@ -58,7 +54,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   int _formVersion = 0;
   bool _loading = true;
   bool _exporting = false;
-  Timer? _patientScrollBubbleTimer;
 
   ClinicalAssessment get _assessment => _assessmentController.assessment;
   int? get _openedSavedAssessmentId =>
@@ -73,10 +68,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   ClinicalTones get _clinicalTones =>
       Theme.of(context).extension<ClinicalTones>()!;
-
-  ScrollController get _patientScrollControllerOrCreate {
-    return _patientScrollController ??= ScrollController();
-  }
 
   // Wrapper so helper methods defined in part files (extensions) can
   // request a rebuild without tripping invalid_use_of_protected_member.
@@ -107,9 +98,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   void dispose() {
-    _patientScrollBubbleTimer?.cancel();
-    _patientScrollBubble.dispose();
-    _patientScrollController?.dispose();
     _formScrollController.dispose();
     for (final node in _fieldFocusNodes.values) {
       node.dispose();
@@ -150,7 +138,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                 ? _buildQuickAssessmentForm()
                                 : _buildAssessmentForm(),
                           )
-                        : _buildPatientList(),
+                        : PatientListView(
+                            listController: _listController,
+                            onOpenForm: _openSaved,
+                            onNewForm: _startNew,
+                          ),
                   ),
                 ],
               );
